@@ -4,5 +4,6 @@ members = [
   "hyperplonk",
   "subroutines",
   "transcript",
-  "util"
+  "util",
+  "zksql",
 ]
