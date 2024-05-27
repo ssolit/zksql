@@ -130,10 +130,9 @@ pub struct ProductCheckSubClaim<F: PrimeField, ZC: ZeroCheck<F>> {
     pub alpha: F,
 }
 
-/// A product check proof consists of
+/// A logup check proof consists of
 /// - a zerocheck proof
-/// - a product polynomial commitment
-/// - a polynomial commitment for the fractional polynomial
+/// - TODO: commitments to stuff?
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct ProductCheckProof<
     E: Pairing,
@@ -144,6 +143,7 @@ pub struct ProductCheckProof<
     pub prod_x_comm: PCS::Commitment,
     pub frac_comm: PCS::Commitment,
 }
+
 
 impl<E, PCS> ProductCheck<E, PCS> for PolyIOP<E::ScalarField>
 where

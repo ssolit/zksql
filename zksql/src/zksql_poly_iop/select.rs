@@ -36,7 +36,7 @@ fn select_check<F: PrimeField>(
     for i in 0..table.len() {
         // build a virtual polynomial for the ZeroTest. v = (c1 * sel) - result_c1
         let mut poly = VirtualPolynomial::new_from_mle(&Arc::new(table[i].clone()), F::one());
-        poly.mul_by_mle(Arc::new(sel.clone()), F::one()).unwrap();
+        poly.mul_by_mle(Arc::new(*sel), F::one()).unwrap();
         poly.add_mle_list(vec![Arc::new(result[i].clone())], F::one().neg()).unwrap();
 
         // invoke zero check
@@ -45,14 +45,16 @@ fn select_check<F: PrimeField>(
         let proof = <PolyIOP<F> as ZeroCheck<F>>::prove(&poly, &mut transcript)?;
         proofs.push(proof);
 
-        // test verificiation
-        let poly_info = poly.aux_info.clone();
-        println!("poly info 1: {:?}", poly_info);
 
-        let mut ver_transcript = <PolyIOP<F> as ZeroCheck<F>>::init_transcript();
-        ver_transcript.append_message(b"testing", b"initializing transcript for testing")?;
-        let zero_subclaim =
-            <PolyIOP<F> as ZeroCheck<F>>::verify(&proofs[i].clone(), &poly_info, &mut ver_transcript)?;
+        
+        // // test verificiation
+        // let poly_info = poly.aux_info.clone();
+        // println!("poly info 1: {:?}", poly_info);
+
+        // let mut ver_transcript = <PolyIOP<F> as ZeroCheck<F>>::init_transcript();
+        // ver_transcript.append_message(b"testing", b"initializing transcript for testing")?;
+        // let zero_subclaim =
+        //     <PolyIOP<F> as ZeroCheck<F>>::verify(&proofs[i].clone(), &poly_info, &mut ver_transcript)?;
     }
     
     return Ok(proofs);
