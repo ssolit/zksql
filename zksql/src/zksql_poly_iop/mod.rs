@@ -4,7 +4,7 @@
 pub mod prelude;
 
 mod join;
-mod logup_check;
+mod bag_multitool;
 mod mset_eq;
 mod mset_subset;
 mod mset_sum;
