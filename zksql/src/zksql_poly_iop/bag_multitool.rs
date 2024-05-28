@@ -233,62 +233,35 @@ where
         let v = s1;
         
         // prove the sumcheck claim SUM(h) = 0
-        let mut lhs_transcript_copy = transcript.clone();
-        let lhs_sumcheck_proof = <PolyIOP<E::ScalarField> as SumCheck<E::ScalarField>>::prove(&lhs, transcript)?;
-
-        println!("here1");
-        let aux_info = &lhs.aux_info.clone();
-        transcript.append_message(b"testing", b"initializing transcript for testing")?;
-        let sumcheck_subclaim = <Self as SumCheck<E::ScalarField>>::verify(
-            v,
-            &lhs_sumcheck_proof,
-            aux_info,
-            &mut lhs_transcript_copy.clone(),
-        )?;
-        println!("lhs sumcheck success");
-        println!("here2");
-
-        println!("here3");
-        let aux_info = &lhs.aux_info.clone();
-        transcript.append_message(b"testing", b"initializing transcript for testing")?;
-        let sumcheck_subclaim = <Self as SumCheck<E::ScalarField>>::verify(
-            v,
-            &lhs_sumcheck_proof,
-            aux_info,
-            &mut lhs_transcript_copy,
-        )?;
-        println!("lhs sumcheck success");
-        println!("here4");
-
+        let mut transcript_copy = transcript.clone();
+        let lhs_sumcheck_proof = <PolyIOP<E::ScalarField> as SumCheck<E::ScalarField>>::prove(&lhs, &mut transcript_copy.clone())?;
+        let rhs_sumcheck_proof = <PolyIOP<E::ScalarField> as SumCheck<E::ScalarField>>::prove(&rhs, &mut transcript_copy.clone())?;
         
-
-        
-
-        println!("about to  entered  #[cfg(debug_assertions)]");
         // debug: make sure the sumcheck claim verifies
         #[cfg(debug_assertions)]
         {
-            println!("successfully entered  #[cfg(debug_assertions)]. Next print should be lhs sumcheck success \n");
+            println!("successfully entered  #[cfg(debug_assertions)]. Next print should be lhs sumcheck success");
             let mut transcript = <PolyIOP<E::ScalarField> as LogupCheck<E, PCS>>::init_transcript();
-            let aux_info = &lhs.aux_info.clone();
             transcript.append_message(b"testing", b"initializing transcript for testing")?;
-            let sumcheck_subclaim = <Self as SumCheck<E::ScalarField>>::verify(
+            let aux_info = &lhs.aux_info.clone();
+            let lhs_sumcheck_subclaim = <Self as SumCheck<E::ScalarField>>::verify(
                 v,
                 &lhs_sumcheck_proof,
                 aux_info,
-                &mut lhs_transcript_copy,
+                &mut transcript_copy.clone(),
             )?;
-            println!("lhs debug sumcheck success");
+            println!("lhs debug sumcheck success. Expecting rhs to pass \n");
 
-            // let mut transcript = <PolyIOP<E::ScalarField> as LogupCheck<E, PCS>>::init_transcript();
-            // let aux_info = &rhs.aux_info.clone();
-            // transcript.append_message(b"testing", b"initializing transcript for testing")?;
-            // let sumcheck_subclaim = <Self as SumCheck<E::ScalarField>>::verify(
-            //     v,
-            //     &rhs_sumcheck_proof,
-            //     aux_info,
-            //     &mut transcript,
-            // )?;
+            let mut transcript = <PolyIOP<E::ScalarField> as LogupCheck<E, PCS>>::init_transcript();
+            let aux_info = &rhs.aux_info.clone();
+            transcript.append_message(b"testing", b"initializing transcript for testing")?;
+            let rhs_sumcheck_subclaim = <Self as SumCheck<E::ScalarField>>::verify(
+                v,
+                &rhs_sumcheck_proof,
+                aux_info,
+                &mut transcript_copy.clone(),
+            )?;
+            println!("rhs debug sumcheck success");
 
             println!("prove debug sumchecks passing!\n")
             
@@ -304,7 +277,7 @@ where
     
         }
 
-        let rhs_sumcheck_proof = <PolyIOP<E::ScalarField> as SumCheck<E::ScalarField>>::prove(&rhs, transcript)?;
+        
 
         // prove fhat(x), ghat(x) is created correctly, i.e. ZeroCheck [(f(x)-gamma) * fhat(x)  - 1]
         let one_const_poly = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, vec![E::ScalarField::one(); 2_usize.pow(nv as u32)]));
