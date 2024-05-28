@@ -36,7 +36,7 @@ fn select_check<F: PrimeField>(
     for i in 0..table.len() {
         // build a virtual polynomial for the ZeroTest. v = (c1 * sel) - result_c1
         let mut poly = VirtualPolynomial::new_from_mle(&Arc::new(table[i].clone()), F::one());
-        poly.mul_by_mle(Arc::new(*sel), F::one()).unwrap();
+        poly.mul_by_mle(Arc::new(sel.clone()), F::one()).unwrap();
         poly.add_mle_list(vec![Arc::new(result[i].clone())], F::one().neg()).unwrap();
 
         // invoke zero check

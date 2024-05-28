@@ -211,8 +211,8 @@ where
 
         // make virtual polynomials h = fhat * mf - ghat * mg
         let mut h = VirtualPolynomial::new(nv);
-        h.add_mle_list([fhat.clone(), mf], E::ScalarField::one()); // cloning Arc ptr b/c need fhat again below
-        h.add_mle_list([ghat.clone(), mg], E::ScalarField::one());
+        h.add_mle_list([fhat.clone(), mf], E::ScalarField::one())?; // cloning Arc ptr b/c need fhat again below
+        h.add_mle_list([ghat.clone(), mg], E::ScalarField::one())?;
         
         // prove the sumcheck claim SUM(h) = 0
         let sumcheck_proof = <PolyIOP<E::ScalarField> as SumCheck<E::ScalarField>>::prove(&h, transcript)?;
@@ -220,18 +220,18 @@ where
         // debug: make sure the sumcheck claim verifies
 
         // prove fhat(x), ghat(x) is created correctly, i.e. ZeroCheck [(f(x)-gamma) * fhat(x)  - 1]
-        let one_const_poly = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, vec![E::ScalarField::one(); nv]));
-        let gamma_const_poly = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, vec![gamma.clone(); nv]));
+        let one_const_poly = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, vec![E::ScalarField::one(); 2_usize.pow(nv as u32)]));
+        let gamma_const_poly = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, vec![gamma.clone(); 2_usize.pow(nv as u32)]));
         
         let mut fhat_check_poly = VirtualPolynomial::new_from_mle(&f, E::ScalarField::one());
-        fhat_check_poly.add_mle_list([gamma_const_poly.clone()], E::ScalarField::one().neg());
-        fhat_check_poly.mul_by_mle(fhat, E::ScalarField::one());
-        fhat_check_poly.add_mle_list([one_const_poly.clone()], E::ScalarField::one().neg());
+        fhat_check_poly.add_mle_list([gamma_const_poly.clone()], E::ScalarField::one().neg())?;
+        fhat_check_poly.mul_by_mle(fhat, E::ScalarField::one())?;
+        fhat_check_poly.add_mle_list([one_const_poly.clone()], E::ScalarField::one().neg())?;
 
         let mut ghat_check_poly = VirtualPolynomial::new_from_mle(&g, E::ScalarField::one());
-        ghat_check_poly.add_mle_list([gamma_const_poly], E::ScalarField::one().neg());
-        ghat_check_poly.mul_by_mle(ghat, E::ScalarField::one());
-        ghat_check_poly.add_mle_list([one_const_poly], E::ScalarField::one().neg());
+        ghat_check_poly.add_mle_list([gamma_const_poly], E::ScalarField::one().neg())?;
+        ghat_check_poly.mul_by_mle(ghat, E::ScalarField::one())?;
+        ghat_check_poly.add_mle_list([one_const_poly], E::ScalarField::one().neg())?;
         
         let fhat_zero_check_proof = <PolyIOP<E::ScalarField> as ZeroCheck<E::ScalarField>>::prove(&fhat_check_poly, transcript)?;
         let ghat_zero_check_proof = <PolyIOP<E::ScalarField> as ZeroCheck<E::ScalarField>>::prove(&ghat_check_poly, transcript)?;
@@ -292,4 +292,74 @@ where
 
 
     }
+}
+
+fn test_bag_multitool() -> Result<(), PolyIOPErrors> {
+    use ark_bls12_381::{Fr, Bls12_381};
+    use subroutines::{
+        pcs::{prelude::MultilinearKzgPCS, PolynomialCommitmentScheme},
+        poly_iop::{errors::PolyIOPErrors, PolyIOP},
+    };
+    use ark_std::{test_rng};
+    use ark_std::rand::prelude::SliceRandom;
+
+    // testing params
+    let nv = 4;
+    let mut rng = test_rng();
+
+    // PCS params
+    let srs = MultilinearKzgPCS::<Bls12_381>::gen_srs_for_testing(&mut rng, nv)?;
+    let (pcs_param, _) = MultilinearKzgPCS::<Bls12_381>::trim(&srs, None, Some(nv))?;
+
+    // randomly init f, mf, and a permutation vec, and build g, mg based off of it
+    let f = arithmetic::random_permutation_mles(nv, 1, &mut rng)[0].clone();
+    let mf = arithmetic::random_permutation_mles(nv, 1, &mut rng)[0].clone();
+    let f_evals: Vec<Fr> = f.evaluations.clone();
+    let mf_evals: Vec<Fr> = mf.evaluations.clone();
+    let mut permute_vec: Vec<usize> = (0..f_evals.len()).collect();
+    permute_vec.shuffle(&mut rng);
+    let g_evals = permute_vec.iter().map(|&i| f_evals[i]).collect();
+    let mg_evals = permute_vec.iter().map(|&i| mf_evals[i]).collect();
+    let g = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, g_evals));
+    let mg = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, mg_evals));
+
+    println!("test_bag_multitool");
+    // println!("g_nv: {}", g.aux_info.clone().nv);
+    println!();
+
+    // initialize transcript 
+    let mut transcript = <PolyIOP<Fr> as LogupCheck<Bls12_381, MultilinearKzgPCS::<Bls12_381>>>::init_transcript();
+    transcript.append_message(b"testing", b"initializing transcript for testing")?;
+
+    // call the helper to run the proofand verify now that everything is set up 
+    test_bag_multitool_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&pcs_param, &[f], &[g], &[mf], &[mg], &mut transcript)?;
+
+    // exit successfully 
+    Ok(())
+}
+
+fn test_bag_multitool_helper<E: Pairing, PCS> (
+    pcs_param: &PCS::ProverParam,
+    fxs: &[Arc<DenseMultilinearExtension<E::ScalarField>>],
+    gxs: &[Arc<DenseMultilinearExtension<E::ScalarField>>],
+    mfxs: &[Arc<DenseMultilinearExtension<E::ScalarField>>],
+    mgxs: &[Arc<DenseMultilinearExtension<E::ScalarField>>],
+    transcript: &mut IOPTranscript<E::ScalarField>,
+) -> Result<(), PolyIOPErrors>  where
+E: Pairing,
+PCS: PolynomialCommitmentScheme<
+    E,
+    Polynomial = Arc<DenseMultilinearExtension<E::ScalarField>>,
+>,{
+    let (proof,  fhat_check_poly,ghat_check_poly) = <PolyIOP<E::ScalarField> as LogupCheck<E, PCS>>::prove(pcs_param, fxs, gxs, mfxs, mgxs, transcript)?;
+    let aux_info = fhat_check_poly.aux_info.clone();
+    <PolyIOP<E::ScalarField> as LogupCheck<E, PCS>>::verify(&proof, &aux_info, transcript)?;
+
+    Ok(())
+}
+
+#[test]
+fn bag_multitool_test1() {
+    let res = test_bag_multitool();
+    res.unwrap();
 }
