@@ -309,29 +309,35 @@ where
         transcript.append_serializable_element(b"mf(x)", &proof.mf_comm)?;
         transcript.append_serializable_element(b"mg(x)", &proof.mg_comm)?;
         let gamma = transcript.get_and_append_challenge(b"gamma")?;
+        transcript.append_serializable_element(b"fhat(x)", &proof.fhat_comm)?;
+        transcript.append_serializable_element(b"ghat(x)", &proof.ghat_comm)?;
         let v = proof.v;
 
+        println!("verify here1");
         // invoke the respective IOP proofs for sumcheck, zerocheck fhat, zerocheck ghat
         let lhs_sumcheck_subclaim = <Self as SumCheck<E::ScalarField>>::verify(
-            E::ScalarField::zero(),
+            v,
             &proof.lhs_sumcheck_proof,
             aux_info,
-            transcript,
+            &mut transcript.clone(),
         )?;
 
+        println!("verify here2");
         let rhs_sumcheck_subclaim = <Self as SumCheck<E::ScalarField>>::verify(
-            E::ScalarField::zero(),
+            v,
             &proof.rhs_sumcheck_proof,
             aux_info,
             transcript,
         )?;
 
+        println!("verify here3");
         let fhat_zerocheck_subclaim = <Self as ZeroCheck<E::ScalarField>>::verify(
             &proof.fhat_zero_check_proof,
             aux_info,
             transcript,
         )?;
 
+        println!("verify here4");
         let ghat_zerocheck_subclaim = <Self as ZeroCheck<E::ScalarField>>::verify(
             &proof.ghat_zero_check_proof,
             aux_info,
@@ -413,9 +419,8 @@ PCS: PolynomialCommitmentScheme<
     E,
     Polynomial = Arc<DenseMultilinearExtension<E::ScalarField>>,
 >,{
-    let (proof,  fhat_check_poly,ghat_check_poly) = <PolyIOP<E::ScalarField> as LogupCheck<E, PCS>>::prove(pcs_param, fxs, gxs, mfxs, mgxs, transcript)?;
-    println!("test_bag_multitool_helper: proof created successfully");
-    println!();
+    let (proof,  fhat_check_poly,ghat_check_poly) = <PolyIOP<E::ScalarField> as LogupCheck<E, PCS>>::prove(pcs_param, fxs, gxs, mfxs, mgxs, &mut transcript.clone())?;
+    println!("test_bag_multitool_helper: proof created successfully\n");
     let aux_info = fhat_check_poly.aux_info.clone();
     <PolyIOP<E::ScalarField> as LogupCheck<E, PCS>>::verify(&proof, &aux_info, transcript)?;
 
