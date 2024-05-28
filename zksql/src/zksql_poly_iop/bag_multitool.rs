@@ -259,10 +259,8 @@ where
                 aux_info,
                 &mut transcript_copy.clone(),
             )?;
-            println!("prove debug sumchecks passing!\n")
+            println!("LogupCheck::prove debug sumchecks passing!\n")
         }
-
-        
 
         // prove fhat(x), ghat(x) is created correctly, i.e. ZeroCheck [(f(x)-gamma) * fhat(x)  - 1]
         let one_const_poly = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, vec![E::ScalarField::one(); 2_usize.pow(nv as u32)]));
@@ -278,8 +276,27 @@ where
         ghat_check_poly.mul_by_mle(ghat, E::ScalarField::one())?;
         ghat_check_poly.add_mle_list([one_const_poly], E::ScalarField::one().neg())?;
         
-        let fhat_zero_check_proof = <PolyIOP<E::ScalarField> as ZeroCheck<E::ScalarField>>::prove(&fhat_check_poly, transcript)?;
-        let ghat_zero_check_proof = <PolyIOP<E::ScalarField> as ZeroCheck<E::ScalarField>>::prove(&ghat_check_poly, transcript)?;
+        let fhat_zero_check_proof = <PolyIOP<E::ScalarField> as ZeroCheck<E::ScalarField>>::prove(&fhat_check_poly, &mut transcript.clone())?;
+        let ghat_zero_check_proof = <PolyIOP<E::ScalarField> as ZeroCheck<E::ScalarField>>::prove(&ghat_check_poly, &mut transcript.clone())?;
+
+        #[cfg(debug_assertions)]
+        {
+            println!("LogupCheck::prove Verifying zerochecks pass");
+            let aux_info = &fhat_check_poly.aux_info.clone();
+            let fhat_zerocheck_subclaim = <Self as ZeroCheck<E::ScalarField>>::verify(
+                &fhat_zero_check_proof,
+                aux_info,
+                &mut transcript.clone(),
+            )?;
+
+            let aux_info = &ghat_check_poly.aux_info.clone();
+            let ghat_zerocheck_subclaim = <Self as ZeroCheck<E::ScalarField>>::verify(
+                &ghat_zero_check_proof,
+                aux_info,
+                &mut transcript.clone(),
+            )?;
+            println!("LogupCheck::prove debug zerochecks passing!\n")
+        }
 
         Ok((
             LogupCheckProof {
@@ -313,7 +330,6 @@ where
         transcript.append_serializable_element(b"ghat(x)", &proof.ghat_comm)?;
         let v = proof.v;
 
-        println!("verify here1");
         // invoke the respective IOP proofs for sumcheck, zerocheck fhat, zerocheck ghat
         let lhs_sumcheck_subclaim = <Self as SumCheck<E::ScalarField>>::verify(
             v,
@@ -322,26 +338,22 @@ where
             &mut transcript.clone(),
         )?;
 
-        println!("verify here2");
         let rhs_sumcheck_subclaim = <Self as SumCheck<E::ScalarField>>::verify(
             v,
             &proof.rhs_sumcheck_proof,
             aux_info,
-            transcript,
+            &mut transcript.clone(),
         )?;
 
-        println!("verify here3");
         let fhat_zerocheck_subclaim = <Self as ZeroCheck<E::ScalarField>>::verify(
             &proof.fhat_zero_check_proof,
             aux_info,
-            transcript,
+            &mut transcript.clone(),
         )?;
-
-        println!("verify here4");
         let ghat_zerocheck_subclaim = <Self as ZeroCheck<E::ScalarField>>::verify(
             &proof.ghat_zero_check_proof,
             aux_info,
-            transcript,
+            &mut transcript.clone(),
         )?;
 
         Ok(LogupCheckSubClaim{
@@ -385,15 +397,6 @@ fn test_bag_multitool() -> Result<(), PolyIOPErrors> {
     let mg_evals: Vec<Fr> = permute_vec.iter().map(|&i| mf_evals[i]).collect();
     let g = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, g_evals.clone()));
     let mg = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, mg_evals.clone()));
-
-    // println!("test_bag_multitool");
-    // // println!("g_nv: {}", g.aux_info.clone().nv);
-    // println!("permute vec: {:?}\n", permute_vec);
-    // println!("f_evals: {:?}\n", f_evals);
-    // println!("g_evals: {:?}\n", g_evals);
-    // println!("mf_evals: {:?}\n", mf_evals);
-    // println!("mg_evals: {:?}\n", mg_evals);
-    // println!();
 
     // initialize transcript 
     let mut transcript = <PolyIOP<Fr> as LogupCheck<Bls12_381, MultilinearKzgPCS::<Bls12_381>>>::init_transcript();
