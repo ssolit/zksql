@@ -10,7 +10,7 @@ use std::ops::Neg;
 use transcript::IOPTranscript;
 use ark_ff::PrimeField;
 use subroutines::ZeroCheck;
-use arithmetic::{VPAuxInfo, VirtualPolynomial};
+use arithmetic::{merge_polynomials, VPAuxInfo, VirtualPolynomial};
 use ark_std::{Zero, One};
 
 
@@ -92,7 +92,9 @@ where
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct LogupCheckSubClaim<F: PrimeField, ZC: ZeroCheck<F>, SC: SumCheck<F>> {
     // the SubClaim from the ZeroCheck
-    pub sumcheck_subclaim: SC::SumCheckSubClaim,
+    pub lhs_sumcheck_subclaim: SC::SumCheckSubClaim,
+    pub rhs_sumcheck_subclaim: SC::SumCheckSubClaim,
+    pub v: F,
     pub gamma: F,
     pub fhat_zerocheck_subclaim: ZC::ZeroCheckSubClaim,
     pub ghat_zerocheck_subclaim: ZC::ZeroCheckSubClaim,
@@ -106,7 +108,9 @@ pub struct LogupCheckProof<
     ZC: ZeroCheck<E::ScalarField>,
 
 > {
-    pub sumcheck_proof: SC::SumCheckProof,
+    pub lhs_sumcheck_proof: SC::SumCheckProof,
+    pub rhs_sumcheck_proof: SC::SumCheckProof,
+    pub v: E::ScalarField,
     pub fhat_zero_check_proof: ZC::ZeroCheckProof,
     pub ghat_zero_check_proof: ZC::ZeroCheckProof,
     // pub fxs_comm: PCS::Commitment,
@@ -207,17 +211,100 @@ where
 
         transcript.append_serializable_element(b"fhat(x)", &fhat_comm)?;
         transcript.append_serializable_element(b"ghat(x)", &ghat_comm)?;
+        // note: this is the state transcript should be cloned into everything
 
-
-        // make virtual polynomials h = fhat * mf - ghat * mg
-        let mut h = VirtualPolynomial::new(nv);
-        h.add_mle_list([fhat.clone(), mf], E::ScalarField::one())?; // cloning Arc ptr b/c need fhat again below
-        h.add_mle_list([ghat.clone(), mg], E::ScalarField::one())?;
+        // make virtual polynomials lhs = fhat * mf, rhs = ghat * mg
+        let mut lhs = VirtualPolynomial::new(nv);
+        let mut rhs = VirtualPolynomial::new(nv);
+        lhs.add_mle_list([fhat.clone(), mf.clone()], E::ScalarField::one())?; // cloning Arc ptr b/c need fhat again below
+        rhs.add_mle_list([ghat.clone(), mg.clone()], E::ScalarField::one().neg())?;
+        
+        // calculate the sum values
+        let mf_evals = &mf.evaluations;
+        let mg_evals = &mg.evaluations;
+        let mut s1 = E::ScalarField::zero();
+        let mut s2 = E::ScalarField::zero();
+        for i in 0..2_usize.pow(nv as u32) {
+            s1 += fhat[i] * mf_evals[i];
+            s2 += ghat[i] * mg_evals[i];
+        }
+        assert_eq!(s1, s2, "LogupCheck prove err: LHS and RHS have different sums");
+        println!("s1 and s2 are equal. Good!");
+        let v = s1;
         
         // prove the sumcheck claim SUM(h) = 0
-        let sumcheck_proof = <PolyIOP<E::ScalarField> as SumCheck<E::ScalarField>>::prove(&h, transcript)?;
+        let mut lhs_transcript_copy = transcript.clone();
+        let lhs_sumcheck_proof = <PolyIOP<E::ScalarField> as SumCheck<E::ScalarField>>::prove(&lhs, transcript)?;
 
+        println!("here1");
+        let aux_info = &lhs.aux_info.clone();
+        transcript.append_message(b"testing", b"initializing transcript for testing")?;
+        let sumcheck_subclaim = <Self as SumCheck<E::ScalarField>>::verify(
+            v,
+            &lhs_sumcheck_proof,
+            aux_info,
+            &mut lhs_transcript_copy.clone(),
+        )?;
+        println!("lhs sumcheck success");
+        println!("here2");
+
+        println!("here3");
+        let aux_info = &lhs.aux_info.clone();
+        transcript.append_message(b"testing", b"initializing transcript for testing")?;
+        let sumcheck_subclaim = <Self as SumCheck<E::ScalarField>>::verify(
+            v,
+            &lhs_sumcheck_proof,
+            aux_info,
+            &mut lhs_transcript_copy,
+        )?;
+        println!("lhs sumcheck success");
+        println!("here4");
+
+        
+
+        
+
+        println!("about to  entered  #[cfg(debug_assertions)]");
         // debug: make sure the sumcheck claim verifies
+        #[cfg(debug_assertions)]
+        {
+            println!("successfully entered  #[cfg(debug_assertions)]. Next print should be lhs sumcheck success \n");
+            let mut transcript = <PolyIOP<E::ScalarField> as LogupCheck<E, PCS>>::init_transcript();
+            let aux_info = &lhs.aux_info.clone();
+            transcript.append_message(b"testing", b"initializing transcript for testing")?;
+            let sumcheck_subclaim = <Self as SumCheck<E::ScalarField>>::verify(
+                v,
+                &lhs_sumcheck_proof,
+                aux_info,
+                &mut lhs_transcript_copy,
+            )?;
+            println!("lhs debug sumcheck success");
+
+            // let mut transcript = <PolyIOP<E::ScalarField> as LogupCheck<E, PCS>>::init_transcript();
+            // let aux_info = &rhs.aux_info.clone();
+            // transcript.append_message(b"testing", b"initializing transcript for testing")?;
+            // let sumcheck_subclaim = <Self as SumCheck<E::ScalarField>>::verify(
+            //     v,
+            //     &rhs_sumcheck_proof,
+            //     aux_info,
+            //     &mut transcript,
+            // )?;
+
+            println!("prove debug sumchecks passing!\n")
+            
+
+            // <PolyIOP<E::ScalarField> as SumCheck::<E::ScalarField>>::verify(
+            //     E::ScalarField::zero(),
+            //     &sumcheck_proof,
+            //     aux_info,
+            //     &mut transcript,
+            // )?;
+            // println!("h sumcheck passes");
+
+    
+        }
+
+        let rhs_sumcheck_proof = <PolyIOP<E::ScalarField> as SumCheck<E::ScalarField>>::prove(&rhs, transcript)?;
 
         // prove fhat(x), ghat(x) is created correctly, i.e. ZeroCheck [(f(x)-gamma) * fhat(x)  - 1]
         let one_const_poly = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, vec![E::ScalarField::one(); 2_usize.pow(nv as u32)]));
@@ -238,7 +325,9 @@ where
 
         Ok((
             LogupCheckProof {
-                sumcheck_proof,
+                lhs_sumcheck_proof,
+                rhs_sumcheck_proof,
+                v,
                 fhat_zero_check_proof,
                 ghat_zero_check_proof,
                 mf_comm,
@@ -262,11 +351,19 @@ where
         transcript.append_serializable_element(b"mf(x)", &proof.mf_comm)?;
         transcript.append_serializable_element(b"mg(x)", &proof.mg_comm)?;
         let gamma = transcript.get_and_append_challenge(b"gamma")?;
+        let v = proof.v;
 
         // invoke the respective IOP proofs for sumcheck, zerocheck fhat, zerocheck ghat
-        let sumcheck_subclaim = <Self as SumCheck<E::ScalarField>>::verify(
+        let lhs_sumcheck_subclaim = <Self as SumCheck<E::ScalarField>>::verify(
             E::ScalarField::zero(),
-            &proof.sumcheck_proof,
+            &proof.lhs_sumcheck_proof,
+            aux_info,
+            transcript,
+        )?;
+
+        let rhs_sumcheck_subclaim = <Self as SumCheck<E::ScalarField>>::verify(
+            E::ScalarField::zero(),
+            &proof.rhs_sumcheck_proof,
             aux_info,
             transcript,
         )?;
@@ -284,7 +381,9 @@ where
         )?;
 
         Ok(LogupCheckSubClaim{
-            sumcheck_subclaim, 
+            lhs_sumcheck_subclaim, 
+            rhs_sumcheck_subclaim,
+            v,
             gamma,
             fhat_zerocheck_subclaim,
             ghat_zerocheck_subclaim,
@@ -318,14 +417,19 @@ fn test_bag_multitool() -> Result<(), PolyIOPErrors> {
     let mf_evals: Vec<Fr> = mf.evaluations.clone();
     let mut permute_vec: Vec<usize> = (0..f_evals.len()).collect();
     permute_vec.shuffle(&mut rng);
-    let g_evals = permute_vec.iter().map(|&i| f_evals[i]).collect();
-    let mg_evals = permute_vec.iter().map(|&i| mf_evals[i]).collect();
-    let g = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, g_evals));
-    let mg = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, mg_evals));
+    let g_evals: Vec<Fr> = permute_vec.iter().map(|&i| f_evals[i]).collect();
+    let mg_evals: Vec<Fr> = permute_vec.iter().map(|&i| mf_evals[i]).collect();
+    let g = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, g_evals.clone()));
+    let mg = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, mg_evals.clone()));
 
-    println!("test_bag_multitool");
-    // println!("g_nv: {}", g.aux_info.clone().nv);
-    println!();
+    // println!("test_bag_multitool");
+    // // println!("g_nv: {}", g.aux_info.clone().nv);
+    // println!("permute vec: {:?}\n", permute_vec);
+    // println!("f_evals: {:?}\n", f_evals);
+    // println!("g_evals: {:?}\n", g_evals);
+    // println!("mf_evals: {:?}\n", mf_evals);
+    // println!("mg_evals: {:?}\n", mg_evals);
+    // println!();
 
     // initialize transcript 
     let mut transcript = <PolyIOP<Fr> as LogupCheck<Bls12_381, MultilinearKzgPCS::<Bls12_381>>>::init_transcript();
@@ -352,6 +456,8 @@ PCS: PolynomialCommitmentScheme<
     Polynomial = Arc<DenseMultilinearExtension<E::ScalarField>>,
 >,{
     let (proof,  fhat_check_poly,ghat_check_poly) = <PolyIOP<E::ScalarField> as LogupCheck<E, PCS>>::prove(pcs_param, fxs, gxs, mfxs, mgxs, transcript)?;
+    println!("test_bag_multitool_helper: proof created successfully");
+    println!();
     let aux_info = fhat_check_poly.aux_info.clone();
     <PolyIOP<E::ScalarField> as LogupCheck<E, PCS>>::verify(&proof, &aux_info, transcript)?;
 
