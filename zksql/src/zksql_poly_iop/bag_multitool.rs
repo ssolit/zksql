@@ -217,7 +217,7 @@ where
         let mut lhs = VirtualPolynomial::new(nv);
         let mut rhs = VirtualPolynomial::new(nv);
         lhs.add_mle_list([fhat.clone(), mf.clone()], E::ScalarField::one())?; // cloning Arc ptr b/c need fhat again below
-        rhs.add_mle_list([ghat.clone(), mg.clone()], E::ScalarField::one().neg())?;
+        rhs.add_mle_list([ghat.clone(), mg.clone()], E::ScalarField::one())?;
         
         // calculate the sum values
         let mf_evals = &mf.evaluations;
@@ -240,9 +240,9 @@ where
         // debug: make sure the sumcheck claim verifies
         #[cfg(debug_assertions)]
         {
-            println!("successfully entered  #[cfg(debug_assertions)]. Next print should be lhs sumcheck success");
-            let mut transcript = <PolyIOP<E::ScalarField> as LogupCheck<E, PCS>>::init_transcript();
-            transcript.append_message(b"testing", b"initializing transcript for testing")?;
+            println!("LogupChec::prove Verifying sumchecks pass");
+            // let mut transcript = <PolyIOP<E::ScalarField> as LogupCheck<E, PCS>>::init_transcript();
+            // transcript.append_message(b"testing", b"initializing transcript for testing")?;
             let aux_info = &lhs.aux_info.clone();
             let lhs_sumcheck_subclaim = <Self as SumCheck<E::ScalarField>>::verify(
                 v,
@@ -250,31 +250,16 @@ where
                 aux_info,
                 &mut transcript_copy.clone(),
             )?;
-            println!("lhs debug sumcheck success. Expecting rhs to pass \n");
-
-            let mut transcript = <PolyIOP<E::ScalarField> as LogupCheck<E, PCS>>::init_transcript();
+            // let mut transcript = <PolyIOP<E::ScalarField> as LogupCheck<E, PCS>>::init_transcript();
+            // transcript.append_message(b"testing", b"initializing transcript for testing")?;
             let aux_info = &rhs.aux_info.clone();
-            transcript.append_message(b"testing", b"initializing transcript for testing")?;
             let rhs_sumcheck_subclaim = <Self as SumCheck<E::ScalarField>>::verify(
                 v,
                 &rhs_sumcheck_proof,
                 aux_info,
                 &mut transcript_copy.clone(),
             )?;
-            println!("rhs debug sumcheck success");
-
             println!("prove debug sumchecks passing!\n")
-            
-
-            // <PolyIOP<E::ScalarField> as SumCheck::<E::ScalarField>>::verify(
-            //     E::ScalarField::zero(),
-            //     &sumcheck_proof,
-            //     aux_info,
-            //     &mut transcript,
-            // )?;
-            // println!("h sumcheck passes");
-
-    
         }
 
         
