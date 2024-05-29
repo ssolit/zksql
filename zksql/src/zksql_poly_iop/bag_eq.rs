@@ -220,4 +220,61 @@ where
 }
 
 
+fn test_bag_multitool() -> Result<(), PolyIOPErrors> {
+    use ark_bls12_381::{Fr, Bls12_381};
+    use subroutines::{
+        pcs::{prelude::MultilinearKzgPCS, PolynomialCommitmentScheme},
+        poly_iop::{errors::PolyIOPErrors, PolyIOP},
+    };
+    use ark_std::{test_rng};
+    use ark_std::rand::prelude::SliceRandom;
 
+    // testing params
+    let nv = 4;
+    let mut rng = test_rng();
+
+    // PCS params
+    let srs = MultilinearKzgPCS::<Bls12_381>::gen_srs_for_testing(&mut rng, nv)?;
+    let (pcs_param, _) = MultilinearKzgPCS::<Bls12_381>::trim(&srs, None, Some(nv))?;
+
+    // randomly init f, mf, and a permutation vec, and build g, mg based off of it
+    let f = arithmetic::random_permutation_mles(nv, 1, &mut rng)[0].clone();
+    let g = arithmetic::random_permutation_mles(nv, 1, &mut rng)[0].clone();
+    
+    // initialize transcript 
+    let mut transcript = <PolyIOP<Fr> as BagEqCheck<Bls12_381, MultilinearKzgPCS::<Bls12_381>>>::init_transcript();
+    transcript.append_message(b"testing", b"initializing transcript for testing")?;
+
+    // call the helper to run the proofand verify now that everything is set up 
+    test_bageq_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&pcs_param, &[f.clone()], &[g.clone()], &mut transcript)?;
+    println!("test_bageq_helper good path passed");
+
+    // good path passed. Now check bad path
+    let h = VirtualPolynomial::new(nv);
+    h.add_mle_list([f, g], Fr::one())?;
+
+    let bad_result1 = test_bageq_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&pcs_param, &[f.clone()], &[h], &mut transcript);
+    assert!(bad_result1.is_err());
+
+    // exit successfully 
+    Ok(())
+}
+
+fn test_bageq_helper<E: Pairing, PCS> (
+    pcs_param: &PCS::ProverParam,
+    fxs: &[Arc<DenseMultilinearExtension<E::ScalarField>>],
+    gxs: &[Arc<DenseMultilinearExtension<E::ScalarField>>],
+    transcript: &mut IOPTranscript<E::ScalarField>,
+) -> Result<(), PolyIOPErrors>  where
+E: Pairing,
+PCS: PolynomialCommitmentScheme<
+    E,
+    Polynomial = Arc<DenseMultilinearExtension<E::ScalarField>>,
+>,{
+    let (proof,) = <PolyIOP<E::ScalarField> as BagEqCheck<E, PCS>>::prove(pcs_param, fxs, gxs, &mut transcript.clone())?;
+    println!("test_bageq_helper: proof created successfully\n");
+    let aux_info = fhat_check_poly.aux_info.clone();
+    <PolyIOP<E::ScalarField> as BagEqCheck<E, PCS>>::verify(pcs_param, &proof, &aux_info, transcript)?;
+
+    Ok(())
+}
