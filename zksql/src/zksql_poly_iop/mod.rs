@@ -5,10 +5,10 @@ pub mod prelude;
 
 mod join;
 mod bag_multitool;
-mod mset_eq;
-mod mset_subset;
-mod mset_sum;
-mod mset_supp;
+mod bag_eq;
+mod bag_subset;
+mod bag_sum;
+mod bag_supp;
 
 mod select;
 

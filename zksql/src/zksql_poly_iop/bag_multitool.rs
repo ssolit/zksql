@@ -149,7 +149,7 @@ where
         ),
         PolyIOPErrors,
     > {
-        let start = start_timer!(|| "prod_check prove");
+        let start = start_timer!(|| "Logup_check prove");
 
         // check input shape is correct
         if fxs.is_empty() {
@@ -299,6 +299,7 @@ where
             println!("LogupCheck::prove debug zerochecks passing!\n")
         }
 
+        end_timer!(start);
         Ok((
             LogupCheckProof {
                 lhs_sumcheck_proof,
@@ -357,6 +358,7 @@ where
             &mut transcript.clone(),
         )?;
 
+        end_timer!(start);
         Ok(LogupCheckSubClaim{
             lhs_sumcheck_subclaim, 
             rhs_sumcheck_subclaim,
