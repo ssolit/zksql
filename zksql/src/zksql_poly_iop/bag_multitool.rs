@@ -228,8 +228,9 @@ where
             s1 += fhat[i] * mf_evals[i];
             s2 += ghat[i] * mg_evals[i];
         }
-        assert_eq!(s1, s2, "LogupCheck prove err: LHS and RHS have different sums");
-        println!("s1 and s2 are equal. Good!");
+        if s1 != s2 {
+            return Err(PolyIOPErrors::InvalidParameters("LogupCheck prove err: LHS and RHS have different sums".to_string()));
+        }
         let v = s1;
         
         // prove the sumcheck claim SUM(h) = 0
@@ -403,7 +404,17 @@ fn test_bag_multitool() -> Result<(), PolyIOPErrors> {
     transcript.append_message(b"testing", b"initializing transcript for testing")?;
 
     // call the helper to run the proofand verify now that everything is set up 
-    test_bag_multitool_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&pcs_param, &[f], &[g], &[mf], &[mg], &mut transcript)?;
+    test_bag_multitool_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&pcs_param, &[f.clone()], &[g.clone()], &[mf.clone()], &[mg.clone()], &mut transcript)?;
+    println!("test_bag_multitool good path passed");
+
+    // good path passed. Now check bad path
+    let h = arithmetic::random_permutation_mles(nv, 1, &mut rng)[0].clone();
+    let mh = arithmetic::random_permutation_mles(nv, 1, &mut rng)[0].clone();
+
+    let bad_result1 = test_bag_multitool_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&pcs_param, &[f.clone()], &[h], &[mf.clone()], &[mf.clone()], &mut transcript);
+    assert!(bad_result1.is_err());
+    let bad_result2 = test_bag_multitool_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&pcs_param, &[f.clone()], &[f.clone()], &[mf.clone()], &[mh], &mut transcript);
+    assert!(bad_result2.is_err());
 
     // exit successfully 
     Ok(())
@@ -431,7 +442,7 @@ PCS: PolynomialCommitmentScheme<
 }
 
 #[test]
-fn bag_multitool_test1() {
+fn bag_multitool_test() {
     let res = test_bag_multitool();
     res.unwrap();
 }
