@@ -1,11 +1,11 @@
 use subroutines::{
     pcs::PolynomialCommitmentScheme,
-    poly_iop::{errors::PolyIOPErrors, prelude::SumCheck, PolyIOP},
+    poly_iop::{errors::PolyIOPErrors, prelude::SumCheck, PolyIOP}, PCSError,
 };
 use ark_ec::pairing::Pairing;
 use ark_poly::DenseMultilinearExtension;
 use ark_std::{end_timer, start_timer};
-use std::sync::Arc;
+use std::{sync::Arc, usize};
 use std::ops::Neg;
 use transcript::IOPTranscript;
 use ark_ff::PrimeField;
@@ -68,10 +68,17 @@ where
     ///   \Sum_{j=1}^{2^n} \frac{1}{X-fi[j]}
     ///     = \Sum_{j=1}^{2^n} \frac{1}{X-gi[j]}
     fn verify(
+        pcs_param: &PCS::ProverParam,
         proof: &Self::BagEqCheckProof,
         aux_info: &VPAuxInfo<E::ScalarField>,
         transcript: &mut Self::Transcript,
     ) -> Result<Self::BagEqCheckSubClaim, PolyIOPErrors>;
+
+    fn bageq_proof_to_bagmulti_proof(
+        pcs_param: &PCS::ProverParam,
+        nv: usize,
+        bageq_proof: &Self::BagEqCheckProof
+    ) -> Result<<Self as LogupCheck<E, PCS>>::LogupCheckProof, PCSError>;
 }
 
 /// A BagEqCheck check subclaim consists of
@@ -150,8 +157,8 @@ where
         let mx = vec![one_const_poly.clone(); 2_usize.pow(nv as u32)];
 
         // call the bag_multitool prover
-        let (bag_multitool_proof, _, _): (<Self as LogupCheck<E, PCS>>::LogupCheckProof, _, _) = LogupCheck::prove(pcs_param, fxs, gxs, &mx.clone(), &mx.clone(), transcript)?;
-        let bag_eq_check_proof = BagEqCheckProof{
+        let (bag_multitool_proof, _, _) = <Self as LogupCheck<E, PCS>>::prove(pcs_param, fxs, gxs, &mx.clone(), &mx.clone(), transcript)?;
+        let bag_eq_check_proof =  Self::BagEqCheckProof{
             lhs_sumcheck_proof: bag_multitool_proof.lhs_sumcheck_proof,
             rhs_sumcheck_proof: bag_multitool_proof.rhs_sumcheck_proof,
             v:  bag_multitool_proof.v,
@@ -162,56 +169,55 @@ where
         };
 
         end_timer!(start);
-        Ok((bag_eq_check_proof))
+        Ok((bag_eq_check_proof,))
         // return bag_eq_check_proof;
     }
 
     fn verify(
+        pcs_param: &PCS::ProverParam,
         proof: &Self::BagEqCheckProof,
         aux_info: &VPAuxInfo<E::ScalarField>,
         transcript: &mut Self::Transcript,
     ) -> Result<Self::BagEqCheckSubClaim, PolyIOPErrors> {
         let start = start_timer!(|| "logup_check verify");
+        let nv = aux_info.num_variables;
 
-        // initialize multiplicity vector
-        let one_const_poly = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, vec![E::ScalarField::one(); 2_usize.pow(nv as u32)]));
-        let mx = vec![one_const_poly.clone(); 2_usize.pow(nv as u32)];
-
-        // reformat proof to a logupcheck proof
-
-        let bag_multitool_proof: <Self as LogupCheck<E, PCS>>::LogupCheckProof = LogupCheckProof{
-            lhs_sumcheck_proof: proof.lhs_sumcheck_proof,
-            rhs_sumcheck_proof: proof.rhs_sumcheck_proof,
-            v:  proof.v,
-            fhat_zero_check_proof: proof.fhat_zero_check_proof,
-            ghat_zero_check_proof: proof.ghat_zero_check_proof,
-            mf_comm: ,
-            mg_comm: ,
-            fhat_comm: proof.fhat_comm,
-            ghat_comm: proof.ghat_comm,
-        };
-        
-        // call the bag_multitool verifier
-        LogupCheck::verify(pcs_param, fxs, gxs, &mx.clone(), &mx.clone(), transcript)?;
-         let bag_eq_check_proof = BagEqCheckProof{
-             lhs_sumcheck_proof: bag_multitool_proof.lhs_sumcheck_proof,
-             rhs_sumcheck_proof: bag_multitool_proof.rhs_sumcheck_proof,
-             v:  bag_multitool_proof.v,
-             fhat_zero_check_proof: bag_multitool_proof.fhat_zero_check_proof,
-             ghat_zero_check_proof: bag_multitool_proof.ghat_zero_check_proof,
-             fhat_comm: bag_multitool_proof.fhat_comm,
-             ghat_comm: bag_multitool_proof.ghat_comm,
-         };
+        let bag_multitool_proof = Self::bageq_proof_to_bagmulti_proof(pcs_param, nv, proof)?;
+        let bag_multitool_subclaim = <Self as LogupCheck<E, PCS>>::verify(&bag_multitool_proof, aux_info, transcript)?;
  
          end_timer!(start);
-         Ok((bag_eq_check_proof))
+         Ok(BagEqCheckSubClaim{
+            lhs_sumcheck_subclaim: bag_multitool_subclaim.lhs_sumcheck_subclaim, 
+            rhs_sumcheck_subclaim: bag_multitool_subclaim.rhs_sumcheck_subclaim,
+            v: bag_multitool_subclaim.v,
+            gamma: bag_multitool_subclaim.gamma,
+            fhat_zerocheck_subclaim: bag_multitool_subclaim.fhat_zerocheck_subclaim,
+            ghat_zerocheck_subclaim: bag_multitool_subclaim.ghat_zerocheck_subclaim,
+        })
+    }
+
+    fn bageq_proof_to_bagmulti_proof(pcs_param: &PCS::ProverParam, nv: usize, bageq_proof: &Self::BagEqCheckProof) -> Result<<Self as LogupCheck<E, PCS>>::LogupCheckProof, PCSError> {
+        // initialize multiplicity vector of all ones
+        let one_const_poly = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, vec![E::ScalarField::one(); 2_usize.pow(nv as u32)]));
+        // let mx = vec![one_const_poly.clone(); 2_usize.pow(nv as u32)];
+        let m_comm = PCS::commit(pcs_param, &one_const_poly)?; 
+        
+        // reformat proof to a logupcheck proof
+        let bag_multitool_proof: <Self as LogupCheck<E, PCS>>::LogupCheckProof = LogupCheckProof{
+            lhs_sumcheck_proof: bageq_proof.lhs_sumcheck_proof.clone(),
+            rhs_sumcheck_proof: bageq_proof.rhs_sumcheck_proof.clone(),
+            v:  bageq_proof.v,
+            fhat_zero_check_proof: bageq_proof.fhat_zero_check_proof.clone(),
+            ghat_zero_check_proof: bageq_proof.ghat_zero_check_proof.clone(),
+            mf_comm: m_comm.clone(),
+            mg_comm: m_comm.clone(),
+            fhat_comm: bageq_proof.fhat_comm.clone(),
+            ghat_comm: bageq_proof.ghat_comm.clone(),
+        };
+
+        return Ok(bag_multitool_proof)
     }
 }
 
 
 
-// fn bageq_proof_to_bagmulti_proof<E, PCS>(bageq_proof: BagEqCheckProof) -> LogupCheckProof<> {
-//     // initialize multiplicity vector
-//     let one_const_poly = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, vec![E::ScalarField::one(); 2_usize.pow(nv as u32)]));
-//     let mx = vec![one_const_poly.clone(); 2_usize.pow(nv as u32)];
-// }
