@@ -4,8 +4,7 @@
 pub mod prelude;
 
 mod join;
-mod bag_multitool;
-mod bag_eq;
+pub mod bag_multitool;
 mod bag_subset;
 mod bag_sum;
 mod bag_supp;

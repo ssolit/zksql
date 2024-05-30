@@ -1,24 +1,20 @@
+use arithmetic::VPAuxInfo;
+use ark_ec::pairing::Pairing;
+use ark_ff::PrimeField;
+use ark_poly::DenseMultilinearExtension;
+use ark_std::{end_timer, One, start_timer};
+use std::{sync::Arc, usize};
 use subroutines::{
     pcs::PolynomialCommitmentScheme,
     poly_iop::{errors::PolyIOPErrors, prelude::SumCheck, PolyIOP}, PCSError,
+    ZeroCheck,
 };
-use ark_ec::pairing::Pairing;
-use ark_poly::{MultilinearExtension, DenseMultilinearExtension};
-use ark_std::{end_timer, start_timer};
-use std::{sync::Arc, usize};
-use std::ops::Neg;
 use transcript::IOPTranscript;
-use ark_ff::PrimeField;
-use subroutines::ZeroCheck;
-use arithmetic::{merge_polynomials, VPAuxInfo, VirtualPolynomial};
-use ark_std::{Zero, One};
 
-use crate::zksql_poly_iop::bag_multitool::LogupCheck;
-
-use super::bag_multitool::LogupCheckProof;
+use super::bag_multitool::{BagMultiToolCheck, BagMultiToolCheckProof};
 
 
-pub trait BagEqCheck<E, PCS>: LogupCheck<E, PCS>
+pub trait BagEqCheck<E, PCS>: BagMultiToolCheck<E, PCS>
 where
     E: Pairing,
     PCS: PolynomialCommitmentScheme<E>,
@@ -36,20 +32,18 @@ where
 
     /// Proves that two lists of n-variate multilinear polynomials `(f1, f2,
     /// ..., fk)` and `(g1, ..., gk)` are element-wise permutations of each other
-    /// By invoking the LogupCheck with multiplicities set to 1 for all numbers
+    /// By invoking the BagMultiToolCheck with multiplicities set to 1 for all numbers
     /// 
     /// Inputs:
+    /// - pcs_param: params for adding poly_comm to proof
     /// - fxs: the list of LHS polynomials
     /// - gxs: the list of RHS polynomials
     /// - transcript: the IOP transcript
-    /// - pk: PCS committing key
     ///
-    ///   /// Outputs
+    /// Outputs:
     /// - the BagEqCheck proof
-    /// - other? TODO
     ///
-    /// Cost: TODO
-    /// #[allow(clippy::type_complexity)]
+    #[allow(clippy::type_complexity)]
     fn prove(
         pcs_param: &PCS::ProverParam,
         fxs: &[Self::MultilinearExtension],
@@ -61,6 +55,15 @@ where
         ),
         PolyIOPErrors,
     >;
+
+    /// Based on the proving inputs, get the aux_info the verifier needs for verificiation
+    /// This is determined by the shape of polynomials constructed for the final checks in prove()
+    fn verification_info (
+        pcs_param: &PCS::ProverParam,
+        fxs: &[Self::MultilinearExtension],
+        gxs: &[Self::MultilinearExtension],
+        transcript: &mut IOPTranscript<E::ScalarField>,
+    ) -> VPAuxInfo<E::ScalarField>;
 
     /// Verify that two lists of n-variate multilinear polynomials `(f1, f2,
     /// ..., fk)` and `(g1, ..., gk)` element-wise satisfy:
@@ -78,11 +81,13 @@ where
         pcs_param: &PCS::ProverParam,
         nv: usize,
         bageq_proof: &Self::BagEqCheckProof
-    ) -> Result<<Self as LogupCheck<E, PCS>>::LogupCheckProof, PCSError>;
+    ) -> Result<<Self as BagMultiToolCheck<E, PCS>>::BagMultiToolCheckProof, PCSError>;
 }
 
 /// A BagEqCheck check subclaim consists of
-/// TODO
+/// two sumcheck subclaims, and the value v they should both equal
+/// the random challenge gamma
+/// two zerocheck claims to show denoms (fhat, ghat) in the sumcheck were constructed correctly
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct BagEqCheckSubClaim<F: PrimeField, ZC: ZeroCheck<F>, SC: SumCheck<F>> {
     // the SubClaim from the ZeroCheck
@@ -157,7 +162,7 @@ where
         let mx = vec![one_const_poly.clone()];
 
         // call the bag_multitool prover
-        let (bag_multitool_proof, _, _) = <Self as LogupCheck<E, PCS>>::prove(pcs_param, fxs, gxs, &mx.clone(), &mx.clone(), transcript)?;
+        let (bag_multitool_proof,) = <Self as BagMultiToolCheck<E, PCS>>::prove(pcs_param, fxs, gxs, &mx.clone(), &mx.clone(), transcript)?;
         let bag_eq_check_proof =  Self::BagEqCheckProof{
             lhs_sumcheck_proof: bag_multitool_proof.lhs_sumcheck_proof,
             rhs_sumcheck_proof: bag_multitool_proof.rhs_sumcheck_proof,
@@ -170,7 +175,19 @@ where
 
         end_timer!(start);
         Ok((bag_eq_check_proof,))
-        // return bag_eq_check_proof;
+    }
+
+    fn verification_info (
+        pcs_param: &PCS::ProverParam,
+        fxs: &[Self::MultilinearExtension],
+        gxs: &[Self::MultilinearExtension],
+        transcript: &mut IOPTranscript<E::ScalarField>,
+    ) -> VPAuxInfo<E::ScalarField> {
+        let nv = fxs[0].num_vars;
+        let one_const_poly = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, vec![E::ScalarField::one(); 2_usize.pow(nv as u32)]));
+        let mx = vec![one_const_poly.clone()];
+        let aux_info = <Self as BagMultiToolCheck<E, PCS>>::verification_info(pcs_param, fxs, gxs, &mx.clone(), &mx.clone(), transcript);
+        return aux_info
     }
 
     fn verify(
@@ -183,7 +200,7 @@ where
         let nv = aux_info.num_variables;
 
         let bag_multitool_proof = Self::bageq_proof_to_bagmulti_proof(pcs_param, nv, proof)?;
-        let bag_multitool_subclaim = <Self as LogupCheck<E, PCS>>::verify(&bag_multitool_proof, aux_info, transcript)?;
+        let bag_multitool_subclaim = <Self as BagMultiToolCheck<E, PCS>>::verify(&bag_multitool_proof, aux_info, transcript)?;
  
          end_timer!(start);
          Ok(BagEqCheckSubClaim{
@@ -196,14 +213,14 @@ where
         })
     }
 
-    fn bageq_proof_to_bagmulti_proof(pcs_param: &PCS::ProverParam, nv: usize, bageq_proof: &Self::BagEqCheckProof) -> Result<<Self as LogupCheck<E, PCS>>::LogupCheckProof, PCSError> {
+    fn bageq_proof_to_bagmulti_proof(pcs_param: &PCS::ProverParam, nv: usize, bageq_proof: &Self::BagEqCheckProof) -> Result<<Self as BagMultiToolCheck<E, PCS>>::BagMultiToolCheckProof, PCSError> {
         // initialize multiplicity vector of all ones
         let one_const_poly = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, vec![E::ScalarField::one(); 2_usize.pow(nv as u32)]));
         // let mx = vec![one_const_poly.clone(); 2_usize.pow(nv as u32)];
         let m_comm = PCS::commit(pcs_param, &one_const_poly)?; 
         
-        // reformat proof to a logupcheck proof
-        let bag_multitool_proof: <Self as LogupCheck<E, PCS>>::LogupCheckProof = LogupCheckProof{
+        // reformat proof to a BagMultiToolCheck proof
+        let bag_multitool_proof: <Self as BagMultiToolCheck<E, PCS>>::BagMultiToolCheckProof = BagMultiToolCheckProof{
             lhs_sumcheck_proof: bageq_proof.lhs_sumcheck_proof.clone(),
             rhs_sumcheck_proof: bageq_proof.rhs_sumcheck_proof.clone(),
             v:  bageq_proof.v,
@@ -217,77 +234,4 @@ where
 
         return Ok(bag_multitool_proof)
     }
-}
-
-
-fn test_bag_multitool() -> Result<(), PolyIOPErrors> {
-    use ark_bls12_381::{Fr, Bls12_381};
-    use subroutines::{
-        pcs::{prelude::MultilinearKzgPCS, PolynomialCommitmentScheme},
-        poly_iop::{errors::PolyIOPErrors, PolyIOP},
-    };
-    use ark_std::{test_rng};
-    use ark_std::rand::prelude::SliceRandom;
-
-    // testing params
-    let nv = 4;
-    let mut rng = test_rng();
-
-    // PCS params
-    let srs = MultilinearKzgPCS::<Bls12_381>::gen_srs_for_testing(&mut rng, nv)?;
-    let (pcs_param, _) = MultilinearKzgPCS::<Bls12_381>::trim(&srs, None, Some(nv))?;
-
-    // randomly init f, mf, and a permutation vec, and build g, mg based off of it
-    let f = arithmetic::random_permutation_mles(nv, 1, &mut rng)[0].clone();
-    let g = arithmetic::random_permutation_mles(nv, 1, &mut rng)[0].clone();
-    
-    // initialize transcript 
-    let mut transcript = <PolyIOP<Fr> as BagEqCheck<Bls12_381, MultilinearKzgPCS::<Bls12_381>>>::init_transcript();
-    transcript.append_message(b"testing", b"initializing transcript for testing")?;
-
-    // call the helper to run the proofand verify now that everything is set up 
-    test_bageq_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&pcs_param, &[f.clone()], &[g.clone()], &mut transcript)?;
-    println!("test_bageq_helper good path passed");
-
-    // good path passed. Now check bad path
-    let mut h_evals = f.evaluations.clone();
-    h_evals[0] = h_evals[0] + Fr::one();
-    let h_poly = DenseMultilinearExtension::from_evaluations_vec(f.num_vars, h_evals);
-    let h = Arc::new(h_poly);
-
-    let bad_result1 = test_bageq_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&pcs_param, &[f.clone()], &[h], &mut transcript);
-    assert!(bad_result1.is_err());
-
-    // exit successfully 
-    Ok(())
-}
-
-fn test_bageq_helper<E, PCS>(
-    pcs_param: &PCS::ProverParam,
-    fxs: &[Arc<DenseMultilinearExtension<E::ScalarField>>],
-    gxs: &[Arc<DenseMultilinearExtension<E::ScalarField>>],
-    transcript: &mut IOPTranscript<E::ScalarField>,
-) -> Result<(), PolyIOPErrors>
-where
-    E: Pairing,
-    PCS: PolynomialCommitmentScheme<
-        E,
-        Polynomial = Arc<DenseMultilinearExtension<E::ScalarField>>,
-    >,
-{
-    // Call the prove method
-    let (proof,) = <PolyIOP<E::ScalarField> as BagEqCheck<E, PCS>>::prove(pcs_param, fxs, gxs, &mut transcript.clone())?;
-    println!("test_bageq_helper proof created successfully");
-    let mut aux_info = VirtualPolynomial::new_from_mle(&fxs[0], E::ScalarField::one()).aux_info;
-    aux_info.max_degree = aux_info.max_degree + 1;
-    <PolyIOP::<E::ScalarField> as BagEqCheck::<E, PCS>>::verify(pcs_param, &proof, &aux_info, &mut transcript.clone())?;
-    println!("test_bageq_helper proof verified successfully");
-
-    Ok(())
-}
-
-#[test]
-fn bageq_test() {
-    let res = test_bag_multitool();
-    res.unwrap();
 }
