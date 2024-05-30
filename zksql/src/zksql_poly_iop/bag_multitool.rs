@@ -10,7 +10,7 @@ use std::ops::Neg;
 use transcript::IOPTranscript;
 use ark_ff::PrimeField;
 use subroutines::ZeroCheck;
-use arithmetic::{merge_polynomials, VPAuxInfo, VirtualPolynomial};
+use arithmetic::{VPAuxInfo, VirtualPolynomial};
 use ark_std::{Zero, One};
 
 

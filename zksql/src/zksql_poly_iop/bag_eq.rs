@@ -3,7 +3,7 @@ use subroutines::{
     poly_iop::{errors::PolyIOPErrors, prelude::SumCheck, PolyIOP}, PCSError,
 };
 use ark_ec::pairing::Pairing;
-use ark_poly::DenseMultilinearExtension;
+use ark_poly::{MultilinearExtension, DenseMultilinearExtension};
 use ark_std::{end_timer, start_timer};
 use std::{sync::Arc, usize};
 use std::ops::Neg;
@@ -154,7 +154,7 @@ where
 
         // initialize multiplicity vector
         let one_const_poly = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, vec![E::ScalarField::one(); 2_usize.pow(nv as u32)]));
-        let mx = vec![one_const_poly.clone(); 2_usize.pow(nv as u32)];
+        let mx = vec![one_const_poly.clone()];
 
         // call the bag_multitool prover
         let (bag_multitool_proof, _, _) = <Self as LogupCheck<E, PCS>>::prove(pcs_param, fxs, gxs, &mx.clone(), &mx.clone(), transcript)?;
@@ -179,7 +179,7 @@ where
         aux_info: &VPAuxInfo<E::ScalarField>,
         transcript: &mut Self::Transcript,
     ) -> Result<Self::BagEqCheckSubClaim, PolyIOPErrors> {
-        let start = start_timer!(|| "logup_check verify");
+        let start = start_timer!(|| "BagEqCheck verify");
         let nv = aux_info.num_variables;
 
         let bag_multitool_proof = Self::bageq_proof_to_bagmulti_proof(pcs_param, nv, proof)?;
@@ -250,8 +250,10 @@ fn test_bag_multitool() -> Result<(), PolyIOPErrors> {
     println!("test_bageq_helper good path passed");
 
     // good path passed. Now check bad path
-    let h = VirtualPolynomial::new(nv);
-    h.add_mle_list([f, g], Fr::one())?;
+    let mut h_evals = f.evaluations.clone();
+    h_evals[0] = h_evals[0] + Fr::one();
+    let h_poly = DenseMultilinearExtension::from_evaluations_vec(f.num_vars, h_evals);
+    let h = Arc::new(h_poly);
 
     let bad_result1 = test_bageq_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&pcs_param, &[f.clone()], &[h], &mut transcript);
     assert!(bad_result1.is_err());
@@ -260,21 +262,32 @@ fn test_bag_multitool() -> Result<(), PolyIOPErrors> {
     Ok(())
 }
 
-fn test_bageq_helper<E: Pairing, PCS> (
+fn test_bageq_helper<E, PCS>(
     pcs_param: &PCS::ProverParam,
     fxs: &[Arc<DenseMultilinearExtension<E::ScalarField>>],
     gxs: &[Arc<DenseMultilinearExtension<E::ScalarField>>],
     transcript: &mut IOPTranscript<E::ScalarField>,
-) -> Result<(), PolyIOPErrors>  where
-E: Pairing,
-PCS: PolynomialCommitmentScheme<
-    E,
-    Polynomial = Arc<DenseMultilinearExtension<E::ScalarField>>,
->,{
+) -> Result<(), PolyIOPErrors>
+where
+    E: Pairing,
+    PCS: PolynomialCommitmentScheme<
+        E,
+        Polynomial = Arc<DenseMultilinearExtension<E::ScalarField>>,
+    >,
+{
+    // Call the prove method
     let (proof,) = <PolyIOP<E::ScalarField> as BagEqCheck<E, PCS>>::prove(pcs_param, fxs, gxs, &mut transcript.clone())?;
-    println!("test_bageq_helper: proof created successfully\n");
-    let aux_info = fhat_check_poly.aux_info.clone();
-    <PolyIOP<E::ScalarField> as BagEqCheck<E, PCS>>::verify(pcs_param, &proof, &aux_info, transcript)?;
+    println!("test_bageq_helper proof created successfully");
+    let mut aux_info = VirtualPolynomial::new_from_mle(&fxs[0], E::ScalarField::one()).aux_info;
+    aux_info.max_degree = aux_info.max_degree + 1;
+    <PolyIOP::<E::ScalarField> as BagEqCheck::<E, PCS>>::verify(pcs_param, &proof, &aux_info, &mut transcript.clone())?;
+    println!("test_bageq_helper proof verified successfully");
 
     Ok(())
+}
+
+#[test]
+fn bageq_test() {
+    let res = test_bag_multitool();
+    res.unwrap();
 }
