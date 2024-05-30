@@ -218,10 +218,34 @@ where
         let mut rhs = VirtualPolynomial::new(nv);
         lhs.add_mle_list([fhat.clone(), mf.clone()], E::ScalarField::one())?; // cloning Arc ptr b/c need fhat again below
         rhs.add_mle_list([ghat.clone(), mg.clone()], E::ScalarField::one())?;
+
+        
+        // let zero_vec = [E::ScalarField::zero(); 8];
+        // let mut one_vec =  [E::ScalarField::zero(); 8];
+        // one_vec[0] = E::ScalarField::one();
+
+        // println!("lhs zero eval: {:?}", lhs.evaluate(&zero_vec));
+        // println!("rhs zero eval: {:?}", rhs.evaluate(&one_vec));
+        // println!("lhs zero eval: {:?}", lhs.evaluate(&zero_vec));
+        // println!("rhs zero eval: {:?}", rhs.evaluate(&one_vec));
+        // println!();
+       
         
         // calculate the sum values
         let mf_evals = &mf.evaluations;
         let mg_evals = &mg.evaluations;
+        
+        let mut debug_s1 = E::ScalarField::zero();
+        let mut debug_s2 = E::ScalarField::zero();
+        for i in 0..4 {
+            debug_s1 += fhat[i] * mf_evals[i];
+            debug_s2 += ghat[i] * mg_evals[i];
+            println!("debug_s1: {:?}", debug_s1);
+            println!("debug_s2: {:?}\n", debug_s2);
+        }
+        
+        
+        
         let mut s1 = E::ScalarField::zero();
         let mut s2 = E::ScalarField::zero();
         for i in 0..2_usize.pow(nv as u32) {

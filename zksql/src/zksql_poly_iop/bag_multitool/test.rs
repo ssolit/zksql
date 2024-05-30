@@ -5,7 +5,7 @@
 mod test {
     use ark_ec::pairing::Pairing;
     use ark_poly::DenseMultilinearExtension;
-    use ark_std::One;
+    use ark_std::{Zero, One};
     use std::sync::Arc;
     use subroutines::{
         pcs::PolynomialCommitmentScheme,
@@ -21,6 +21,7 @@ mod test {
     use crate::zksql_poly_iop::bag_multitool::{
         bag_multitool::BagMultiToolCheck,
         bag_eq::BagEqCheck,
+        bag_subset::BagSubsetCheck,
     };
 
     // Sets up randomized inputs for testing BagMultiToolCheck
@@ -141,6 +142,70 @@ mod test {
         Ok(())
     }
 
+    // Sets up randomized inputs for testing BagEqCheck
+    fn test_bagsubset() -> Result<(), PolyIOPErrors> {
+        // testing params
+        let nv = 8;
+        let mut rng = test_rng();
+
+        // PCS params
+        let srs = MultilinearKzgPCS::<Bls12_381>::gen_srs_for_testing(&mut rng, nv)?;
+        let (pcs_param, _) = MultilinearKzgPCS::<Bls12_381>::trim(&srs, None, Some(nv))?;
+
+        // randomly init g, build f and mg off of it. Test sets it to something like
+        // g = [a, b, c, d, ...], f = [a, a, 0, d], mg = [2, 0, 0, 1, ...]
+        let g = arithmetic::random_permutation_mles(nv, 1, &mut rng)[0].clone();
+        
+        let mut f_evals = g.evaluations.clone();
+        f_evals[1] = f_evals[0];
+        f_evals[2] = Fr::zero();
+        let f = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, f_evals.clone()));
+        
+        let mut mg_evals = vec![Fr::one(); 2_usize.pow(nv as u32)];
+        mg_evals[0] = Fr::from(2u64);
+        mg_evals[1] = Fr::zero();
+        mg_evals[2] = Fr::zero();
+        let mg = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, mg_evals.clone()));
+
+        // initialize transcript 
+        let mut transcript = <PolyIOP<Fr> as BagEqCheck<Bls12_381, MultilinearKzgPCS::<Bls12_381>>>::init_transcript();
+        transcript.append_message(b"testing", b"initializing transcript for testing")?;
+
+        // call the helper to run the proofand verify now that everything is set up 
+        test_bagsubset_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&pcs_param, &[f.clone()], &[g.clone()], &[mg.clone()], &mut transcript)?;
+        println!("test_bagsubset_helper good path passed");
+
+        // good path passed. Now check bad path
+        mg_evals[0] = Fr::one();
+        let bad_mg = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, mg_evals.clone()));
+        let bad_result1 = test_bagsubset_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&pcs_param, &[f.clone()], &[g.clone()], &[bad_mg.clone()], &mut transcript);
+        assert!(bad_result1.is_err());
+
+        // exit successfully 
+        Ok(())
+    }
+
+     // Given inputs, calls and verifies BagEqCheck
+    fn test_bagsubset_helper<E, PCS>(
+        pcs_param: &PCS::ProverParam,
+        fxs: &[Arc<DenseMultilinearExtension<E::ScalarField>>],
+        gxs: &[Arc<DenseMultilinearExtension<E::ScalarField>>],
+        mg: &[Arc<DenseMultilinearExtension<E::ScalarField>>],
+        transcript: &mut IOPTranscript<E::ScalarField>,
+    ) -> Result<(), PolyIOPErrors>
+    where
+        E: Pairing,
+        PCS: PolynomialCommitmentScheme<
+            E,
+            Polynomial = Arc<DenseMultilinearExtension<E::ScalarField>>,
+        >,
+    {
+        let (proof,) = <PolyIOP<E::ScalarField> as BagSubsetCheck<E, PCS>>::prove(pcs_param, fxs, gxs, mg, &mut transcript.clone())?;
+        let aux_info = <PolyIOP<E::ScalarField> as BagSubsetCheck<E, PCS>>::verification_info(pcs_param, fxs, gxs, mg, &mut transcript.clone());
+        <PolyIOP::<E::ScalarField> as BagSubsetCheck::<E, PCS>>::verify(pcs_param, &proof, &aux_info, &mut transcript.clone())?;
+        Ok(())
+    }
+
     // test callers
     #[test]
     fn bag_multitool_test() {
@@ -151,6 +216,12 @@ mod test {
     #[test]
     fn bageq_test() {
         let res = test_bageq();
+        res.unwrap();
+    }
+
+    #[test]
+    fn bagsubset_test() {
+        let res = test_bagsubset();
         res.unwrap();
     }
 }
