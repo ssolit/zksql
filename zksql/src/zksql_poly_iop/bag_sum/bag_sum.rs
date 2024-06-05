@@ -1,17 +1,17 @@
+use arithmetic::VPAuxInfo;
+use ark_ec::pairing::Pairing;
+use ark_ff::PrimeField;
+use ark_poly::DenseMultilinearExtension;
+use ark_std::{end_timer, start_timer, Zero, One};
+use std::{sync::Arc, usize};
+use subroutines::{
+    pcs::PolynomialCommitmentScheme,
+    poly_iop::{errors::PolyIOPErrors, prelude::SumCheck, PolyIOP}, PCSError,
+    ZeroCheck,
+};
+use transcript::IOPTranscript;
 
-// use arithmetic::VirtualPolynomial;
-// use ark_ff::{One, PrimeField};
-// use ark_poly::{MultilinearExtension, DenseMultilinearExtension};
-// use ark_std::{end_timer, start_timer};
-// use subroutines::{
-//     poly_iop::{
-//         errors::PolyIOPErrors,
-//         zero_check::ZeroCheck,
-//         PolyIOP,
-//     },
-//     IOPProof,
-// };
-// use std::{sync::Arc, vec};
+use crate::zksql_poly_iop::bag_multitool::bag_multitool::{BagMultiToolCheck, BagMultiToolCheckProof};
 
 // fn msetsum_check<F: PrimeField>(
 //     f1: DenseMultilinearExtension<F>,
