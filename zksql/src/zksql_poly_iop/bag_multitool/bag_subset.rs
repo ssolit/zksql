@@ -3,7 +3,7 @@ use ark_ec::pairing::Pairing;
 use ark_ff::PrimeField;
 use ark_poly::DenseMultilinearExtension;
 use ark_std::{end_timer, One, start_timer};
-use std::{ptr::NonNull, sync::Arc, usize};
+use std::{sync::Arc, usize};
 use subroutines::{
     pcs::PolynomialCommitmentScheme,
     poly_iop::{errors::PolyIOPErrors, prelude::SumCheck, PolyIOP}, PCSError,
