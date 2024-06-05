@@ -3,7 +3,7 @@ use ark_ec::pairing::Pairing;
 use ark_ff::PrimeField;
 use ark_poly::DenseMultilinearExtension;
 use ark_std::{end_timer, One, start_timer};
-use std::{sync::Arc, usize};
+use std::{ptr::NonNull, sync::Arc, usize};
 use subroutines::{
     pcs::PolynomialCommitmentScheme,
     poly_iop::{errors::PolyIOPErrors, prelude::SumCheck, PolyIOP}, PCSError,
@@ -37,7 +37,7 @@ where
     /// Inputs:
     /// - pcs_param: params for adding poly_comm to proof
     /// - fxs: the list of LHS polynomials
-    /// - fnulls: # of null elements in f, which do not have to be included in g
+    /// - null_offset: # of null elements in f, which do not have to be included in g
     /// - mf: the list of LHS multiplicities 
     /// - gxs: the list of RHS polynomials
     /// - transcript: the IOP transcript
@@ -49,9 +49,9 @@ where
     fn prove(
         pcs_param: &PCS::ProverParam,
         fxs: &[Self::MultilinearExtension],
-        fnulls: E::ScalarField,
         gxs: &[Self::MultilinearExtension],
         mg: &[Self::MultilinearExtension],
+        null_offset: E::ScalarField,
         transcript: &mut IOPTranscript<E::ScalarField>,
     ) -> Result<
         (
@@ -65,9 +65,9 @@ where
     fn verification_info (
         pcs_param: &PCS::ProverParam,
         fxs: &[Self::MultilinearExtension],
-        fnulls: E::ScalarField,
         gxs: &[Self::MultilinearExtension],
         mg: &[Self::MultilinearExtension],
+        null_offset: E::ScalarField,
         transcript: &mut IOPTranscript<E::ScalarField>,
     ) -> VPAuxInfo<E::ScalarField>;
 
@@ -97,12 +97,12 @@ where
 /// two zerocheck claims to show denoms (fhat, ghat) in the sumcheck were constructed correctly
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct BagSubsetCheckSubClaim<F: PrimeField, ZC: ZeroCheck<F>, SC: SumCheck<F>> {
-    // the SubClaim from the ZeroCheck
+    pub null_offset: F,
+    pub gamma: F,
     pub lhs_sumcheck_subclaim: SC::SumCheckSubClaim,
     pub rhs_sumcheck_subclaim: SC::SumCheckSubClaim,
-    pub v: F,
-    pub fnulls: F,
-    pub gamma: F,
+    pub lhs_v: F,
+    pub rhs_v: F,
     pub fhat_zerocheck_subclaim: ZC::ZeroCheckSubClaim,
     pub ghat_zerocheck_subclaim: ZC::ZeroCheckSubClaim,
 }
@@ -114,10 +114,11 @@ pub struct BagSubsetCheckProof<
     SC: SumCheck<E::ScalarField>,
     ZC: ZeroCheck<E::ScalarField>,
 > {
+    pub null_offset: E::ScalarField,
     pub lhs_sumcheck_proof: SC::SumCheckProof,
     pub rhs_sumcheck_proof: SC::SumCheckProof,
-    pub v: E::ScalarField,
-    pub fnulls: E::ScalarField,
+    pub lhs_v: E::ScalarField,
+    pub rhs_v: E::ScalarField,
     pub fhat_zero_check_proof: ZC::ZeroCheckProof,
     pub ghat_zero_check_proof: ZC::ZeroCheckProof,
     pub mg_comm: PCS::Commitment,
@@ -140,9 +141,9 @@ where
     fn prove(
         pcs_param: &PCS::ProverParam,
         fxs: &[Self::MultilinearExtension],
-        fnulls: E::ScalarField,
         gxs: &[Self::MultilinearExtension],
         mg: &[Self::MultilinearExtension],
+        null_offset: E::ScalarField,
         transcript: &mut IOPTranscript<E::ScalarField>,
     ) -> Result<
         (
@@ -179,13 +180,15 @@ where
         let mf = vec![one_const_poly.clone()];
 
         // call the bag_multitool prover
-        let (bag_multitool_proof,) = <Self as BagMultiToolCheck<E, PCS>>::prove(pcs_param, fxs, gxs, &mf, mg, transcript)?;
+        let (bag_multitool_proof,) = <Self as BagMultiToolCheck<E, PCS>>::prove(pcs_param, fxs, gxs, &mf, mg, null_offset, transcript)?;
         
         // reshape the bag_multitool proof into a bag_subset proof
         let bag_subset_check_proof =  Self::BagSubsetCheckProof{
+            null_offset: bag_multitool_proof.null_offset,
             lhs_sumcheck_proof: bag_multitool_proof.lhs_sumcheck_proof,
             rhs_sumcheck_proof: bag_multitool_proof.rhs_sumcheck_proof,
-            v:  bag_multitool_proof.v,
+            lhs_v:  bag_multitool_proof.lhs_v,
+            rhs_v:  bag_multitool_proof.rhs_v,
             fhat_zero_check_proof: bag_multitool_proof.fhat_zero_check_proof,
             ghat_zero_check_proof: bag_multitool_proof.ghat_zero_check_proof,
             mg_comm: bag_multitool_proof.mg_comm,
@@ -202,12 +205,13 @@ where
         fxs: &[Self::MultilinearExtension],
         gxs: &[Self::MultilinearExtension],
         mg: &[Self::MultilinearExtension],
+        null_offset: E::ScalarField,
         transcript: &mut IOPTranscript<E::ScalarField>,
     ) -> VPAuxInfo<E::ScalarField> {
         let nv = fxs[0].num_vars;
         let one_const_poly = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, vec![E::ScalarField::one(); 2_usize.pow(nv as u32)]));
         let mf = vec![one_const_poly.clone()];
-        let aux_info = <Self as BagMultiToolCheck<E, PCS>>::verification_info(pcs_param, fxs, gxs, &mf, mg, transcript);
+        let aux_info = <Self as BagMultiToolCheck<E, PCS>>::verification_info(pcs_param, fxs, gxs, &mf, mg, null_offset, transcript);
         return aux_info
     }
 
@@ -225,9 +229,11 @@ where
  
          end_timer!(start);
          Ok(BagSubsetCheckSubClaim{
+            null_offset: bag_multitool_subclaim.null_offset,
             lhs_sumcheck_subclaim: bag_multitool_subclaim.lhs_sumcheck_subclaim, 
             rhs_sumcheck_subclaim: bag_multitool_subclaim.rhs_sumcheck_subclaim,
-            v: bag_multitool_subclaim.v,
+            lhs_v: bag_multitool_subclaim.lhs_v,
+            rhs_v: bag_multitool_subclaim.rhs_v,
             gamma: bag_multitool_subclaim.gamma,
             fhat_zerocheck_subclaim: bag_multitool_subclaim.fhat_zerocheck_subclaim,
             ghat_zerocheck_subclaim: bag_multitool_subclaim.ghat_zerocheck_subclaim,
@@ -241,9 +247,11 @@ where
         
         // reformat proof to a BagMultiToolCheck proof
         let bag_multitool_proof: <Self as BagMultiToolCheck<E, PCS>>::BagMultiToolCheckProof = BagMultiToolCheckProof{
+            null_offset: bagsubset_proof.null_offset,
             lhs_sumcheck_proof: bagsubset_proof.lhs_sumcheck_proof.clone(),
             rhs_sumcheck_proof: bagsubset_proof.rhs_sumcheck_proof.clone(),
-            v:  bagsubset_proof.v,
+            lhs_v:  bagsubset_proof.lhs_v,
+            rhs_v:  bagsubset_proof.rhs_v,
             fhat_zero_check_proof: bagsubset_proof.fhat_zero_check_proof.clone(),
             ghat_zero_check_proof: bagsubset_proof.ghat_zero_check_proof.clone(),
             mf_comm: mf_comm.clone(),

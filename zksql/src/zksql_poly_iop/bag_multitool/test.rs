@@ -51,17 +51,24 @@ mod test {
         transcript.append_message(b"testing", b"initializing transcript for testing")?;
 
         // call the helper to run the proofand verify now that everything is set up 
-        test_bag_multitool_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&pcs_param, &[f.clone()], &[g.clone()], &[mf.clone()], &[mg.clone()], &mut transcript)?;
+        // TODO: dont assume null_offset is zero
+        let null_offset = Fr::zero();
+        test_bag_multitool_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&pcs_param, &[f.clone()], &[g.clone()], &[mf.clone()], &[mg.clone()], null_offset, &mut transcript)?;
         println!("test_bag_multitool good path passed");
 
         // good path passed. Now check bad path
         let h = arithmetic::random_permutation_mles(nv, 1, &mut rng)[0].clone();
         let mh = arithmetic::random_permutation_mles(nv, 1, &mut rng)[0].clone();
 
-        let bad_result1 = test_bag_multitool_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&pcs_param, &[f.clone()], &[h], &[mf.clone()], &[mf.clone()], &mut transcript);
+        // incorrect multiplicities
+        let bad_result1 = test_bag_multitool_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&pcs_param, &[f.clone()], &[h], &[mf.clone()], &[mf.clone()], null_offset, &mut transcript);
         assert!(bad_result1.is_err());
-        let bad_result2 = test_bag_multitool_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&pcs_param, &[f.clone()], &[f.clone()], &[mf.clone()], &[mh], &mut transcript);
+        // incorrect polynomials
+        let bad_result2 = test_bag_multitool_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&pcs_param, &[f.clone()], &[f.clone()], &[mf.clone()], &[mh], null_offset, &mut transcript);
         assert!(bad_result2.is_err());
+        // incorrect null_offset
+        let bad_result3 = test_bag_multitool_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&pcs_param, &[f.clone()], &[g.clone()], &[mf.clone()], &[mg.clone()], null_offset + Fr::one(), &mut transcript);
+        assert!(bad_result3.is_err());
 
         // exit successfully 
         Ok(())
@@ -74,6 +81,7 @@ mod test {
         gxs: &[Arc<DenseMultilinearExtension<E::ScalarField>>],
         mfxs: &[Arc<DenseMultilinearExtension<E::ScalarField>>],
         mgxs: &[Arc<DenseMultilinearExtension<E::ScalarField>>],
+        null_offset: E::ScalarField,
         transcript: &mut IOPTranscript<E::ScalarField>,
     ) -> Result<(), PolyIOPErrors>  where
     E: Pairing,
@@ -81,8 +89,8 @@ mod test {
         E,
         Polynomial = Arc<DenseMultilinearExtension<E::ScalarField>>,
     >,{
-        let (proof, ) = <PolyIOP<E::ScalarField> as BagMultiToolCheck<E, PCS>>::prove(pcs_param, fxs, gxs, mfxs, mgxs, &mut transcript.clone())?;
-        let aux_info = <PolyIOP<E::ScalarField> as BagMultiToolCheck<E, PCS>>::verification_info(pcs_param, fxs, gxs, mfxs, mgxs, &mut transcript.clone());
+        let (proof, ) = <PolyIOP<E::ScalarField> as BagMultiToolCheck<E, PCS>>::prove(pcs_param, fxs, gxs, mfxs, mgxs, null_offset, &mut transcript.clone())?;
+        let aux_info = <PolyIOP<E::ScalarField> as BagMultiToolCheck<E, PCS>>::verification_info(pcs_param, fxs, gxs, mfxs, mgxs, null_offset, &mut transcript.clone());
         <PolyIOP<E::ScalarField> as BagMultiToolCheck<E, PCS>>::verify(&proof, &aux_info, transcript)?;
         Ok(())
     }
@@ -160,6 +168,7 @@ mod test {
         f_evals[1] = f_evals[0];
         f_evals[2] = Fr::zero();
         let f = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, f_evals.clone()));
+        let null_offset = Fr::one(); // set to 1 b/c f_evals[2] = Fr::zero(), and no other nulls are set
         
         let mut mg_evals = vec![Fr::one(); 2_usize.pow(nv as u32)];
         mg_evals[0] = Fr::from(2u64);
@@ -172,13 +181,13 @@ mod test {
         transcript.append_message(b"testing", b"initializing transcript for testing")?;
 
         // call the helper to run the proofand verify now that everything is set up 
-        test_bagsubset_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&pcs_param, &[f.clone()], &[g.clone()], &[mg.clone()], &mut transcript)?;
+        test_bagsubset_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&pcs_param, &[f.clone()], &[g.clone()], &[mg.clone()], null_offset, &mut transcript)?;
         println!("test_bagsubset_helper good path passed");
 
         // good path passed. Now check bad path
         mg_evals[0] = Fr::one();
         let bad_mg = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, mg_evals.clone()));
-        let bad_result1 = test_bagsubset_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&pcs_param, &[f.clone()], &[g.clone()], &[bad_mg.clone()], &mut transcript);
+        let bad_result1 = test_bagsubset_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&pcs_param, &[f.clone()], &[g.clone()], &[bad_mg.clone()], null_offset, &mut transcript);
         assert!(bad_result1.is_err());
 
         // exit successfully 
@@ -191,6 +200,7 @@ mod test {
         fxs: &[Arc<DenseMultilinearExtension<E::ScalarField>>],
         gxs: &[Arc<DenseMultilinearExtension<E::ScalarField>>],
         mg: &[Arc<DenseMultilinearExtension<E::ScalarField>>],
+        null_offset: E::ScalarField,
         transcript: &mut IOPTranscript<E::ScalarField>,
     ) -> Result<(), PolyIOPErrors>
     where
@@ -200,8 +210,8 @@ mod test {
             Polynomial = Arc<DenseMultilinearExtension<E::ScalarField>>,
         >,
     {
-        let (proof,) = <PolyIOP<E::ScalarField> as BagSubsetCheck<E, PCS>>::prove(pcs_param, fxs, gxs, mg, &mut transcript.clone())?;
-        let aux_info = <PolyIOP<E::ScalarField> as BagSubsetCheck<E, PCS>>::verification_info(pcs_param, fxs, gxs, mg, &mut transcript.clone());
+        let (proof,) = <PolyIOP<E::ScalarField> as BagSubsetCheck<E, PCS>>::prove(pcs_param, fxs, gxs, mg, null_offset, &mut transcript.clone())?;
+        let aux_info = <PolyIOP<E::ScalarField> as BagSubsetCheck<E, PCS>>::verification_info(pcs_param, fxs, gxs, mg, null_offset, &mut transcript.clone());
         <PolyIOP::<E::ScalarField> as BagSubsetCheck::<E, PCS>>::verify(pcs_param, &proof, &aux_info, &mut transcript.clone())?;
         Ok(())
     }

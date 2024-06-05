@@ -2,7 +2,7 @@ use arithmetic::VPAuxInfo;
 use ark_ec::pairing::Pairing;
 use ark_ff::PrimeField;
 use ark_poly::DenseMultilinearExtension;
-use ark_std::{end_timer, One, start_timer};
+use ark_std::{end_timer, start_timer, Zero, One};
 use std::{sync::Arc, usize};
 use subroutines::{
     pcs::PolynomialCommitmentScheme,
@@ -162,11 +162,12 @@ where
         let mx = vec![one_const_poly.clone()];
 
         // call the bag_multitool prover
-        let (bag_multitool_proof,) = <Self as BagMultiToolCheck<E, PCS>>::prove(pcs_param, fxs, gxs, &mx.clone(), &mx.clone(), transcript)?;
+        // the null_offset is set to zero here because we assume it is an exact permutation without extra nulls
+        let (bag_multitool_proof,) = <Self as BagMultiToolCheck<E, PCS>>::prove(pcs_param, fxs, gxs, &mx.clone(), &mx.clone(), E::ScalarField::zero(),transcript)?;
         let bag_eq_check_proof =  Self::BagEqCheckProof{
             lhs_sumcheck_proof: bag_multitool_proof.lhs_sumcheck_proof,
             rhs_sumcheck_proof: bag_multitool_proof.rhs_sumcheck_proof,
-            v:  bag_multitool_proof.v,
+            v:  bag_multitool_proof.lhs_v,
             fhat_zero_check_proof: bag_multitool_proof.fhat_zero_check_proof,
             ghat_zero_check_proof: bag_multitool_proof.ghat_zero_check_proof,
             fhat_comm: bag_multitool_proof.fhat_comm,
@@ -186,7 +187,7 @@ where
         let nv = fxs[0].num_vars;
         let one_const_poly = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, vec![E::ScalarField::one(); 2_usize.pow(nv as u32)]));
         let mx = vec![one_const_poly.clone()];
-        let aux_info = <Self as BagMultiToolCheck<E, PCS>>::verification_info(pcs_param, fxs, gxs, &mx.clone(), &mx.clone(), transcript);
+        let aux_info = <Self as BagMultiToolCheck<E, PCS>>::verification_info(pcs_param, fxs, gxs, &mx.clone(), &mx.clone(), E::ScalarField::zero(), transcript);
         return aux_info
     }
 
@@ -206,7 +207,7 @@ where
          Ok(BagEqCheckSubClaim{
             lhs_sumcheck_subclaim: bag_multitool_subclaim.lhs_sumcheck_subclaim, 
             rhs_sumcheck_subclaim: bag_multitool_subclaim.rhs_sumcheck_subclaim,
-            v: bag_multitool_subclaim.v,
+            v: bag_multitool_subclaim.lhs_v,
             gamma: bag_multitool_subclaim.gamma,
             fhat_zerocheck_subclaim: bag_multitool_subclaim.fhat_zerocheck_subclaim,
             ghat_zerocheck_subclaim: bag_multitool_subclaim.ghat_zerocheck_subclaim,
@@ -221,9 +222,11 @@ where
         
         // reformat proof to a BagMultiToolCheck proof
         let bag_multitool_proof: <Self as BagMultiToolCheck<E, PCS>>::BagMultiToolCheckProof = BagMultiToolCheckProof{
+            null_offset: E::ScalarField::zero(),
             lhs_sumcheck_proof: bageq_proof.lhs_sumcheck_proof.clone(),
             rhs_sumcheck_proof: bageq_proof.rhs_sumcheck_proof.clone(),
-            v:  bageq_proof.v,
+            lhs_v:  bageq_proof.v,
+            rhs_v:  bageq_proof.v,
             fhat_zero_check_proof: bageq_proof.fhat_zero_check_proof.clone(),
             ghat_zero_check_proof: bageq_proof.ghat_zero_check_proof.clone(),
             mf_comm: m_comm.clone(),
