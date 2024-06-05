@@ -37,6 +37,7 @@ where
     /// Inputs:
     /// - pcs_param: params for adding poly_comm to proof
     /// - fxs: the list of LHS polynomials
+    /// - fnulls: # of null elements in f, which do not have to be included in g
     /// - mf: the list of LHS multiplicities 
     /// - gxs: the list of RHS polynomials
     /// - transcript: the IOP transcript
@@ -48,6 +49,7 @@ where
     fn prove(
         pcs_param: &PCS::ProverParam,
         fxs: &[Self::MultilinearExtension],
+        fnulls: E::ScalarField,
         gxs: &[Self::MultilinearExtension],
         mg: &[Self::MultilinearExtension],
         transcript: &mut IOPTranscript<E::ScalarField>,
@@ -63,6 +65,7 @@ where
     fn verification_info (
         pcs_param: &PCS::ProverParam,
         fxs: &[Self::MultilinearExtension],
+        fnulls: E::ScalarField,
         gxs: &[Self::MultilinearExtension],
         mg: &[Self::MultilinearExtension],
         transcript: &mut IOPTranscript<E::ScalarField>,
@@ -98,6 +101,7 @@ pub struct BagSubsetCheckSubClaim<F: PrimeField, ZC: ZeroCheck<F>, SC: SumCheck<
     pub lhs_sumcheck_subclaim: SC::SumCheckSubClaim,
     pub rhs_sumcheck_subclaim: SC::SumCheckSubClaim,
     pub v: F,
+    pub fnulls: F,
     pub gamma: F,
     pub fhat_zerocheck_subclaim: ZC::ZeroCheckSubClaim,
     pub ghat_zerocheck_subclaim: ZC::ZeroCheckSubClaim,
@@ -113,6 +117,7 @@ pub struct BagSubsetCheckProof<
     pub lhs_sumcheck_proof: SC::SumCheckProof,
     pub rhs_sumcheck_proof: SC::SumCheckProof,
     pub v: E::ScalarField,
+    pub fnulls: E::ScalarField,
     pub fhat_zero_check_proof: ZC::ZeroCheckProof,
     pub ghat_zero_check_proof: ZC::ZeroCheckProof,
     pub mg_comm: PCS::Commitment,
@@ -135,6 +140,7 @@ where
     fn prove(
         pcs_param: &PCS::ProverParam,
         fxs: &[Self::MultilinearExtension],
+        fnulls: E::ScalarField,
         gxs: &[Self::MultilinearExtension],
         mg: &[Self::MultilinearExtension],
         transcript: &mut IOPTranscript<E::ScalarField>,

@@ -43,6 +43,7 @@ where
     /// - gxs: the list of RHS polynomials
     /// - mf: the list of LHS multiplicities 
     /// - mg: the list of RHS multiplicitieds
+    /// - null_offset: # of additional null elements in f compared to g
     /// - transcript: the IOP transcript
     ///
     /// Outputs
@@ -54,6 +55,7 @@ where
         gxs: &[Self::MultilinearExtension],
         mf: &[Self::MultilinearExtension],
         mg: &[Self::MultilinearExtension],
+        null_offset: E::ScalarField,
         transcript: &mut IOPTranscript<E::ScalarField>,
     ) -> Result<
         (
@@ -70,6 +72,7 @@ where
         gxs: &[Self::MultilinearExtension],
         mfxs: &[Self::MultilinearExtension],
         mgxs: &[Self::MultilinearExtension],
+        null_offset: E::ScalarField,
         transcript: &mut IOPTranscript<E::ScalarField>,
     ) -> VPAuxInfo<E::ScalarField>;
 
@@ -97,7 +100,8 @@ pub struct BagMultiToolCheckSubClaim<F: PrimeField, ZC: ZeroCheck<F>, SC: SumChe
     // the SubClaim from the ZeroCheck
     pub lhs_sumcheck_subclaim: SC::SumCheckSubClaim,
     pub rhs_sumcheck_subclaim: SC::SumCheckSubClaim,
-    pub v: F,
+    pub lhs_v: F,
+    pub rhs_v: F,
     pub gamma: F,
     pub fhat_zerocheck_subclaim: ZC::ZeroCheckSubClaim,
     pub ghat_zerocheck_subclaim: ZC::ZeroCheckSubClaim,
@@ -113,7 +117,8 @@ pub struct BagMultiToolCheckProof<
 > {
     pub lhs_sumcheck_proof: SC::SumCheckProof,
     pub rhs_sumcheck_proof: SC::SumCheckProof,
-    pub v: E::ScalarField,
+    pub lhs_v: E::ScalarField,
+    pub rhs_v: E::ScalarField,
     pub fhat_zero_check_proof: ZC::ZeroCheckProof,
     pub ghat_zero_check_proof: ZC::ZeroCheckProof,
     pub mf_comm: PCS::Commitment,
@@ -218,17 +223,6 @@ where
         let mut rhs = VirtualPolynomial::new(nv);
         lhs.add_mle_list([fhat.clone(), mf.clone()], E::ScalarField::one())?; // cloning Arc ptr b/c need fhat again below
         rhs.add_mle_list([ghat.clone(), mg.clone()], E::ScalarField::one())?;
-
-        
-        // let zero_vec = [E::ScalarField::zero(); 8];
-        // let mut one_vec =  [E::ScalarField::zero(); 8];
-        // one_vec[0] = E::ScalarField::one();
-
-        // println!("lhs zero eval: {:?}", lhs.evaluate(&zero_vec));
-        // println!("rhs zero eval: {:?}", rhs.evaluate(&one_vec));
-        // println!("lhs zero eval: {:?}", lhs.evaluate(&zero_vec));
-        // println!("rhs zero eval: {:?}", rhs.evaluate(&one_vec));
-        // println!();
        
         
         // calculate the sum values
@@ -245,17 +239,19 @@ where
         }
         
         
-        
+       
         let mut s1 = E::ScalarField::zero();
         let mut s2 = E::ScalarField::zero();
         for i in 0..2_usize.pow(nv as u32) {
             s1 += fhat[i] * mf_evals[i];
             s2 += ghat[i] * mg_evals[i];
         }
-        if s1 != s2 {
-            return Err(PolyIOPErrors::InvalidParameters("BagMultiToolCheck prove err: LHS and RHS have different sums".to_string()));
-        }
-        let v = s1;
+         // // Don't check sums equal here so we can reuse code for BagSubsetCheck
+        // if s1 != s2 {
+        //     return Err(PolyIOPErrors::InvalidParameters("BagMultiToolCheck prove err: LHS and RHS have different sums".to_string()));
+        // }
+        let lhs_v = s1;
+        let rhs_v = s2;
         
         // prove the sumcheck claim SUM(h) = 0
         let transcript_copy = transcript.clone();
@@ -270,7 +266,8 @@ where
             // transcript.append_message(b"testing", b"initializing transcript for testing")?;
             let aux_info = &lhs.aux_info.clone();
             let _ = <Self as SumCheck<E::ScalarField>>::verify(
-                v,
+                lhs_v,
+                rhs_v,
                 &lhs_sumcheck_proof,
                 aux_info,
                 &mut transcript_copy.clone(),

@@ -130,9 +130,6 @@ pub struct ProductCheckSubClaim<F: PrimeField, ZC: ZeroCheck<F>> {
     pub alpha: F,
 }
 
-/// A logup check proof consists of
-/// - a zerocheck proof
-/// - TODO: commitments to stuff?
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct ProductCheckProof<
     E: Pairing,
