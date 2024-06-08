@@ -87,10 +87,10 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
                 "fxs and mf have different number of polynomials".to_string(),
             ));
         }
-        for poly in fxs.iter().chain(mfxs.iter()) {
-            if poly.num_vars != fxs[0].num_vars {
+        for i in 0..fxs.len() {
+            if fxs[i].num_vars != mfxs[i].num_vars {
                 return Err(PolyIOPErrors::InvalidParameters(
-                    "vectors in fxs, mf, have different number of variables".to_string(),
+                    "fxs[i] and mfxs[i] have different number of polynomials".to_string(),
                 ));
             }
         }
@@ -104,10 +104,10 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
                 "fxs and mf have different number of polynomials".to_string(),
             ));
         }
-        for poly in gxs.iter().chain(mgxs.iter()) {
-            if poly.num_vars != fxs[0].num_vars {
+        for i in 0..gxs.len() {
+            if gxs[i].num_vars != mgxs[i].num_vars {
                 return Err(PolyIOPErrors::InvalidParameters(
-                    "vectors in fxs, gxs, mf, mg, have different number of variables".to_string(),
+                    "gxs[i] and mgxs[i] have different number of polynomials".to_string(),
                 ));
             }
         }
@@ -228,21 +228,33 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
     pub fn verification_info(
         _: &PCS::ProverParam,
         fxs: &[Arc<DenseMultilinearExtension<E::ScalarField>>],
-        _: &[Arc<DenseMultilinearExtension<E::ScalarField>>],
+        gxs: &[Arc<DenseMultilinearExtension<E::ScalarField>>],
         _: &[Arc<DenseMultilinearExtension<E::ScalarField>>],
         _: &[Arc<DenseMultilinearExtension<E::ScalarField>>],
         _: E::ScalarField,
         _: &mut IOPTranscript<E::ScalarField>,
-    ) -> VPAuxInfo<E::ScalarField> {
-        let f_virt = VirtualPolynomial::new_from_mle(&fxs[0], E::ScalarField::one());
-        let mut aux_info = f_virt.aux_info;
-        aux_info.max_degree = aux_info.max_degree + 1; // comes from f_hat having a multiplication in prove()
-        return aux_info
+    ) -> (Vec<VPAuxInfo<E::ScalarField>>, Vec<VPAuxInfo<E::ScalarField>>) {
+        let mut f_aux_info = Vec::new();
+        let mut g_aux_info = Vec::new();
+        for fx in fxs.iter() {
+            let virt = VirtualPolynomial::new_from_mle(&fx, E::ScalarField::one());
+            let mut aux_info = virt.aux_info.clone();
+            aux_info.max_degree = aux_info.max_degree + 1; // comes from f_hat having a multiplication in prove()
+            f_aux_info.push(aux_info);
+        }
+        for gx in gxs.iter() {
+            let virt = VirtualPolynomial::new_from_mle(&gx, E::ScalarField::one());
+            let mut aux_info = virt.aux_info.clone();
+            aux_info.max_degree = aux_info.max_degree + 1; // comes from g_hat having a multiplication in prove()
+            g_aux_info.push(aux_info);
+        }
+        return (f_aux_info, g_aux_info)
     }
 
     pub fn verify(
         proof: &BagMultiToolIOPProof<E, PCS>,
-        aux_info: &VPAuxInfo<E::ScalarField>,
+        f_aux_info: &Vec<VPAuxInfo<E::ScalarField>>,
+        g_aux_info: &Vec<VPAuxInfo<E::ScalarField>>,
         transcript: &mut IOPTranscript<E::ScalarField>,
     ) -> Result<BagMultiToolIOPSubClaim<E::ScalarField>, PolyIOPErrors> {
         let start = start_timer!(|| "BagMultiToolCheck verify");
@@ -276,20 +288,21 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
         let mut fhat_zerocheck_subclaims = Vec::<ZeroCheckIOPSubClaim<E::ScalarField>>::new();
         let mut ghat_zerocheck_subclaims = Vec::<ZeroCheckIOPSubClaim<E::ScalarField>>::new();
 
+        println!("lhs_sumcheck_proofs.len() = {}", proof.lhs_sumcheck_proofs.len());
         for i in 0..proof.lhs_sumcheck_proofs.len() {
             transcript.append_serializable_element(b"phat(x)", &proof.fhat_comms[i])?;
             
             let lhs_sumcheck_subclaim = SumCheckIOP::<E::ScalarField>::verify(
                 proof.lhs_vs[i],
                 &proof.lhs_sumcheck_proofs[i],
-                &aux_info,
+                &f_aux_info[i],
                 &mut transcript.clone(),
             )?;
             lhs_sumcheck_subclaims.push(lhs_sumcheck_subclaim);
 
             let fhat_zerocheck_subclaim = ZeroCheckIOP::<E::ScalarField>::verify(
                 &proof.fhat_zerocheck_proofs[i],
-                &aux_info,
+                &  f_aux_info[i],
                 &mut transcript.clone(),
             )?;
             fhat_zerocheck_subclaims.push(fhat_zerocheck_subclaim);
@@ -299,14 +312,14 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
             let rhs_sumcheck_subclaim = SumCheckIOP::<E::ScalarField>::verify(
                 proof.rhs_vs[i],
                 &proof.rhs_sumcheck_proofs[i],
-                &aux_info,
+                &g_aux_info[i],
                 &mut transcript.clone(),
             )?;
             rhs_sumcheck_subclaims.push(rhs_sumcheck_subclaim);
 
             let ghat_zerocheck_subclaim = ZeroCheckIOP::<E::ScalarField>::verify(
                 &proof.ghat_zerocheck_proofs[i],
-                &aux_info,
+                &g_aux_info[i],
                 &mut transcript.clone(),
             )?;
             ghat_zerocheck_subclaims.push(ghat_zerocheck_subclaim);

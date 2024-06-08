@@ -14,7 +14,7 @@ mod test {
     };
     use transcript::IOPTranscript;
 
-    use ark_bls12_381::{Fr, Bls12_381};
+    use ark_bls12_381::{Bls12_381, Fr};
     use ark_std::test_rng;
     use ark_std::rand::prelude::SliceRandom;
 
@@ -50,13 +50,43 @@ mod test {
         let mut transcript = BagMultiToolIOP::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>::init_transcript();
         transcript.append_message(b"testing", b"initializing transcript for testing")?;
 
-        // call the helper to run the proofand verify now that everything is set up 
-        // TODO: dont assume null_offset is zero
+        // Good Path 1: they are a correct permutation
         let null_offset = Fr::zero();
         test_bag_multitool_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&pcs_param, &[f.clone()], &[g.clone()], &[mf.clone()], &[mg.clone()], null_offset, &mut transcript)?;
-        println!("test_bag_multitool good path passed");
+    //    println!("Good path passed\n");
 
-        // good path passed. Now check bad path
+        // Good Path 2: null_offset is one
+        let null_offset = Fr::one();
+        let mut f2_evals = f_evals.clone();
+        let mut mf2_evals = mf_evals.clone();
+        let g2_evals = g_evals.clone();
+        let mut mg2_evals = mg_evals.clone();
+
+        f2_evals[permute_vec[0]] = Fr::zero();
+        mf2_evals[permute_vec[0]] = Fr::one();
+        mg2_evals[0] = Fr::zero();
+
+        let f2 = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, f2_evals.clone()));
+        let mf2 = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, mf2_evals.clone()));
+        let g2 = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, g2_evals.clone()));
+        let mg2 = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, mg2_evals.clone()));
+        test_bag_multitool_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&pcs_param, &[f2.clone()], &[g2.clone()], &[mf2.clone()], &[mg2.clone()], null_offset, &mut transcript)?;
+        // println!("good path 2 passed\n");
+
+        // Good Path 3: f is split into two polynomials
+        let f3a_evals = f_evals.clone()[..f_evals.len()/2].to_vec();
+        let f3b_evals = f_evals.clone()[f_evals.len()/2..].to_vec();
+        let mf3a_evals = mf_evals.clone()[..mf_evals.len()/2].to_vec();
+        let mf3b_evals = mf_evals.clone()[mf_evals.len()/2..].to_vec();
+        let f3a = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv-1, f3a_evals.clone()));
+        let mf3a = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv-1, mf3a_evals.clone()));
+        let f3b = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv-1, f3b_evals.clone()));
+        let mf3b = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv-1, mf3b_evals.clone()));
+        let null_offset = Fr::zero();
+        test_bag_multitool_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&pcs_param, &[f.clone(), f3a.clone(), f3b.clone()], &[g.clone(), g.clone()], &[mf.clone(), mf3a.clone(), mf3b.clone(), ], &[mg.clone(), mg.clone()], null_offset, &mut transcript)?;
+        // println!("good path 3 passed\n");
+
+        // good paths passed. Now check bad paths
         let h = arithmetic::random_permutation_mles(nv, 1, &mut rng)[0].clone();
         let mh = arithmetic::random_permutation_mles(nv, 1, &mut rng)[0].clone();
 
@@ -90,8 +120,8 @@ mod test {
         Polynomial = Arc<DenseMultilinearExtension<E::ScalarField>>,
     >,{
         let (proof, ) = BagMultiToolIOP::<E, PCS>::prove(pcs_param, fxs, gxs, mfxs, mgxs, null_offset, &mut transcript.clone())?;
-        let aux_info = BagMultiToolIOP::<E, PCS>::verification_info(pcs_param, fxs, gxs, mfxs, mgxs, null_offset, &mut transcript.clone());
-        BagMultiToolIOP::<E, PCS>::verify(&proof, &aux_info, transcript)?;
+        let (f_aux_info, g_aux_info) = BagMultiToolIOP::<E, PCS>::verification_info(pcs_param, fxs, gxs, mfxs, mgxs, null_offset, &mut transcript.clone());
+        BagMultiToolIOP::<E, PCS>::verify(&proof, &f_aux_info, &g_aux_info, &mut transcript.clone())?;
         Ok(())
     }
 
