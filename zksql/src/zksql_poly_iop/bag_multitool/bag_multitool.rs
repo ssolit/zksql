@@ -7,11 +7,13 @@ use std::ops::Neg;
 use std::sync::Arc;
 use subroutines::{
     pcs::PolynomialCommitmentScheme,
-    poly_iop::{errors::PolyIOPErrors, prelude::SumCheck, PolyIOP},
-    ZeroCheck,
+    poly_iop::{errors::PolyIOPErrors, prelude::SumCheckIOP, PolyIOP},
+    ZeroCheckIOP,
 };
 use transcript::IOPTranscript;
 
+
+pub struct BagMultiToolIOP<E: Pairing, PCS: PolynomialCommitmentScheme<E>>(PhantomData<E>, PhantomData<PCS>);
 
 pub trait BagMultiToolCheck<E, PCS>: ZeroCheck<E::ScalarField>
 where

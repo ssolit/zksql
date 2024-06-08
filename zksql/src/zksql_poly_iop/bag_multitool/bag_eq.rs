@@ -84,6 +84,7 @@ where
     ) -> Result<<Self as BagMultiToolCheck<E, PCS>>::BagMultiToolCheckProof, PCSError>;
 }
 
+
 /// A BagEqCheck check subclaim consists of
 /// two sumcheck subclaims, and the value v they should both equal
 /// the random challenge gamma
@@ -91,7 +92,9 @@ where
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct BagEqCheckSubClaim<F: PrimeField, ZC: ZeroCheck<F>, SC: SumCheck<F>> {
     // the SubClaim from the ZeroCheck
-    pub lhs_sumcheck_subclaim: SC::SumCheckSubClaim,
+    
+
+    pub lhs_sumcheck_subclaim: SumCheck::<F>::SumCheckSubClaim,
     pub rhs_sumcheck_subclaim: SC::SumCheckSubClaim,
     pub v: F,
     pub gamma: F,

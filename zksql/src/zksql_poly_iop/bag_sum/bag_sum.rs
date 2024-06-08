@@ -13,11 +13,36 @@ use transcript::IOPTranscript;
 
 use crate::zksql_poly_iop::bag_multitool::bag_multitool::{BagMultiToolCheck, BagMultiToolCheckProof};
 
-// fn msetsum_check<F: PrimeField>(
-//     f1: DenseMultilinearExtension<F>,
-//     f2: DenseMultilinearExtension<F>,
-//     g: DenseMultilinearExtension<F>,
-// ) -> Result<Vec<IOPProof<F>>, PolyIOPErrors> {
+/// A BagSumCheck check subclaim consists of
+/// two sumcheck subclaims, and the value v they should both equal
+/// the random challenge gamma
+/// two zerocheck claims to show denoms (fhat, ghat) in the sumcheck were constructed correctly
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct BagEqCheckSubClaim<F: PrimeField, ZC: ZeroCheck<F>, SC: SumCheck<F>> {
+    // the SubClaim from the ZeroCheck
+    pub lhs_sumcheck_subclaim: SC::SumCheckSubClaim,
+    pub rhs_sumcheck_subclaim: SC::SumCheckSubClaim,
+    pub v: F,
+    pub gamma: F,
+    pub fhat_zerocheck_subclaim: ZC::ZeroCheckSubClaim,
+    pub ghat_zerocheck_subclaim: ZC::ZeroCheckSubClaim,
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct BagEqCheckProof<
+    E: Pairing,
+    PCS: PolynomialCommitmentScheme<E>,
+    SC: SumCheck<E::ScalarField>,
+    ZC: ZeroCheck<E::ScalarField>,
+> {
+    pub lhs_sumcheck_proof: SC::SumCheckProof,
+    pub rhs_sumcheck_proof: SC::SumCheckProof,
+    pub v: E::ScalarField,
+    pub fhat_zero_check_proof: ZC::ZeroCheckProof,
+    pub ghat_zero_check_proof: ZC::ZeroCheckProof,
+    pub fhat_comm: PCS::Commitment,
+    pub ghat_comm: PCS::Commitment,
+}
 
 
 
