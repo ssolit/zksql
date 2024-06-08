@@ -3,158 +3,77 @@ use ark_ec::pairing::Pairing;
 use ark_ff::{Field, PrimeField};
 use ark_poly::DenseMultilinearExtension;
 use ark_std::{end_timer, One, start_timer, Zero};
-use std::ops::Neg;
-use std::sync::Arc;
+use std::{fmt::Debug, marker::PhantomData, ops::Neg, sync::Arc};
 use subroutines::{
     pcs::PolynomialCommitmentScheme,
-    poly_iop::{errors::PolyIOPErrors, prelude::SumCheckIOP, PolyIOP},
-    ZeroCheckIOP,
+    poly_iop::{
+        errors::PolyIOPErrors,
+        prelude::{SumCheckIOP, ZeroCheckIOPSubClaim},
+    },
+    IOPProof, SumCheckIOPSubClaim, ZeroCheckIOP,
 };
 use transcript::IOPTranscript;
 
 
+
 pub struct BagMultiToolIOP<E: Pairing, PCS: PolynomialCommitmentScheme<E>>(PhantomData<E>, PhantomData<PCS>);
 
-pub trait BagMultiToolCheck<E, PCS>: ZeroCheck<E::ScalarField>
-where
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct BagMultiToolIOPProof<
     E: Pairing,
     PCS: PolynomialCommitmentScheme<E>,
-{
-    type BagMultiToolCheckSubClaim;
-    type BagMultiToolCheckProof;
-
-    /// Initialize the system with a transcript
-    ///
-    /// This function is optional -- in the case where a BagMultiToolCheck is
-    /// an building block for a more complex protocol, the transcript
-    /// may be initialized by this complex protocol, and passed to the
-    /// BagMultiToolCheck prover/verifier.
-    fn init_transcript() -> Self::Transcript;
-
-    /// Proves that two lists of n-variate multilinear polynomials `(f1, f2,
-    /// ..., fk)` and `(g1, ..., gk)` with corresponding multiplicity vectors 
-    /// (m_{f1}, ..., m_{fk}) and (m_{g1}, ..., m_{gk}) satisfy:
-    /// 
-    ///   \Sum_{j=1}^{2^n} \frac{m_{fi}[j]}{X-fi[j]}
-    ///     = \Sum_{j=1}^{2^n} \frac{m_{gi}[j]}{X-gi[j]}
-    /// for each (fi, gi, mfi, mgi)
-    ///
-    /// Inputs:
-    /// - pcs_param: params for adding poly_comm to proof
-    /// - fxs: the list of LHS polynomials
-    /// - gxs: the list of RHS polynomials
-    /// - mf: the list of LHS multiplicities 
-    /// - mg: the list of RHS multiplicitieds
-    /// - null_offset: # of additional null elements in f compared to g
-    /// - transcript: the IOP transcript
-    ///
-    /// Outputs
-    /// - the BagMultiTool proof
-    #[allow(clippy::type_complexity)]
-    fn prove(
-        pcs_param: &PCS::ProverParam,
-        fxs: &[Self::MultilinearExtension],
-        gxs: &[Self::MultilinearExtension],
-        mf: &[Self::MultilinearExtension],
-        mg: &[Self::MultilinearExtension],
-        null_offset: E::ScalarField,
-        transcript: &mut IOPTranscript<E::ScalarField>,
-    ) -> Result<
-        (
-            Self::BagMultiToolCheckProof,
-        ),
-        PolyIOPErrors,
-    >;
-
-    /// Based on the proving inputs, get the aux_info the verifier needs for verificiation
-    /// This is determined by the shape of polynomials constructed for the final checks in prove()
-    fn verification_info(
-        pcs_param: &PCS::ProverParam,
-        fxs: &[Self::MultilinearExtension],
-        gxs: &[Self::MultilinearExtension],
-        mfxs: &[Self::MultilinearExtension],
-        mgxs: &[Self::MultilinearExtension],
-        null_offset: E::ScalarField,
-        transcript: &mut IOPTranscript<E::ScalarField>,
-    ) -> VPAuxInfo<E::ScalarField>;
-
-    /// Verify that two lists of n-variate multilinear polynomials `(f1, f2,
-    /// ..., fk)` and `(g1, ..., gk)` with corresponding multiplicity vectors 
-    /// (m_{f1}, ..., m_{fk}) and (m_{g1}, ..., m_{gk}) satisfy:
-    /// 
-    ///   \Sum_{j=1}^{2^n} \frac{m_{fi}[j]}{X-fi[j]}
-    ///     = \Sum_{j=1}^{2^n} \frac{m_{gi}[j]}{X-gi[j]}
-    /// for each (fi, gi, mfi, mgi)
-    fn verify(
-        proof: &Self::BagMultiToolCheckProof,
-        aux_info: &VPAuxInfo<E::ScalarField>,
-        transcript: &mut Self::Transcript,
-    ) -> Result<Self::BagMultiToolCheckSubClaim, PolyIOPErrors>;
-}
-
-
-/// A BagMultiToolCheck subclaim consists of
-/// - A zero check IOP subclaim for the virtual polynomial
-/// - The random challenge `alpha`
-/// - A final query for `prod(1, ..., 1, 0) = 1`.
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct BagMultiToolCheckSubClaim<F: PrimeField, ZC: ZeroCheck<F>, SC: SumCheck<F>> {
-    // the SubClaim from the ZeroCheck
-    pub null_offset: F,
-    pub gamma: F,
-    pub lhs_sumcheck_subclaim: SC::SumCheckSubClaim,
-    pub rhs_sumcheck_subclaim: SC::SumCheckSubClaim,
-    pub lhs_v: F,
-    pub rhs_v: F,
-    pub fhat_zerocheck_subclaim: ZC::ZeroCheckSubClaim,
-    pub ghat_zerocheck_subclaim: ZC::ZeroCheckSubClaim,
-}
-
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct BagMultiToolCheckProof<
-    E: Pairing,
-    PCS: PolynomialCommitmentScheme<E>,
-    SC: SumCheck<E::ScalarField>,
-    ZC: ZeroCheck<E::ScalarField>,
 
 > {
     pub null_offset: E::ScalarField,
-    pub lhs_sumcheck_proof: SC::SumCheckProof,
-    pub rhs_sumcheck_proof: SC::SumCheckProof,
+    pub lhs_sumcheck_proof: IOPProof<E::ScalarField>,
+    pub rhs_sumcheck_proof: IOPProof<E::ScalarField>,
     pub lhs_v: E::ScalarField,
     pub rhs_v: E::ScalarField,
-    pub fhat_zero_check_proof: ZC::ZeroCheckProof,
-    pub ghat_zero_check_proof: ZC::ZeroCheckProof,
+    pub fhat_zero_check_proof: IOPProof<E::ScalarField>,
+    pub ghat_zero_check_proof: IOPProof<E::ScalarField>,
     pub mf_comm: PCS::Commitment,
     pub mg_comm: PCS::Commitment,
     pub fhat_comm: PCS::Commitment,
     pub ghat_comm: PCS::Commitment,
 }
 
+/// A BagMultiToolCheck subclaim consists of
+/// - A zero check IOP subclaim for the virtual polynomial
+/// - The random challenge `alpha`
+/// - A final query for `prod(1, ..., 1, 0) = 1`.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct BagMultiToolIOPSubClaim<F: PrimeField> {
+    // the SubClaim from the ZeroCheck
+    pub null_offset: F,
+    pub gamma: F,
+    pub lhs_sumcheck_subclaim: SumCheckIOPSubClaim<F>,
+    pub rhs_sumcheck_subclaim: SumCheckIOPSubClaim<F>,
+    pub lhs_v: F,
+    pub rhs_v: F,
+    pub fhat_zerocheck_subclaim: ZeroCheckIOPSubClaim<F>,
+    pub ghat_zerocheck_subclaim: ZeroCheckIOPSubClaim<F>,
+}
 
-impl<E, PCS> BagMultiToolCheck<E, PCS> for PolyIOP<E::ScalarField>
-where
-    E: Pairing,
-    PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtension<E::ScalarField>>>,
+
+
+impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> BagMultiToolIOP<E, PCS> 
+where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtension<E::ScalarField>>>
 {
-    type BagMultiToolCheckSubClaim = BagMultiToolCheckSubClaim<E::ScalarField, Self, Self>;
-    type BagMultiToolCheckProof = BagMultiToolCheckProof<E, PCS, Self, Self>;
-
-    fn init_transcript() -> Self::Transcript {
+    pub fn init_transcript() -> IOPTranscript<E::ScalarField> {
         IOPTranscript::<E::ScalarField>::new(b"Initializing BagMultiToolCheck transcript")
     }
 
-    fn prove(
+    pub fn prove(
         pcs_param: &PCS::ProverParam,
-        fxs: &[Self::MultilinearExtension],
-        gxs: &[Self::MultilinearExtension],
-        mfxs: &[Self::MultilinearExtension],
-        mgxs: &[Self::MultilinearExtension],
+        fxs: &[Arc<DenseMultilinearExtension<E::ScalarField>>],
+        gxs: &[Arc<DenseMultilinearExtension<E::ScalarField>>],
+        mfxs: &[Arc<DenseMultilinearExtension<E::ScalarField>>],
+        mgxs: &[Arc<DenseMultilinearExtension<E::ScalarField>>],
         null_offset: E::ScalarField,
         transcript: &mut IOPTranscript<E::ScalarField>,
     ) -> Result<
         (
-            Self::BagMultiToolCheckProof,
+            BagMultiToolIOPProof<E, PCS>,
         ),
         PolyIOPErrors,
     > {
@@ -190,10 +109,10 @@ where
 
         // // iterate over vector elems and prove:
         // TODO: actually iterate or make inputs not be lists
-        let f: Self::MultilinearExtension = fxs[0].clone();
-        let g: Self::MultilinearExtension = gxs[0].clone();
-        let mf: Self::MultilinearExtension  = mfxs[0].clone();
-        let mg: Self::MultilinearExtension = mgxs[0].clone();
+        let f: Arc<DenseMultilinearExtension<E::ScalarField>> = fxs[0].clone();
+        let g: Arc<DenseMultilinearExtension<E::ScalarField>> = gxs[0].clone();
+        let mf: Arc<DenseMultilinearExtension<E::ScalarField>>  = mfxs[0].clone();
+        let mg: Arc<DenseMultilinearExtension<E::ScalarField>> = mgxs[0].clone();
 
         // initalize the transcript and get a random challenge gamma
         let mf_comm = PCS::commit(pcs_param, &mf)?;
@@ -260,8 +179,8 @@ where
         
         // prove the sumcheck claim SUM(h) = 0
         let transcript_copy = transcript.clone();
-        let lhs_sumcheck_proof = <PolyIOP<E::ScalarField> as SumCheck<E::ScalarField>>::prove(&lhs, &mut transcript_copy.clone())?;
-        let rhs_sumcheck_proof = <PolyIOP<E::ScalarField> as SumCheck<E::ScalarField>>::prove(&rhs, &mut transcript_copy.clone())?;
+        let lhs_sumcheck_proof = SumCheckIOP::<E::ScalarField>::prove(&lhs, &mut transcript_copy.clone())?;
+        let rhs_sumcheck_proof = SumCheckIOP::<E::ScalarField>::prove(&rhs, &mut transcript_copy.clone())?;
         
         // debug: make sure the sumcheck claim verifies
         #[cfg(debug_assertions)]
@@ -270,7 +189,7 @@ where
             // let mut transcript = <PolyIOP<E::ScalarField> as BagMultiToolCheck<E, PCS>>::init_transcript();
             // transcript.append_message(b"testing", b"initializing transcript for testing")?;
             let aux_info = &lhs.aux_info.clone();
-            let _ = <Self as SumCheck<E::ScalarField>>::verify(
+            let _ = SumCheckIOP::<E::ScalarField>::verify(
                 lhs_v,
                 &lhs_sumcheck_proof,
                 aux_info,
@@ -279,7 +198,7 @@ where
             // let mut transcript = <PolyIOP<E::ScalarField> as BagMultiToolCheck<E, PCS>>::init_transcript();
             // transcript.append_message(b"testing", b"initializing transcript for testing")?;
             let aux_info = &rhs.aux_info.clone();
-            let _ = <Self as SumCheck<E::ScalarField>>::verify(
+            let _ = SumCheckIOP::<E::ScalarField>::verify(
                 rhs_v,
                 &rhs_sumcheck_proof,
                 aux_info,
@@ -306,21 +225,21 @@ where
         ghat_check_poly.mul_by_mle(ghat, E::ScalarField::one())?;
         ghat_check_poly.add_mle_list([one_const_poly], E::ScalarField::one().neg())?;
         
-        let fhat_zero_check_proof = <PolyIOP<E::ScalarField> as ZeroCheck<E::ScalarField>>::prove(&fhat_check_poly, &mut transcript.clone())?;
-        let ghat_zero_check_proof = <PolyIOP<E::ScalarField> as ZeroCheck<E::ScalarField>>::prove(&ghat_check_poly, &mut transcript.clone())?;
+        let fhat_zero_check_proof = ZeroCheckIOP::<E::ScalarField>::prove(&fhat_check_poly, &mut transcript.clone())?;
+        let ghat_zero_check_proof = ZeroCheckIOP::<E::ScalarField>::prove(&ghat_check_poly, &mut transcript.clone())?;
 
         #[cfg(debug_assertions)]
         {
             println!("BagMultiToolCheck::prove Verifying zerochecks pass");
             let aux_info = &fhat_check_poly.aux_info.clone();
-            let _ = <Self as ZeroCheck<E::ScalarField>>::verify(
+            let _ = ZeroCheckIOP::<E::ScalarField>::verify(
                 &fhat_zero_check_proof,
                 aux_info,
                 &mut transcript.clone(),
             )?;
 
             let aux_info = &ghat_check_poly.aux_info.clone();
-            let _ = <Self as ZeroCheck<E::ScalarField>>::verify(
+            let _ = ZeroCheckIOP::<E::ScalarField>::verify(
                 &ghat_zero_check_proof,
                 aux_info,
                 &mut transcript.clone(),
@@ -330,7 +249,7 @@ where
 
         end_timer!(start);
         Ok((
-            BagMultiToolCheckProof {
+            BagMultiToolIOPProof::<E, PCS> {
                 null_offset,
                 lhs_sumcheck_proof,
                 rhs_sumcheck_proof,
@@ -346,12 +265,12 @@ where
         ))
     }
 
-    fn verification_info(
+    pub fn verification_info(
         _: &PCS::ProverParam,
-        fxs: &[Self::MultilinearExtension],
-        _: &[Self::MultilinearExtension],
-        _: &[Self::MultilinearExtension],
-        _: &[Self::MultilinearExtension],
+        fxs: &[Arc<DenseMultilinearExtension<E::ScalarField>>],
+        _: &[Arc<DenseMultilinearExtension<E::ScalarField>>],
+        _: &[Arc<DenseMultilinearExtension<E::ScalarField>>],
+        _: &[Arc<DenseMultilinearExtension<E::ScalarField>>],
         _: E::ScalarField,
         _: &mut IOPTranscript<E::ScalarField>,
     ) -> VPAuxInfo<E::ScalarField> {
@@ -361,11 +280,11 @@ where
         return aux_info
     }
 
-    fn verify(
-        proof: &Self::BagMultiToolCheckProof,
+    pub fn verify(
+        proof: &BagMultiToolIOPProof<E, PCS>,
         aux_info: &VPAuxInfo<E::ScalarField>,
-        transcript: &mut Self::Transcript,
-    ) -> Result<Self::BagMultiToolCheckSubClaim, PolyIOPErrors> {
+        transcript: &mut IOPTranscript<E::ScalarField>,
+    ) -> Result<BagMultiToolIOPSubClaim<E::ScalarField>, PolyIOPErrors> {
         let start = start_timer!(|| "BagMultiToolCheck verify");
 
         // update transcript and generate challenge
@@ -386,33 +305,33 @@ where
         }
 
         // invoke the respective IOP proofs for sumcheck, zerocheck fhat, zerocheck ghat
-        let lhs_sumcheck_subclaim = <Self as SumCheck<E::ScalarField>>::verify(
+        let lhs_sumcheck_subclaim = SumCheckIOP::<E::ScalarField>::verify(
             lhs_v,
             &proof.lhs_sumcheck_proof,
             aux_info,
             &mut transcript.clone(),
         )?;
 
-        let rhs_sumcheck_subclaim = <Self as SumCheck<E::ScalarField>>::verify(
+        let rhs_sumcheck_subclaim = SumCheckIOP::<E::ScalarField>::verify(
             rhs_v,
             &proof.rhs_sumcheck_proof,
             aux_info,
             &mut transcript.clone(),
         )?;
 
-        let fhat_zerocheck_subclaim = <Self as ZeroCheck<E::ScalarField>>::verify(
+        let fhat_zerocheck_subclaim = ZeroCheckIOP::<E::ScalarField>::verify(
             &proof.fhat_zero_check_proof,
             aux_info,
             &mut transcript.clone(),
         )?;
-        let ghat_zerocheck_subclaim = <Self as ZeroCheck<E::ScalarField>>::verify(
+        let ghat_zerocheck_subclaim = ZeroCheckIOP::<E::ScalarField>::verify(
             &proof.ghat_zero_check_proof,
             aux_info,
             &mut transcript.clone(),
         )?;
 
         end_timer!(start);
-        Ok(BagMultiToolCheckSubClaim{
+        Ok(BagMultiToolIOPSubClaim::<E::ScalarField>{
             null_offset,
             gamma,
             lhs_sumcheck_subclaim, 
@@ -422,8 +341,5 @@ where
             fhat_zerocheck_subclaim,
             ghat_zerocheck_subclaim,
         })
-
-
     }
 }
-

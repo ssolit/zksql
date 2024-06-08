@@ -9,7 +9,7 @@
 use std::{fmt::Debug, marker::PhantomData};
 
 use crate::poly_iop::{errors::PolyIOPErrors, sum_check::{SumCheck, 
-    SumCheckIOP, SumCheckProof, Transcript}, PolyIOP};
+    SumCheckIOP, SumCheckIOPProof, Transcript}, PolyIOP};
 use arithmetic::{VPAuxInfo, VirtualPolynomial};
 use arithmetic::eq_eval;
 use ark_ff::PrimeField;
@@ -32,37 +32,8 @@ pub struct ZeroCheckSubClaim<F: PrimeField> {
     // the initial challenge r which is used to build eq(x, r)
     pub init_challenge: Vec<F>,
 }
-pub type ZeroCheckProof<F> = SumCheckProof<F>;
-
-
-// / A ZeroCheck for `f(x)` proves that `f(x) = 0` for all `x \in {0,1}^num_vars`
-// / It is derived from SumCheck.
-// pub trait ZeroCheckIOP<F: PrimeField>: SumCheck<F> {
-//     type ZeroCheckSubClaim: Clone + Debug + Default + PartialEq;
-//     type ZeroCheckProof: Clone + Debug + Default + PartialEq;
-
-//     /// Initialize the system with a transcript
-//     ///
-//     /// This function is optional -- in the case where a ZeroCheck is
-//     /// an building block for a more complex protocol, the transcript
-//     /// may be initialized by this complex protocol, and passed to the
-//     /// ZeroCheck prover/verifier.
-//     fn init_transcript() -> Self::Transcript;
-
-//     /// initialize the prover to argue for the sum of polynomial over
-//     /// {0,1}^`num_vars` is zero.
-//     fn prove(
-//         poly: &Self::VirtualPolynomial,
-//         transcript: &mut Self::Transcript,
-//     ) -> Result<Self::ZeroCheckProof, PolyIOPErrors>;
-
-//     /// verify the claimed sum using the proof
-//     fn verify(
-//         proof: &Self::ZeroCheckProof,
-//         aux_info: &Self::VPAuxInfo,
-//         transcript: &mut Self::Transcript,
-//     ) -> Result<Self::ZeroCheckSubClaim, PolyIOPErrors>;
-// }
+pub type ZeroCheckIOPProof<F> = SumCheckIOPProof<F>;
+pub type ZeroCheckIOPSubClaim<F> = ZeroCheckSubClaim<F>;
 
 
 impl<F: PrimeField> ZeroCheckIOP<F> {
@@ -74,7 +45,7 @@ impl<F: PrimeField> ZeroCheckIOP<F> {
     pub fn prove(
         poly: &VirtualPolynomial<F>,
         transcript: &mut IOPTranscript<F>,
-    ) -> Result<ZeroCheckProof<F>, PolyIOPErrors> {
+    ) -> Result<ZeroCheckIOPProof<F>, PolyIOPErrors> {
         let start = start_timer!(|| "zero check prove");
 
         let length = poly.aux_info.num_variables;
@@ -88,10 +59,10 @@ impl<F: PrimeField> ZeroCheckIOP<F> {
     }
 
     pub fn verify(
-        proof: &ZeroCheckProof<F>,
+        proof: &ZeroCheckIOPProof<F>,
         fx_aux_info: &VPAuxInfo<F>,
         transcript: &mut Transcript<F>,
-    ) -> Result<ZeroCheckSubClaim<F>, PolyIOPErrors> {
+    ) -> Result<ZeroCheckIOPSubClaim<F>, PolyIOPErrors> {
         let start = start_timer!(|| "zero check verify");
 
         // check that the sum is zero
@@ -118,7 +89,7 @@ impl<F: PrimeField> ZeroCheckIOP<F> {
         let expected_evaluation = sum_subclaim.expected_evaluation / eq_x_r_eval;
 
         end_timer!(start);
-        Ok(ZeroCheckSubClaim {
+        Ok(ZeroCheckIOPSubClaim {
             point: sum_subclaim.point,
             expected_evaluation,
             init_challenge: r,

@@ -11,7 +11,7 @@ use crate::{
     poly_iop::{
         errors::PolyIOPErrors,
         prod_check::util::{compute_frac_poly, compute_product_poly, prove_zero_check},
-        zero_check::{ZeroCheck,ZeroCheckIOP, ZeroCheckSubClaim, ZeroCheckProof},
+        zero_check::{ZeroCheck,ZeroCheckIOP, ZeroCheckSubClaim, ZeroCheckIOPProof},
         PolyIOP,
     },
 };
@@ -81,7 +81,7 @@ pub struct ProductCheckIOPProof<
     E: Pairing,
     PCS: PolynomialCommitmentScheme<E>,
 > {
-    pub zero_check_proof: ZeroCheckProof<E::ScalarField>,
+    pub zero_check_proof: ZeroCheckIOPProof<E::ScalarField>,
     pub prod_x_comm: PCS::Commitment,
     pub frac_comm: PCS::Commitment,
 }

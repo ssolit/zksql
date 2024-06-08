@@ -24,6 +24,8 @@ mod verifier;
 
 
 pub struct SumCheckIOP<F: PrimeField>(PhantomData<F>);
+pub type SumCheckIOPProof<F> = IOPProof<F>;
+pub type SumCheckIOPSubClaim<F> = SumCheckSubClaim<F>;
 
 pub type SumCheckProof<F> = IOPProof<F>;
 pub type Transcript<F> = IOPTranscript<F>;

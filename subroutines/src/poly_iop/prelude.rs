@@ -10,6 +10,7 @@ pub use crate::poly_iop::{
 };
 
 pub use crate::poly_iop::{
-    prod_check::ProductCheckIOP,
-    sum_check::SumCheckIOP, zero_check::ZeroCheckIOP,
+    prod_check::{ProductCheckIOP, ProductCheckIOPProof, ProductCheckIOPSubClaim},
+    sum_check::{SumCheckIOP, SumCheckIOPProof, SumCheckIOPSubClaim},
+    zero_check::{ZeroCheckIOP, ZeroCheckIOPProof, ZeroCheckIOPSubClaim},
 };

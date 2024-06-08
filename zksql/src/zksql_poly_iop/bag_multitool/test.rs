@@ -9,7 +9,7 @@ mod test {
     use std::sync::Arc;
     use subroutines::{
         pcs::PolynomialCommitmentScheme,
-        poly_iop::{errors::PolyIOPErrors, PolyIOP},
+        poly_iop::errors::PolyIOPErrors,
         MultilinearKzgPCS
     };
     use transcript::IOPTranscript;
@@ -19,9 +19,9 @@ mod test {
     use ark_std::rand::prelude::SliceRandom;
 
     use crate::zksql_poly_iop::bag_multitool::{
-        bag_multitool::BagMultiToolCheck,
-        bag_eq::BagEqCheck,
-        bag_subset::BagSubsetCheck,
+        bag_multitool::BagMultiToolIOP,
+        bag_eq::BagEqIOP,
+        bag_subset::BagSubsetIOP,
     };
 
     // Sets up randomized inputs for testing BagMultiToolCheck
@@ -47,7 +47,7 @@ mod test {
         let mg = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, mg_evals.clone()));
 
         // initialize transcript 
-        let mut transcript = <PolyIOP<Fr> as BagMultiToolCheck<Bls12_381, MultilinearKzgPCS::<Bls12_381>>>::init_transcript();
+        let mut transcript = BagMultiToolIOP::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>::init_transcript();
         transcript.append_message(b"testing", b"initializing transcript for testing")?;
 
         // call the helper to run the proofand verify now that everything is set up 
@@ -89,9 +89,9 @@ mod test {
         E,
         Polynomial = Arc<DenseMultilinearExtension<E::ScalarField>>,
     >,{
-        let (proof, ) = <PolyIOP<E::ScalarField> as BagMultiToolCheck<E, PCS>>::prove(pcs_param, fxs, gxs, mfxs, mgxs, null_offset, &mut transcript.clone())?;
-        let aux_info = <PolyIOP<E::ScalarField> as BagMultiToolCheck<E, PCS>>::verification_info(pcs_param, fxs, gxs, mfxs, mgxs, null_offset, &mut transcript.clone());
-        <PolyIOP<E::ScalarField> as BagMultiToolCheck<E, PCS>>::verify(&proof, &aux_info, transcript)?;
+        let (proof, ) = BagMultiToolIOP::<E, PCS>::prove(pcs_param, fxs, gxs, mfxs, mgxs, null_offset, &mut transcript.clone())?;
+        let aux_info = BagMultiToolIOP::<E, PCS>::verification_info(pcs_param, fxs, gxs, mfxs, mgxs, null_offset, &mut transcript.clone());
+        BagMultiToolIOP::<E, PCS>::verify(&proof, &aux_info, transcript)?;
         Ok(())
     }
 
@@ -110,7 +110,7 @@ mod test {
         let g = arithmetic::random_permutation_mles(nv, 1, &mut rng)[0].clone();
         
         // initialize transcript 
-        let mut transcript = <PolyIOP<Fr> as BagEqCheck<Bls12_381, MultilinearKzgPCS::<Bls12_381>>>::init_transcript();
+        let mut transcript = BagEqIOP::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>::init_transcript();
         transcript.append_message(b"testing", b"initializing transcript for testing")?;
 
         // call the helper to run the proofand verify now that everything is set up 
@@ -144,9 +144,9 @@ mod test {
             Polynomial = Arc<DenseMultilinearExtension<E::ScalarField>>,
         >,
     {
-        let (proof,) = <PolyIOP<E::ScalarField> as BagEqCheck<E, PCS>>::prove(pcs_param, fxs, gxs, &mut transcript.clone())?;
-        let aux_info = <PolyIOP<E::ScalarField> as BagEqCheck<E, PCS>>::verification_info(pcs_param, fxs, gxs, &mut transcript.clone());
-        <PolyIOP::<E::ScalarField> as BagEqCheck::<E, PCS>>::verify(pcs_param, &proof, &aux_info, &mut transcript.clone())?;
+        let (proof,) = BagEqIOP::<E, PCS>::prove(pcs_param, fxs, gxs, &mut transcript.clone())?;
+        let aux_info = BagEqIOP::<E, PCS>::verification_info(pcs_param, fxs, gxs, &mut transcript.clone());
+        BagEqIOP::<E, PCS>::verify(pcs_param, &proof, &aux_info, &mut transcript.clone())?;
         Ok(())
     }
 
@@ -177,7 +177,7 @@ mod test {
         let mg = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, mg_evals.clone()));
 
         // initialize transcript 
-        let mut transcript = <PolyIOP<Fr> as BagEqCheck<Bls12_381, MultilinearKzgPCS::<Bls12_381>>>::init_transcript();
+        let mut transcript = BagEqIOP::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>::init_transcript();
         transcript.append_message(b"testing", b"initializing transcript for testing")?;
 
         // call the helper to run the proofand verify now that everything is set up 
@@ -210,9 +210,9 @@ mod test {
             Polynomial = Arc<DenseMultilinearExtension<E::ScalarField>>,
         >,
     {
-        let (proof,) = <PolyIOP<E::ScalarField> as BagSubsetCheck<E, PCS>>::prove(pcs_param, fxs, gxs, mg, null_offset, &mut transcript.clone())?;
-        let aux_info = <PolyIOP<E::ScalarField> as BagSubsetCheck<E, PCS>>::verification_info(pcs_param, fxs, gxs, mg, null_offset, &mut transcript.clone());
-        <PolyIOP::<E::ScalarField> as BagSubsetCheck::<E, PCS>>::verify(pcs_param, &proof, &aux_info, &mut transcript.clone())?;
+        let (proof,) = BagSubsetIOP::<E, PCS>::prove(pcs_param, fxs, gxs, mg, null_offset, &mut transcript.clone())?;
+        let aux_info = BagSubsetIOP::<E, PCS>::verification_info(pcs_param, fxs, gxs, mg, null_offset, &mut transcript.clone());
+        BagSubsetIOP::<E, PCS>::verify(pcs_param, &proof, &aux_info, &mut transcript.clone())?;
         Ok(())
     }
 
