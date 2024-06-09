@@ -2,7 +2,7 @@ use arithmetic::VPAuxInfo;
 use ark_ec::pairing::Pairing;
 use ark_ff::PrimeField;
 use ark_poly::DenseMultilinearExtension;
-use ark_std::{end_timer, One, start_timer, Zero};
+use ark_std::{end_timer, One, start_timer};
 use std::{fmt::Debug, marker::PhantomData, sync::Arc};
 use subroutines::{
     pcs::PolynomialCommitmentScheme,
@@ -85,11 +85,11 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
         let f0_one_const_poly = Arc::new(DenseMultilinearExtension::from_evaluations_vec(fx0.num_vars, vec![E::ScalarField::one(); 2_usize.pow(fx0.num_vars as u32)]));
         let f1_one_const_poly = Arc::new(DenseMultilinearExtension::from_evaluations_vec(fx1.num_vars, vec![E::ScalarField::one(); 2_usize.pow(fx1.num_vars as u32)]));
         let g_one_const_poly = Arc::new(DenseMultilinearExtension::from_evaluations_vec(gx.num_vars, vec![E::ScalarField::one(); 2_usize.pow(gx.num_vars as u32)]));
-        let mf = vec![f0_one_const_poly, f1_one_const_poly];
-        let mg = vec![g_one_const_poly];
+        let mfxs = vec![f0_one_const_poly, f1_one_const_poly];
+        let mgxs = vec![g_one_const_poly];
 
         // use bag_multitool
-        let (bag_multitool_proof,) = BagMultiToolIOP::<E, PCS>::prove(pcs_param, &[fx0, fx1], &[gx], &mf.clone(), &mg.clone(), E::ScalarField::zero(),transcript)?;
+        let (bag_multitool_proof,) = BagMultiToolIOP::<E, PCS>::prove(pcs_param, &[fx0, fx1], &[gx], &mfxs.clone(), &mgxs.clone(), null_offset,transcript)?;
         let bag_sum_iop_proof =  BagSumIOPProof::<E, PCS>{
             null_offset,
             fhat0_comm: bag_multitool_proof.fhat_comms[0].clone(),
@@ -145,14 +145,6 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
         gx_aux_info: &VPAuxInfo<E::ScalarField>,
         transcript: &mut IOPTranscript<E::ScalarField>,
     ) -> Result<BagSumIOPSubClaim<E::ScalarField>, PolyIOPErrors> {
-
-
-        println!("proof.lhs0_v: {}", proof.lhs0_v);
-        println!("proof.lhs1_v: {}", proof.lhs1_v);
-        println!("proof.rhs_v: {}", proof.rhs_v);
-        println!("proof.null_offset: {}", proof.null_offset);
-
-
         let start = start_timer!(|| "bagsumCheck verify");
         let bag_multitool_proof = Self::bagsum_proof_to_bagmulti_proof(pcs_param,proof, fx1_aux_info.num_variables, fx2_aux_info.num_variables, gx_aux_info.num_variables)?;
         let bag_multitool_subclaim = BagMultiToolIOP::verify(&bag_multitool_proof, &vec![fx1_aux_info.clone(), fx2_aux_info.clone()], &vec![gx_aux_info.clone()], transcript)?;

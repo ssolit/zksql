@@ -278,19 +278,6 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
         let lhs_v: E::ScalarField = proof.lhs_vs.iter().sum();
         let rhs_v: E::ScalarField = proof.rhs_vs.iter().sum();
 
-        println!("\nin bag_multitool verify");
-        // println!("Null offset: {}", null_offset);
-        // println!("lhs_v0: {}", proof.lhs_vs[0]);
-        // println!("lhs_v: {}", proof.lhs_vs[0] + proof.lhs_vs[1]);
-        // println!("lhs_v: {}",lhs_v);
-        println!("rhs_v - lhs_v: {}", rhs_v - lhs_v);
-        println!("(rhs_v - lhs_v) * gamma : {}", (rhs_v - lhs_v) * gamma);
-        println!("((rhs_v - lhs_v) * gamma).neg(): {}", ((rhs_v - lhs_v) * gamma).neg());
-        println!("zero {:?}", (rhs_v - lhs_v) * gamma + ((rhs_v - lhs_v) * gamma).neg());
-        // println!("gamma_inverse * null_offset: {}", gamma_inverse * null_offset);
-        println!("neg_offset: {}", null_offset.neg());
-        println!("gamma_inverse * null_offset * gamma: {}", gamma_inverse * null_offset * gamma);
-
         if lhs_v + (gamma_inverse * null_offset) != rhs_v {
             let mut err_msg = "LHS and RHS have different sums".to_string();
             err_msg.push_str(&format!(" LHS: {}, RHS: {}", lhs_v, rhs_v));
