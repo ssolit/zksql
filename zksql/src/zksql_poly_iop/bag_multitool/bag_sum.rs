@@ -186,7 +186,7 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
         let mg_comms  = vec![mg_comm.clone()];
 
         let bag_multitool_proof: BagMultiToolIOPProof::<E, PCS> = BagMultiToolIOPProof{
-            null_offset: E::ScalarField::zero(),
+            null_offset: bagsum_proof.null_offset,
             lhs_sumcheck_proofs: vec![bagsum_proof.lhs0_sumcheck_proof.clone(), bagsum_proof.lhs1_sumcheck_proof.clone()],
             rhs_sumcheck_proofs: vec![bagsum_proof.rhs_sumcheck_proof.clone()],
             lhs_vs:  vec![bagsum_proof.lhs0_v, bagsum_proof.lhs1_v],

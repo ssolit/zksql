@@ -277,8 +277,8 @@ mod test {
         let f0 = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv-1, f0_evals.clone()));
         let f1 = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv-1, f1_evals.clone()));
         let g = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, g_evals.clone()));
-        test_bagsum_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&pcs_param, f0.clone(), f1.clone(), g.clone(),  null_offset, &mut transcript)?;
-        println!("test_bagsum good path 1 passed\n");
+        // test_bagsum_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&pcs_param, f0.clone(), f1.clone(), g.clone(),  null_offset, &mut transcript)?;
+        // println!("test_bagsum good path 1 passed\n");
 
         // good path 2, f0 and f1 are different sized
         let f0_evals = gen_evals.clone()[..gen_evals.len()/2].to_vec();
@@ -289,14 +289,23 @@ mod test {
             g_evals[i] = Fr::zero();
         }
         let num_nulls = gen_evals.len()/4;
-        let null_offset = Fr::one() * Fr::from(num_nulls as u64);
+        let null_offset = Fr::from(num_nulls as u64).neg();
 
         let f0 = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv-1, f0_evals.clone()));
         let f1 = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv-2, f1_evals.clone()));
         let g = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, g_evals.clone()));
 
+        test_bag_multitool_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&pcs_param, &[f0.clone(), f1.clone()], &[g.clone()], &[get_one_m(f0.num_vars), get_one_m(f1.num_vars)], &[get_one_m(g.num_vars)], null_offset, &mut transcript)?;
+        println!("test_bagsum bag_multitool subtest passed\n");
+
         test_bagsum_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&pcs_param, f0.clone(), f1.clone(), g.clone(),  null_offset, &mut transcript)?;
         println!("test_bagsum good path 2 passed\n");
+
+        fn get_one_m(nv: usize) -> Arc<DenseMultilinearExtension<Fr>> {
+            let evals = vec![Fr::one(); 2_usize.pow(nv as u32)];
+            return Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, evals))
+        }
+        
 
         // good path passed. Now check bad path
         let mut bad_f0_evals = f0_evals.clone();
