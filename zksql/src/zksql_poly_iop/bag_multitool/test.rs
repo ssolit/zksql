@@ -22,7 +22,11 @@ mod test {
         bag_multitool::BagMultiToolIOP,
         bag_eq::BagEqIOP,
         bag_subset::BagSubsetIOP,
+        bag_sum::BagSumIOP,
     };
+
+
+    use std::ops::Neg;
 
     // Sets up randomized inputs for testing BagMultiToolCheck
     fn test_bag_multitool() -> Result<(), PolyIOPErrors> {
@@ -246,6 +250,88 @@ mod test {
         Ok(())
     }
 
+    // Sets up randomized inputs for testing BagEqCheck
+    fn test_bagsum() -> Result<(), PolyIOPErrors> {
+        // testing params
+        let nv = 8;
+        let mut rng = test_rng();
+
+        // PCS params
+        let srs = MultilinearKzgPCS::<Bls12_381>::gen_srs_for_testing(&mut rng, nv)?;
+        let (pcs_param, _) = MultilinearKzgPCS::<Bls12_381>::trim(&srs, None, Some(nv))?;
+
+        // initialize transcript 
+        let mut transcript = BagEqIOP::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>::init_transcript();
+        transcript.append_message(b"testing", b"initializing transcript for testing")?;
+
+
+        // randomly init f, mf, and a permutation vec, and build fa, fb, g, mg based off of it
+        let gen = arithmetic::random_permutation_mles(nv, 1, &mut rng)[0].clone();
+        let gen_evals: Vec<Fr> = gen.evaluations.clone();
+
+        // good path 1, f0 and f1 are the same size
+        let f0_evals = gen_evals.clone()[..gen_evals.len()/2].to_vec();
+        let f1_evals = gen_evals.clone()[gen_evals.len()/2 ..].to_vec();
+        let g_evals = gen_evals.clone();
+        let null_offset = Fr::zero();
+        let f0 = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv-1, f0_evals.clone()));
+        let f1 = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv-1, f1_evals.clone()));
+        let g = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, g_evals.clone()));
+        test_bagsum_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&pcs_param, f0.clone(), f1.clone(), g.clone(),  null_offset, &mut transcript)?;
+        println!("test_bagsum good path 1 passed\n");
+
+        // good path 2, f0 and f1 are different sized
+        let f0_evals = gen_evals.clone()[..gen_evals.len()/2].to_vec();
+        let f1_evals = gen_evals.clone()[gen_evals.len()/2 .. (gen_evals.len() * 3/4)].to_vec();
+
+        let mut g_evals = gen_evals.clone();
+        for i in (gen_evals.len() * 3/4)..gen_evals.len() {
+            g_evals[i] = Fr::zero();
+        }
+        let num_nulls = gen_evals.len()/4;
+        let null_offset = Fr::one() * Fr::from(num_nulls as u64);
+
+        let f0 = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv-1, f0_evals.clone()));
+        let f1 = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv-2, f1_evals.clone()));
+        let g = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, g_evals.clone()));
+
+        test_bagsum_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&pcs_param, f0.clone(), f1.clone(), g.clone(),  null_offset, &mut transcript)?;
+        println!("test_bagsum good path 2 passed\n");
+
+        // good path passed. Now check bad path
+        let mut bad_f0_evals = f0_evals.clone();
+        bad_f0_evals[0] = Fr::one();
+        bad_f0_evals[1] = Fr::one();
+        let bad_f0 = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv-1, bad_f0_evals.clone()));
+        let bad_result1 = test_bagsum_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&pcs_param, bad_f0.clone(), f1.clone(), g.clone(),  null_offset, &mut transcript);
+        assert!(bad_result1.is_err());
+
+        // exit successfully 
+        Ok(())
+    }
+
+     // Given inputs, calls and verifies BagEqCheck
+    fn test_bagsum_helper<E, PCS>(
+        pcs_param: &PCS::ProverParam,
+        fx0: Arc<DenseMultilinearExtension<E::ScalarField>>,
+        fx1: Arc<DenseMultilinearExtension<E::ScalarField>>,
+        gx: Arc<DenseMultilinearExtension<E::ScalarField>>,
+        null_offset: E::ScalarField,
+        transcript: &mut IOPTranscript<E::ScalarField>,
+    ) -> Result<(), PolyIOPErrors>
+    where
+        E: Pairing,
+        PCS: PolynomialCommitmentScheme<
+            E,
+            Polynomial = Arc<DenseMultilinearExtension<E::ScalarField>>,
+        >,
+    {
+        let (proof,) = BagSumIOP::<E, PCS>::prove(pcs_param, fx0.clone(), fx1.clone(), gx.clone(), null_offset, &mut transcript.clone())?;
+        let (f0_aux_info, f1_aux_info, g_aux_info) = BagSumIOP::<E, PCS>::verification_info(pcs_param, fx0.clone(), fx1.clone(), gx.clone(), null_offset, &mut transcript.clone())?;
+        BagSumIOP::<E, PCS>::verify(pcs_param, &proof, &f0_aux_info, &f1_aux_info, &g_aux_info, &mut transcript.clone())?;
+        Ok(())
+    }
+
 
     // test callers
     #[test]
@@ -263,6 +349,12 @@ mod test {
     #[test]
     fn bagsubset_test() {
         let res = test_bagsubset();
+        res.unwrap();
+    }
+
+    #[test]
+    fn bagsum_test() {
+        let res = test_bagsum();
         res.unwrap();
     }
 }

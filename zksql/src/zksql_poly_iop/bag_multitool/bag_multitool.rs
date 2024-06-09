@@ -279,7 +279,11 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
         let rhs_v: E::ScalarField = proof.rhs_vs.iter().sum();
 
         if lhs_v + (gamma_inverse * null_offset) != rhs_v {
-            return Err(PolyIOPErrors::InvalidVerifier("LHS and RHS have different sums".to_string()));
+            let mut err_msg = "LHS and RHS have different sums".to_string();
+            err_msg.push_str(&format!(" LHS: {:?}, RHS: {:?}", lhs_v, rhs_v));
+            err_msg.push_str(&format!(" null_offset: {}", null_offset));
+            err_msg.push_str(&format!(" gamma_inverse: {}", gamma_inverse));
+            return Err(PolyIOPErrors::InvalidVerifier(err_msg));
         }
 
         // create the subclaims for each sumcheck and zerocheck
@@ -288,7 +292,6 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
         let mut fhat_zerocheck_subclaims = Vec::<ZeroCheckIOPSubClaim<E::ScalarField>>::new();
         let mut ghat_zerocheck_subclaims = Vec::<ZeroCheckIOPSubClaim<E::ScalarField>>::new();
 
-        println!("lhs_sumcheck_proofs.len() = {}", proof.lhs_sumcheck_proofs.len());
         for i in 0..proof.lhs_sumcheck_proofs.len() {
             transcript.append_serializable_element(b"phat(x)", &proof.fhat_comms[i])?;
             
