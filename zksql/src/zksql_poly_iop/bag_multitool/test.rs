@@ -23,6 +23,7 @@ mod test {
         bag_eq::BagEqIOP,
         bag_subset::BagSubsetIOP,
         bag_sum::BagSumIOP,
+        bag_presc_perm::BagPrescPermIOP,
     };
 
 
@@ -335,6 +336,77 @@ mod test {
         Ok(())
     }
 
+    // Sets up randomized inputs for testing BagPrescPerm
+    fn test_bag_presc_perm() -> Result<(), PolyIOPErrors> {
+        // testing params
+        let nv = 8;
+        let mut rng = test_rng();
+
+        // PCS params
+        let srs = MultilinearKzgPCS::<Bls12_381>::gen_srs_for_testing(&mut rng, nv)?;
+        let (pcs_param, _) = MultilinearKzgPCS::<Bls12_381>::trim(&srs, None, Some(nv))?;
+
+        // initialize transcript 
+        let mut transcript = BagEqIOP::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>::init_transcript();
+        transcript.append_message(b"testing", b"initializing transcript for testing")?;
+
+
+        // randomly init f, and a permuation vec, and build g off of it
+        let f = arithmetic::random_permutation_mles(nv, 1, &mut rng)[0].clone();
+        let f_evals: Vec<Fr> = f.evaluations.clone();
+        let mut permute_vec: Vec<usize> = (0..f_evals.len()).collect();
+        permute_vec.shuffle(&mut rng);
+        let perm_evals: Vec<Fr> = permute_vec.iter().map(|x| Fr::from(*x as u64)).collect();
+        let perm = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, perm_evals.clone()));
+        let g_evals: Vec<Fr> = permute_vec.iter().map(|&i| f_evals[i]).collect();
+        let g = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, g_evals.clone()));
+
+        // good path
+        test_bag_presc_perm_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&pcs_param, f.clone(), g.clone(), perm.clone(), &mut transcript)?;
+        println!("test_presc_perm good path 1 passed\n");
+
+        // bad path 1 - different elements
+        let mut bad_f_evals = f_evals.clone();
+        bad_f_evals[0] = Fr::one();
+        bad_f_evals[1] = Fr::one();
+        let bad_f = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, bad_f_evals.clone()));
+        let bad_result1 = test_bag_presc_perm_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&pcs_param, bad_f.clone(), g.clone(), perm.clone(), &mut transcript);
+        assert!(bad_result1.is_err());
+
+        // bad path 2 - f and g are a different permutation than perm
+        let mut bad_perm_evals = perm_evals.clone();
+        let old_0_eval = perm_evals[0];
+        bad_perm_evals[0] = bad_perm_evals[1];
+        bad_perm_evals[1] = old_0_eval;
+        let bad_perm = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, bad_perm_evals.clone()));
+        let bad_result2 = test_bag_presc_perm_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&pcs_param, f.clone(), g.clone(), bad_perm.clone(), &mut transcript);
+        assert!(bad_result2.is_err());
+
+        // exit successfully 
+        Ok(())
+    }
+
+     // Given inputs, calls and verifies BagEqCheck
+    fn test_bag_presc_perm_helper<E, PCS>(
+        pcs_param: &PCS::ProverParam,
+        fx: Arc<DenseMultilinearExtension<E::ScalarField>>,
+        gx: Arc<DenseMultilinearExtension<E::ScalarField>>,
+        perm: Arc<DenseMultilinearExtension<E::ScalarField>>,
+        transcript: &mut IOPTranscript<E::ScalarField>,
+    ) -> Result<(), PolyIOPErrors>
+    where
+        E: Pairing,
+        PCS: PolynomialCommitmentScheme<
+            E,
+            Polynomial = Arc<DenseMultilinearExtension<E::ScalarField>>,
+        >,
+    {
+        let (proof,) = BagPrescPermIOP::<E, PCS>::prove(pcs_param, fx.clone(), gx.clone(), perm.clone(), &mut transcript.clone())?;
+        let aux_info = BagEqIOP::<E, PCS>::verification_info(pcs_param, &fx.clone(), &gx.clone(), &mut transcript.clone());
+        BagPrescPermIOP::<E, PCS>::verify(pcs_param, &proof, &aux_info, &mut transcript.clone())?;
+        Ok(())
+    }
+
 
     // test callers
     #[test]
@@ -358,6 +430,12 @@ mod test {
     #[test]
     fn bagsum_test() {
         let res = test_bagsum();
+        res.unwrap();
+    }
+
+    #[test]
+    fn bag_presc_perm_test() {
+        let res = test_bag_presc_perm();
         res.unwrap();
     }
 }

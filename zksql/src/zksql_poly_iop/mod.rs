@@ -6,7 +6,6 @@ pub mod prelude;
 mod join;
 pub mod bag_multitool;
 mod bag_sort;
-mod bag_sum;
 mod bag_supp;
 
 mod select;

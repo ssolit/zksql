@@ -45,10 +45,10 @@ pub struct BagSumIOPProof<
 /// two zerocheck claims to show denoms (fhat, ghat) in the sumcheck were constructed correctly
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct BagSumIOPSubClaim<F: PrimeField> {
-    pub null_offset: F,
-    pub lhs0_v: F,
-    pub lhs1_v: F,
-    pub rhs_v: F,
+    // pub null_offset: F,
+    // pub lhs0_v: F,
+    // pub lhs1_v: F,
+    // pub rhs_v: F,
     pub lhs0_sumcheck_subclaim: SumCheckIOPSubClaim<F>,
     pub lhs1_sumcheck_subclaim: SumCheckIOPSubClaim<F>,
     pub rhs_sumcheck_subclaim: SumCheckIOPSubClaim<F>,
@@ -151,10 +151,10 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
  
          end_timer!(start);
          Ok(BagSumIOPSubClaim{
-            null_offset: bag_multitool_subclaim.null_offset,
-            lhs0_v: bag_multitool_subclaim.lhs_vs[0],
-            lhs1_v: bag_multitool_subclaim.lhs_vs[1],
-            rhs_v: bag_multitool_subclaim.rhs_vs[0],
+            // null_offset: bag_multitool_subclaim.null_offset,
+            // lhs0_v: bag_multitool_subclaim.lhs_vs[0],
+            // lhs1_v: bag_multitool_subclaim.lhs_vs[1],
+            // rhs_v: bag_multitool_subclaim.rhs_vs[0],
             lhs0_sumcheck_subclaim: bag_multitool_subclaim.lhs_sumcheck_subclaims[0].clone(),
             lhs1_sumcheck_subclaim: bag_multitool_subclaim.lhs_sumcheck_subclaims[1].clone(),
             rhs_sumcheck_subclaim: bag_multitool_subclaim.rhs_sumcheck_subclaims[0].clone(),

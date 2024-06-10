@@ -40,8 +40,7 @@ pub struct BagEqIOPProof<
 pub struct BagEqIOPSubClaim<F: PrimeField> {
     pub lhs_sumcheck_subclaim: SumCheckIOPSubClaim<F>,
     pub rhs_sumcheck_subclaim: SumCheckIOPSubClaim<F>,
-    pub v: F,
-    pub gamma: F,
+    // pub v: F,
     pub fhat_zerocheck_subclaim: ZeroCheckIOPSubClaim<F>,
     pub ghat_zerocheck_subclaim: ZeroCheckIOPSubClaim<F>,
 }
@@ -122,8 +121,8 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
          Ok(BagEqIOPSubClaim{
             lhs_sumcheck_subclaim: bag_multitool_subclaim.lhs_sumcheck_subclaims[0].clone(), 
             rhs_sumcheck_subclaim: bag_multitool_subclaim.rhs_sumcheck_subclaims[0].clone(),
-            v: bag_multitool_subclaim.lhs_vs[0],
-            gamma: bag_multitool_subclaim.gamma,
+            // v: bag_multitool_subclaim.lhs_vs[0],
+            // gamma: bag_multitool_subclaim.gamma,
             fhat_zerocheck_subclaim: bag_multitool_subclaim.fhat_zerocheck_subclaims[0].clone(),
             ghat_zerocheck_subclaim: bag_multitool_subclaim.ghat_zerocheck_subclaims[0].clone(),
         })

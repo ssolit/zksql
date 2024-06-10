@@ -8,9 +8,9 @@ use subroutines::{
     pcs::PolynomialCommitmentScheme,
     poly_iop::{
         errors::PolyIOPErrors,
-        prelude::{SumCheckIOP, ZeroCheckIOPSubClaim},
+        prelude::{SumCheckIOP, SumCheckIOPSubClaim, ZeroCheckIOP, ZeroCheckIOPSubClaim},
     },
-    IOPProof, SumCheckIOPSubClaim, ZeroCheckIOP,
+    IOPProof,
 };
 use transcript::IOPTranscript;
 
@@ -43,11 +43,6 @@ pub struct BagMultiToolIOPProof<
 /// - A final query for `prod(1, ..., 1, 0) = 1`.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct BagMultiToolIOPSubClaim<F: PrimeField> {
-    // the SubClaim from the ZeroCheck
-    pub null_offset: F,
-    pub gamma: F,
-    pub lhs_vs: Vec<F>,
-    pub rhs_vs: Vec<F>,
     pub lhs_sumcheck_subclaims: Vec<SumCheckIOPSubClaim<F>>,
     pub rhs_sumcheck_subclaims: Vec<SumCheckIOPSubClaim<F>>,
     pub fhat_zerocheck_subclaims: Vec<ZeroCheckIOPSubClaim<F>>,
@@ -330,10 +325,6 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
 
         end_timer!(start);
         Ok(BagMultiToolIOPSubClaim::<E::ScalarField>{
-            null_offset,
-            gamma,
-            lhs_vs: proof.lhs_vs.clone(),
-            rhs_vs: proof.rhs_vs.clone(),
             lhs_sumcheck_subclaims, 
             rhs_sumcheck_subclaims,
             fhat_zerocheck_subclaims,
