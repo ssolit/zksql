@@ -61,23 +61,25 @@ mod test {
         let range_poly_evals = (0..2_usize.pow(num_range_pow as u32)).map(|x| Fr::from(x as u64)).collect(); // numbers are between 0 and 2^10 by construction
         let range_poly = Arc::new(DenseMultilinearExtension::from_evaluations_vec(num_range_pow, range_poly_evals));
         let mut m_range_nums = vec![0; 2_usize.pow(num_range_pow as u32)];
-        // for i in 0..sorted_poly_nums.len() {
-        //     m_range_nums[sorted_poly_nums[i] as usize] += 1;
-        // }
         let diff_nums = (1..2_usize.pow(nv as u32)).map(
             |i| sorted_poly_nums[i] - sorted_poly_nums[i - 1]
         ).collect::<Vec<_>>();
         for i in 0..diff_nums.len() {
             m_range_nums[diff_nums[i] as usize] += 1;
         }
+
+        // debug
+        // for i in 0..sorted_poly_nums.len() {
+        //     m_range_nums[sorted_poly_nums[i] as usize] += 1;
+        // }
+        // println!("diff_nums: {:?}", diff_nums);
+        // println!("m_range_nums: {:?}", m_range_nums);
+        // println!("\n\n\n");
+        
         m_range_nums[1] += 1; // add one because the first number in diff_evals is set to 1
         let m_range_evals = m_range_nums.iter().map(|x| Fr::from(*x as u64)).collect();
         let m_range = Arc::new(DenseMultilinearExtension::from_evaluations_vec(num_range_pow, m_range_evals));
 
-        // debug
-        // println!("diff_nums: {:?}", diff_nums);
-        // println!("m_range_nums: {:?}", m_range_nums);
-        // println!("\n\n\n");
 
         // initialize transcript 
         let mut transcript = BagStrictSortIOP::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>::init_transcript();
@@ -126,8 +128,8 @@ mod test {
         >,
     {
         let (proof,) = BagStrictSortIOP::<E, PCS>::prove(pcs_param, sorted_poly.clone(), range_poly.clone(), m_range.clone(), &mut transcript.clone())?;
-        let aux_info = BagStrictSortIOP::<E, PCS>::verification_info(pcs_param, sorted_poly, range_poly, m_range, &mut transcript.clone());
-        BagStrictSortIOP::<E, PCS>::verify(pcs_param, &proof, &aux_info, &mut transcript.clone())?;
+        let (presc_perm_aux_info, range_aux_info_1, range_aux_info_2) = BagStrictSortIOP::<E, PCS>::verification_info(pcs_param, sorted_poly, range_poly, m_range, &mut transcript.clone());
+        BagStrictSortIOP::<E, PCS>::verify(pcs_param, &proof, &presc_perm_aux_info, &range_aux_info_1, &range_aux_info_2, &mut transcript.clone())?;
         Ok(())
     }
 

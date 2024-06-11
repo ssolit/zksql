@@ -79,7 +79,7 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
         let mf = one_const_poly.clone();
 
         // call the bag_multitool prover
-        let (bag_multitool_proof,) = BagMultiToolIOP::<E, PCS>::prove(pcs_param, &[fx.clone()], &[gx.clone()], &[mf], &[mg.clone()], null_offset, transcript)?;    
+        let (bag_multitool_proof,) = BagMultiToolIOP::<E, PCS>::prove(pcs_param, &[fx.clone()], &[gx.clone()], &[mf.clone()], &[mg.clone()], null_offset, &mut transcript.clone())?;    
         
         // reshape the bag_multitool proof into a bag_subset proof
         let bag_subset_check_proof =  BagSubsetIOPProof::<E, PCS>{
@@ -95,6 +95,28 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
             ghat_comm: bag_multitool_proof.ghat_comms[0].clone(),
         };
 
+        // #[cfg(debug_assertions)] {
+        //     let (f_aux_info, g_aux_info) = BagSubsetIOP::<E, PCS>::verification_info(
+        //         pcs_param,
+        //         &fx.clone(),
+        //         &gx.clone(),
+        //         &mf.clone(),
+        //         null_offset,
+        //         &mut transcript.clone(),
+        //     );
+        //     let verify_result = BagSubsetIOP::<E, PCS>::verify(
+        //         pcs_param,
+        //         &bag_subset_check_proof,
+        //         &f_aux_info,
+        //         &g_aux_info,
+        //         &mut transcript.clone(),
+        //     ); 
+        //     match verify_result {
+        //         Ok(_) => (),
+        //         Err(e) => println!("BagSubsetIOP::prove failed: {}", e),
+        //     }
+        // }
+
         end_timer!(start);
         Ok((bag_subset_check_proof,))
     }
@@ -106,25 +128,26 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
         mg: &Arc<DenseMultilinearExtension<E::ScalarField>>,
         null_offset: E::ScalarField,
         transcript: &mut IOPTranscript<E::ScalarField>,
-    ) -> VPAuxInfo<E::ScalarField> {
+    ) -> (VPAuxInfo<E::ScalarField>, VPAuxInfo<E::ScalarField>) {
         let nv = fx.num_vars;
         let one_const_poly = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, vec![E::ScalarField::one(); 2_usize.pow(nv as u32)]));
         let mf = vec![one_const_poly.clone()];
-        let (f_aux_info, _) = BagMultiToolIOP::<E, PCS>::verification_info(pcs_param, &[fx.clone()], &[gx.clone()], &mf, &[mg.clone()], null_offset, transcript);
-        return f_aux_info[0].clone()
+        let (f_aux_info, g_aux_info) = BagMultiToolIOP::<E, PCS>::verification_info(pcs_param, &[fx.clone()], &[gx.clone()], &mf, &[mg.clone()], null_offset, transcript);
+        return (f_aux_info[0].clone(), g_aux_info[0].clone())
     }
 
     pub fn verify(
         pcs_param: &PCS::ProverParam,
         proof: &BagSubsetIOPProof<E, PCS>,
-        aux_info: &VPAuxInfo<E::ScalarField>,
+        f_aux_info: &VPAuxInfo<E::ScalarField>,
+        g_aux_info: &VPAuxInfo<E::ScalarField>,
         transcript: &mut IOPTranscript<E::ScalarField>,
     ) -> Result<BagSubsetIOPSubClaim<E::ScalarField>, PolyIOPErrors> {
         let start = start_timer!(|| "BagSubsetCheck verify");
-        let nv = aux_info.num_variables;
+        let f_nv = f_aux_info.num_variables;
 
-        let bag_multitool_proof = Self::bagsubset_proof_to_bagmulti_proof(pcs_param, nv, proof)?;
-        let bag_multitool_subclaim = BagMultiToolIOP::verify(&bag_multitool_proof, &vec![aux_info.clone()], &vec![aux_info.clone()], transcript)?;
+        let bag_multitool_proof = Self::bagsubset_proof_to_bagmulti_proof(pcs_param, f_nv, proof)?;
+        let bag_multitool_subclaim = BagMultiToolIOP::verify(&bag_multitool_proof, &vec![f_aux_info.clone()], &vec![g_aux_info.clone()], transcript)?;
  
          end_timer!(start);
          Ok(BagSubsetIOPSubClaim{

@@ -257,8 +257,8 @@ mod test {
         >,
     {
         let (proof,) = BagSubsetIOP::<E, PCS>::prove(pcs_param, fx, gx, mg, null_offset, &mut transcript.clone())?;
-        let aux_info = BagSubsetIOP::<E, PCS>::verification_info(pcs_param, fx, gx, mg, null_offset, &mut transcript.clone());
-        BagSubsetIOP::<E, PCS>::verify(pcs_param, &proof, &aux_info, &mut transcript.clone())?;
+        let (f_aux_info, g_aux_info) = BagSubsetIOP::<E, PCS>::verification_info(pcs_param, fx, gx, mg, null_offset, &mut transcript.clone());
+        BagSubsetIOP::<E, PCS>::verify(pcs_param, &proof, &f_aux_info, &g_aux_info, &mut transcript.clone())?;
         Ok(())
     }
 

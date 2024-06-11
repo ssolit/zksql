@@ -287,6 +287,7 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
         let mut fhat_zerocheck_subclaims = Vec::<ZeroCheckIOPSubClaim<E::ScalarField>>::new();
         let mut ghat_zerocheck_subclaims = Vec::<ZeroCheckIOPSubClaim<E::ScalarField>>::new();
 
+        // println!("BagMutltiTool Verify: starting lhs subchecks");
         for i in 0..proof.lhs_sumcheck_proofs.len() {
             transcript.append_serializable_element(b"phat(x)", &proof.fhat_comms[i])?;
             
@@ -305,7 +306,9 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
             )?;
             fhat_zerocheck_subclaims.push(fhat_zerocheck_subclaim);
         }
+        // println!("BagMutltiTool Verify: starting rhs subchecks");
         for i in 0..proof.rhs_sumcheck_proofs.len() {
+            // print!("start1\n");
             transcript.append_serializable_element(b"phat(x)", &proof.ghat_comms[i])?;
             let rhs_sumcheck_subclaim = SumCheckIOP::<E::ScalarField>::verify(
                 proof.rhs_vs[i],
@@ -314,6 +317,7 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
                 &mut transcript.clone(),
             )?;
             rhs_sumcheck_subclaims.push(rhs_sumcheck_subclaim);
+            // print!("finish1");
 
             let ghat_zerocheck_subclaim = ZeroCheckIOP::<E::ScalarField>::verify(
                 &proof.ghat_zerocheck_proofs[i],
@@ -321,6 +325,7 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
                 &mut transcript.clone(),
             )?;
             ghat_zerocheck_subclaims.push(ghat_zerocheck_subclaim);
+            // print!("finish2\n\n");
         }
 
         end_timer!(start);

@@ -88,24 +88,26 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
             &mut transcript.clone(),
         )?;
 
-        #[cfg(debug_assertions)] {
-            println!("BagStrictSortIOP::prove debug: check that presc_perm_proof is valid");
-            let aux_info = BagPrescPermIOP::<E, PCS>::verification_info(
-                pcs_param,
-                &sorted_poly.clone(),
-                &q.clone(),
-                &perm.clone(),
-                &mut transcript.clone(),
-            );
+        // #[cfg(debug_assertions)] {
+        //     let aux_info = BagPrescPermIOP::<E, PCS>::verification_info(
+        //         pcs_param,
+        //         &sorted_poly.clone(),
+        //         &q.clone(),
+        //         &perm.clone(),
+        //         &mut transcript.clone(),
+        //     );
 
-            let _ = BagPrescPermIOP::<E, PCS>::verify(
-                pcs_param,
-                &presc_perm_proof,
-                &aux_info,
-                &mut transcript.clone(),
-            )?;
-            println!("debug verifying presc_perm_proof passed");
-        }
+        //     let verify_result = BagPrescPermIOP::<E, PCS>::verify(
+        //         pcs_param,
+        //         &presc_perm_proof,
+        //         &aux_info,
+        //         &mut transcript.clone(),
+        //     );
+        //     match verify_result {
+        //         Ok(_) => (),
+        //         Err(e) => println!("BagStrictSortIOP::prove failed: {}", e),
+        //     }
+        // }
 
         //TODO: Next step is selector stuff. see below or textEdit
         // Multiply with selector with is 1 everywhere except at zero 
@@ -121,9 +123,6 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
             |i| selector[i] * (sorted_poly[i] - q[i]) + one_poly[i] - selector[i]
         ).collect::<Vec<_>>();
 
-        // println!("diff_evals: {:?}", diff_evals);
-        // println!("m_range_evals: {:?}", m_range.evaluations);
-
         let diff_poly = Arc::new(DenseMultilinearExtension::from_evaluations_vec(sorted_nv, diff_evals));
         let null_offset = E::ScalarField::zero(); // Should have no nulls in diff_poly b/c first element is always 1
         let (range_proof,) = BagSubsetIOP::<E, PCS>::prove(
@@ -135,25 +134,27 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
             &mut transcript.clone(),
         )?;
 
-        #[cfg(debug_assertions)] {
-            println!("BagStrictSortIOP::prove debug: check that range_proof is valid\n");
-            let aux_info = BagSubsetIOP::<E, PCS>::verification_info(
-                pcs_param,
-            &diff_poly.clone(),
-            &range_poly.clone(),
-            &m_range.clone(),
-                null_offset,
-                &mut transcript.clone(),
-            );
-
-            let _ = BagSubsetIOP::<E, PCS>::verify(
-                pcs_param,
-                &range_proof,
-                &aux_info,
-                &mut transcript.clone(),
-            )?;
-            println!("debug verifying range_proof passed\n\n");
-        }
+        // #[cfg(debug_assertions)] {
+        //     let (f_aux_info, g_aux_info) = BagSubsetIOP::<E, PCS>::verification_info(
+        //         pcs_param,
+        //     &diff_poly.clone(),
+        //     &range_poly.clone(),
+        //     &m_range.clone(),
+        //         null_offset,
+        //         &mut transcript.clone(),
+        //     );
+        //     let verify_result = BagSubsetIOP::<E, PCS>::verify(
+        //         pcs_param,
+        //         &range_proof,
+        //         &f_aux_info,
+        //         &g_aux_info,
+        //         &mut transcript.clone(),
+        //     );
+        //     match verify_result {
+        //         Ok(_) => (),
+        //         Err(e) => println!("BagStrictSortIOP::prove failed: {}", e),
+        //     }
+        // }
 
         let proof = BagStrictSortIOPProof::<E, PCS> {
             presc_perm_proof: presc_perm_proof,
@@ -167,42 +168,53 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
     pub fn verification_info (
         pcs_param: &PCS::ProverParam,
         sorted_poly: Arc<DenseMultilinearExtension<E::ScalarField>>,
-        _: Arc<DenseMultilinearExtension<E::ScalarField>>,
-        _: Arc<DenseMultilinearExtension<E::ScalarField>>,
+        range_poly: Arc<DenseMultilinearExtension<E::ScalarField>>,
+        m_range: Arc<DenseMultilinearExtension<E::ScalarField>>,
         transcript: &mut IOPTranscript<E::ScalarField>,
-    ) -> VPAuxInfo<E::ScalarField>{
+    ) -> (VPAuxInfo<E::ScalarField>, VPAuxInfo<E::ScalarField>, VPAuxInfo<E::ScalarField>) {
         let perm_dummy = sorted_poly.clone(); // just need something the right size
-        let aux_info = BagPrescPermIOP::<E, PCS>::verification_info(
+        let presc_perm_aux_info = BagPrescPermIOP::<E, PCS>::verification_info(
             pcs_param,
         &sorted_poly.clone(),
         &perm_dummy.clone(),
             &perm_dummy.clone(),
             &mut transcript.clone(),
         );
-        return aux_info;
+
+        let (range_aux_info_1, range_aux_info_2) = BagSubsetIOP::<E, PCS>::verification_info(
+            pcs_param,
+            &sorted_poly.clone(), // same size as diff_poly
+            &range_poly.clone(),
+            &m_range.clone(),
+            E::ScalarField::zero(), // dummy null offset
+            &mut transcript.clone(),
+        );
+
+        return (presc_perm_aux_info, range_aux_info_1, range_aux_info_2);
     }
 
     pub fn verify(
         pcs_param: &PCS::ProverParam,
         proof: &BagStrictSortIOPProof<E, PCS>,
-        aux_info: &VPAuxInfo<E::ScalarField>,
+        presc_perm_aux_info: &VPAuxInfo<E::ScalarField>,
+        range_aux_info_1: &VPAuxInfo<E::ScalarField>,
+        range_aux_info_2: &VPAuxInfo<E::ScalarField>,
         transcript: &mut IOPTranscript<E::ScalarField>,
     ) -> Result<BagStrictSortIOPSubClaim<E::ScalarField>, PolyIOPErrors> {
         let start = start_timer!(|| "BagStrictSortIOP verify");
 
-        println!("verifying presc_perm_proof");
         let presc_perm_subclaim = BagPrescPermIOP::<E, PCS>::verify(
             pcs_param,
             &proof.presc_perm_proof,
-            &aux_info,
+            &presc_perm_aux_info,
             &mut transcript.clone(),
         )?;
 
-        println!("verifying range_proof");
         let range_subclaim = BagSubsetIOP::<E, PCS>::verify(
             pcs_param,
             &proof.range_proof,
-            &aux_info,
+            &range_aux_info_1,
+            &range_aux_info_2,
            &mut  transcript.clone(),
         )?;
 
