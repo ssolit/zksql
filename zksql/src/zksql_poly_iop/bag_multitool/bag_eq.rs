@@ -66,7 +66,7 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
         // check input shape is correct
         if fx.num_vars != gx.num_vars {
             return Err(PolyIOPErrors::InvalidParameters(
-                "fx and gx have different number of variables".to_string(),
+                "BagEqIOP Error: fx and gx have different number of variables".to_string(),
             ));
         }
         let nv = fx.num_vars;

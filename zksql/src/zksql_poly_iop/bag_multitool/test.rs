@@ -215,11 +215,22 @@ mod test {
         let mut transcript = BagEqIOP::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>::init_transcript();
         transcript.append_message(b"testing", b"initializing transcript for testing")?;
 
-        // call the helper to run the proofand verify now that everything is set up 
+        // Good path 1: described above
         test_bagsubset_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&pcs_param, &f.clone(), &g.clone(), &mg.clone(), null_offset, &mut transcript)?;
-        println!("test_bagsubset_helper good path passed");
+        println!("test_bagsubset_helper good path 1 passed");
 
-        // good path passed. Now check bad path
+        // Good path 2: f and g are different sized
+        let f_small_evals = [g.evaluations[0], g.evaluations[1]].to_vec();
+        let f_small = Arc::new(DenseMultilinearExtension::from_evaluations_vec(1, f_small_evals.clone()));
+        let mut mg_small_evals = vec![Fr::zero(); mg_evals.len()];
+        mg_small_evals[0] = Fr::one();
+        mg_small_evals[1] = Fr::one();
+        let mg_small = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, mg_small_evals.clone()));
+        let null_offset = Fr::zero();
+        test_bagsubset_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&pcs_param, &f_small.clone(), &g.clone(), &mg_small.clone(), null_offset, &mut transcript)?;
+        println!("test_bagsubset_helper good path 2 passed");
+
+        // bad path
         mg_evals[0] = Fr::one();
         let bad_mg = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, mg_evals.clone()));
         let bad_result1 = test_bagsubset_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&pcs_param, &f.clone(), &g.clone(), &bad_mg.clone(), null_offset, &mut transcript);

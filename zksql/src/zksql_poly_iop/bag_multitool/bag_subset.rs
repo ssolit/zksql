@@ -71,13 +71,7 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
         ),
         PolyIOPErrors,
     > {
-        let start = start_timer!(|| "BagSubsetCheck prove");
-
-        if fx.num_vars != gx.num_vars {
-            return Err(PolyIOPErrors::InvalidParameters(
-                "fx and gx have different number of variables".to_string(),
-            ));
-        }
+        let start = start_timer!(|| "BagSubsetIOP prove");
         let nv = fx.num_vars;
 
         // initialize multiplicity vector

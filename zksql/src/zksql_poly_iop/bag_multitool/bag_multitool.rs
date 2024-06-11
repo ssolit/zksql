@@ -75,34 +75,34 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
 
         // check input shapes are correct
         if fxs.is_empty() {
-            return Err(PolyIOPErrors::InvalidParameters("fxs is empty".to_string()));
+            return Err(PolyIOPErrors::InvalidParameters("BagMultiToolIOP Error: fxs is empty".to_string()));
         }
         if fxs.len() != mfxs.len() {
             return Err(PolyIOPErrors::InvalidParameters(
-                "fxs and mf have different number of polynomials".to_string(),
+                "BagMultiToolIOP Error: fxs and mf have different number of polynomials".to_string(),
             ));
         }
         for i in 0..fxs.len() {
             if fxs[i].num_vars != mfxs[i].num_vars {
                 return Err(PolyIOPErrors::InvalidParameters(
-                    "fxs[i] and mfxs[i] have different number of polynomials".to_string(),
+                    "BagMultiToolIOP Error: fxs[i] and mfxs[i] have different number of polynomials".to_string(),
                 ));
             }
         }
 
         if gxs.is_empty() {
-            return Err(PolyIOPErrors::InvalidParameters("fxs is empty".to_string()));
+            return Err(PolyIOPErrors::InvalidParameters("BagMultiToolIOP Error: fxs is empty".to_string()));
         }
        
         if gxs.len() != mgxs.len() {
             return Err(PolyIOPErrors::InvalidParameters(
-                "fxs and mf have different number of polynomials".to_string(),
+                "BagMultiToolIOP Error: fxs and mf have different number of polynomials".to_string(),
             ));
         }
         for i in 0..gxs.len() {
             if gxs[i].num_vars != mgxs[i].num_vars {
                 return Err(PolyIOPErrors::InvalidParameters(
-                    "gxs[i] and mgxs[i] have different number of polynomials".to_string(),
+                    "BagMultiToolIOP Error: gxs[i] and mgxs[i] have different number of polynomials".to_string(),
                 ));
             }
         }
@@ -274,7 +274,7 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
         let rhs_v: E::ScalarField = proof.rhs_vs.iter().sum();
 
         if lhs_v + (gamma_inverse * null_offset) != rhs_v {
-            let mut err_msg = "LHS and RHS have different sums".to_string();
+            let mut err_msg = "BagMutltiTool Verify Error: LHS and RHS have different sums".to_string();
             err_msg.push_str(&format!(" LHS: {}, RHS: {}", lhs_v, rhs_v));
             err_msg.push_str(&format!(" null_offset: {}", null_offset));
             err_msg.push_str(&format!(" gamma_inverse: {}", gamma_inverse));
