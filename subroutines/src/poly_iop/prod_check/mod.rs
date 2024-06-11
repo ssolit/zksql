@@ -154,6 +154,20 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
         ))
     }
 
+    pub fn verification_info(
+        pcs_param: &PCS::ProverParam,
+        fxs: &[Arc<DenseMultilinearExtension<E::ScalarField>>],
+        gxs: &[Arc<DenseMultilinearExtension<E::ScalarField>>],
+        transcript: &mut IOPTranscript<E::ScalarField>,
+    ) -> VPAuxInfo<E::ScalarField> {
+        let aux_info = VPAuxInfo {
+            max_degree: fxs.len() + 1,
+            num_variables: fxs[0].num_vars,
+            phantom: PhantomData::default(),
+        };
+        return aux_info;
+    }
+
     pub fn verify(
         proof: &ProductCheckIOPProof<E, PCS>,
         aux_info: &VPAuxInfo<E::ScalarField>,
