@@ -155,10 +155,10 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
     }
 
     pub fn verification_info(
-        pcs_param: &PCS::ProverParam,
+        _pcs_param: &PCS::ProverParam,
         fxs: &[Arc<DenseMultilinearExtension<E::ScalarField>>],
-        gxs: &[Arc<DenseMultilinearExtension<E::ScalarField>>],
-        transcript: &mut IOPTranscript<E::ScalarField>,
+        _gxs: &[Arc<DenseMultilinearExtension<E::ScalarField>>],
+        _transcript: &mut IOPTranscript<E::ScalarField>,
     ) -> VPAuxInfo<E::ScalarField> {
         let aux_info = VPAuxInfo {
             max_degree: fxs.len() + 1,

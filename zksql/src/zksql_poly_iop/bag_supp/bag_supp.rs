@@ -1,23 +1,19 @@
-use arithmetic::{VPAuxInfo, VirtualPolynomial};
+use arithmetic::VPAuxInfo;
 use ark_ec::pairing::Pairing;
-use ark_ff::{batch_inversion, Field, PrimeField};
+use ark_ff::{batch_inversion,PrimeField};
 use ark_poly::DenseMultilinearExtension;
 use ark_std::{end_timer, One, start_timer, Zero};
-use std::{f32::consts::E, fmt::Debug, marker::PhantomData, ops::Neg, panic::AssertUnwindSafe, sync::Arc};
+use std::{fmt::Debug, marker::PhantomData, sync::Arc};
 use subroutines::{
     pcs::PolynomialCommitmentScheme,
     poly_iop::{
         errors::PolyIOPErrors,
-        prelude::{SumCheckIOP, SumCheckIOPSubClaim, ZeroCheckIOP, ZeroCheckIOPProof, ZeroCheckIOPSubClaim, ProductCheckIOP, ProductCheckIOPProof, ProductCheckIOPSubClaim},
+        prelude::{ProductCheckIOP, ProductCheckIOPProof, ProductCheckIOPSubClaim},
     },
-    IOPProof,
 };
 use transcript::IOPTranscript;
 
-use crate::zksql_poly_iop::bag_multitool::{
-    bag_subset::{BagSubsetIOP, BagSubsetIOPProof, BagSubsetIOPSubClaim},
-    bag_eq::{BagEqIOP, BagEqIOPProof, BagEqIOPSubClaim},
-};
+use crate::zksql_poly_iop::bag_multitool::bag_subset::{BagSubsetIOP, BagSubsetIOPProof, BagSubsetIOPSubClaim};
 use crate::zksql_poly_iop::bag_sort::bag_sort::{BagStrictSortIOP, BagStrictSortIOPProof, BagStrictSortIOPSubClaim};
 
 pub struct BagSuppIOP<E: Pairing, PCS: PolynomialCommitmentScheme<E>>(PhantomData<E>, PhantomData<PCS>);
