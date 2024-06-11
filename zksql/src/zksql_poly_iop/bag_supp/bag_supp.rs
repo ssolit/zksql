@@ -60,7 +60,7 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
     ) -> Result<BagSuppIOPProof<E, PCS>, PolyIOPErrors> {
         let start = start_timer!(|| "bagStrictSort prove");
     
-        // Show supp is a subset of bag
+        // (BagSubsetIOP) Show supp is a subset of bag 
         let (supp_subset_proof,) = BagSubsetIOP::<E, PCS>::prove(
             pcs_param,
             &supp,
@@ -70,7 +70,7 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
             &mut transcript.clone(),
         )?;
     
-        // Show supp includes all elements of bag by showing m_bag has no zeros
+        // (ProductCheckIOP) Show supp includes all elements of bag by showing m_bag has no zeros
         let mut m_bag_evals = m_bag.evaluations.clone();
         batch_inversion(&mut m_bag_evals);
         let m_bag_inverse = Arc::new(DenseMultilinearExtension::from_evaluations_vec(
@@ -81,11 +81,11 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
         let (bag_inclusion_proof, _, _) = ProductCheckIOP::<E, PCS>::prove(
             pcs_param,
             &[m_bag.clone(), m_bag_inverse.clone()],
-            &[m_bag_one_poly.clone()],
+            &[m_bag_one_poly.clone(), m_bag_one_poly.clone()], // for some reason fxs and gxs need to be the same length
             &mut transcript.clone(),
         )?;
     
-        // Show supp is sorted by calling bag_sort
+        // (BagStrictSortIOP) Show supp is sorted by calling bag_sort
         let (bag_sort_proof,) = BagStrictSortIOP::<E, PCS>::prove(
             pcs_param,
             supp.clone(),
@@ -100,6 +100,7 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
             supp_sorted_proof: bag_sort_proof,
         };
     
+        end_timer!(start);
         Ok(proof)
     }
     
@@ -178,13 +179,14 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
 
         let supp_sorted_subclaim = BagStrictSortIOP::<E, PCS>::verify(
             pcs_param,
-            &proof.supp_sorted_proof.clone(),
+            &proof.supp_sorted_proof,
             &aux_info_vec[3],
             &aux_info_vec[4],
             &aux_info_vec[5],
             &mut transcript.clone(),
         )?;
 
+        end_timer!(start);
         Ok(BagSuppIOPSubClaim::<E::ScalarField>{
             supp_subset_subclaim,
             supp_superset_subclaim,
@@ -195,14 +197,3 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
 
 
 }
-
-
-
-// pub struct BagSuppIOPProof<
-//     E: Pairing,
-//     PCS: PolynomialCommitmentScheme<E>,
-// > {
-//     pub supp_subset_proof: BagSubsetIOPProof<E, PCS>,               // check supp is subset of orig
-//     pub supp_superset_proof: ProductCheckIOPProof<E, PCS>,          // check multiplicities aren't zero
-//     pub supp_sorted_proof: BagStrictSortIOPProof<E, PCS>,            // check supp is sorted
-// }

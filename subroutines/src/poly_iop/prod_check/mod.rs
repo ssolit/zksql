@@ -109,17 +109,17 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
         let start = start_timer!(|| "prod_check prove");
 
         if fxs.is_empty() {
-            return Err(PolyIOPErrors::InvalidParameters("fxs is empty".to_string()));
+            return Err(PolyIOPErrors::InvalidParameters("ProductCheckIOP Error: fxs is empty".to_string()));
         }
         if fxs.len() != gxs.len() {
             return Err(PolyIOPErrors::InvalidParameters(
-                "fxs and gxs have different number of polynomials".to_string(),
+                "ProductCheckIOP Error: fxs and gxs have different number of polynomials".to_string(),
             ));
         }
         for poly in fxs.iter().chain(gxs.iter()) {
             if poly.num_vars != fxs[0].num_vars {
                 return Err(PolyIOPErrors::InvalidParameters(
-                    "fx and gx have different number of variables".to_string(),
+                    "ProductCheckIOP Error: fx and gx have different number of variables".to_string(),
                 ));
             }
         }
