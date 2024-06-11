@@ -104,7 +104,7 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
                 &aux_info,
                 &mut transcript.clone(),
             )?;
-            println!("debug verifying presc_perm_proof passed\n\n");
+            println!("debug verifying presc_perm_proof passed");
         }
 
         //TODO: Next step is selector stuff. see below or textEdit
@@ -118,8 +118,12 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
         let selector = Arc::new(DenseMultilinearExtension::from_evaluations_vec(sorted_nv, selector_evals));
         
         let diff_evals = (0..sorted_len).map(
-            |i| selector[i] * (q[i] - sorted_poly[i]) + one_poly[i] - selector[i]
+            |i| selector[i] * (sorted_poly[i] - q[i]) + one_poly[i] - selector[i]
         ).collect::<Vec<_>>();
+
+        // println!("diff_evals: {:?}", diff_evals);
+        // println!("m_range_evals: {:?}", m_range.evaluations);
+
         let diff_poly = Arc::new(DenseMultilinearExtension::from_evaluations_vec(sorted_nv, diff_evals));
         let null_offset = E::ScalarField::zero(); // Should have no nulls in diff_poly b/c first element is always 1
         let (range_proof,) = BagSubsetIOP::<E, PCS>::prove(
@@ -132,7 +136,7 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
         )?;
 
         #[cfg(debug_assertions)] {
-            println!("BagStrictSortIOP::prove debug: check that range_proof is valid");
+            println!("BagStrictSortIOP::prove debug: check that range_proof is valid\n");
             let aux_info = BagSubsetIOP::<E, PCS>::verification_info(
                 pcs_param,
             &diff_poly.clone(),
@@ -191,7 +195,7 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
             pcs_param,
             &proof.presc_perm_proof,
             &aux_info,
-            transcript,
+            &mut transcript.clone(),
         )?;
 
         println!("verifying range_proof");
@@ -199,7 +203,7 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
             pcs_param,
             &proof.range_proof,
             &aux_info,
-            transcript,
+           &mut  transcript.clone(),
         )?;
 
         end_timer!(start);
@@ -209,5 +213,47 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
         })
     }
 
+    // fn calc_intermediate_polys(
+    //     sorted_poly: &Arc<DenseMultilinearExtension<E::ScalarField>>,
+    //     range_poly: &Arc<DenseMultilinearExtension<E::ScalarField>>,
+    // ) -> Vec<Arc<DenseMultilinearExtension<E::ScalarField>>> {
+    //     let sorted_nv = sorted_poly.num_vars;
+    //     let sorted_len = sorted_poly.evaluations.len();
+
+    //     // create shifted permutation poly and helpers
+    //     // 	    create first vector s=(0, 1, ..) and another that is the permuted version of it t=(2^{nv}, 0, 1, ..)
+    //     // 	    (p,q) are p is orig, q is p offset by 1 with wraparound
+    //     let mut perm_evals: Vec<E::ScalarField>  = Vec::<E::ScalarField>::with_capacity(sorted_nv);
+    //     perm_evals.push(E::ScalarField::from((sorted_len - 1) as u64));
+    //     perm_evals.extend((0..(sorted_len - 1)).map(|x| E::ScalarField::from(x as u64)));
+
+    //     let mut q_evals = Vec::<E::ScalarField>::with_capacity(sorted_nv);
+    //     q_evals.push(*sorted_poly.evaluations.last().unwrap());
+    //     q_evals.extend_from_slice(&sorted_poly.evaluations[..sorted_len]);
+    //     q_evals.pop();
+
+    //     let perm = Arc::new(DenseMultilinearExtension::from_evaluations_vec(sorted_nv, perm_evals));
+    //     let q = Arc::new(DenseMultilinearExtension::from_evaluations_vec(sorted_nv, q_evals));
+
+    //     // Get diff_poly and its multiplicities
+    //     // Multiply with selector with is 1 everywhere except at zero 
+    //     // Sorted_poly = [a_0, a_1, ..]
+    //     // Selector = [0, 1, 1, ..]
+    //     let one_poly = Arc::new(DenseMultilinearExtension::from_evaluations_vec(sorted_nv, vec![E::ScalarField::one(); sorted_len]));
+    //     let mut selector_evals = vec![E::ScalarField::one(); sorted_len];
+    //     selector_evals[0] = E::ScalarField::zero();
+    //     let selector = Arc::new(DenseMultilinearExtension::from_evaluations_vec(sorted_nv, selector_evals));
+        
+    //     let diff_evals = (0..sorted_len).map(
+    //         |i| selector[i] * (sorted_poly[i] - q[i]) + one_poly[i] - selector[i]
+    //     ).collect::<Vec<_>>();
+
+    //     println!("diff_evals: {:?}", diff_evals);
+
+    //     let diff_poly = Arc::new(DenseMultilinearExtension::from_evaluations_vec(sorted_nv, diff_evals));
+
+
+
+    // }
 
 }

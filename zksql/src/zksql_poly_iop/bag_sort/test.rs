@@ -61,12 +61,23 @@ mod test {
         let range_poly_evals = (0..2_usize.pow(num_range_pow as u32)).map(|x| Fr::from(x as u64)).collect(); // numbers are between 0 and 2^10 by construction
         let range_poly = Arc::new(DenseMultilinearExtension::from_evaluations_vec(num_range_pow, range_poly_evals));
         let mut m_range_nums = vec![0; 2_usize.pow(num_range_pow as u32)];
-        for i in 0..sorted_poly_nums.len() {
-            m_range_nums[sorted_poly_nums[i] as usize] += 1;
+        // for i in 0..sorted_poly_nums.len() {
+        //     m_range_nums[sorted_poly_nums[i] as usize] += 1;
+        // }
+        let diff_nums = (1..2_usize.pow(nv as u32)).map(
+            |i| sorted_poly_nums[i] - sorted_poly_nums[i - 1]
+        ).collect::<Vec<_>>();
+        for i in 0..diff_nums.len() {
+            m_range_nums[diff_nums[i] as usize] += 1;
         }
         m_range_nums[1] += 1; // add one because the first number in diff_evals is set to 1
         let m_range_evals = m_range_nums.iter().map(|x| Fr::from(*x as u64)).collect();
         let m_range = Arc::new(DenseMultilinearExtension::from_evaluations_vec(num_range_pow, m_range_evals));
+
+        // debug
+        // println!("diff_nums: {:?}", diff_nums);
+        // println!("m_range_nums: {:?}", m_range_nums);
+        // println!("\n\n\n");
 
         // initialize transcript 
         let mut transcript = BagStrictSortIOP::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>::init_transcript();
