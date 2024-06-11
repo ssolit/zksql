@@ -3,8 +3,8 @@
 mod test {
     use ark_ec::pairing::Pairing;
     use ark_poly::DenseMultilinearExtension;
-    use ark_std::{Zero, One};
-    use core::num;
+    
+    
     use std::sync::Arc;
     use std::collections::HashSet;
     use subroutines::{
@@ -16,24 +16,9 @@ mod test {
 
     use ark_bls12_381::{Bls12_381, Fr};
     use ark_std::test_rng;
-    use ark_std::rand::{prelude::SliceRandom, Rng};
+    use ark_std::rand::Rng;
 
-    use crate::zksql_poly_iop::bag_multitool::{
-        bag_multitool::BagMultiToolIOP,
-        bag_eq::BagEqIOP,
-        bag_subset::BagSubsetIOP,
-        bag_sum::BagSumIOP,
-        bag_presc_perm::BagPrescPermIOP,
-    };
-
-    use crate::zksql_poly_iop::bag_sort::{
-        bag_sort::BagStrictSortIOP,
-        bag_sort::BagStrictSortIOPProof,
-        bag_sort::BagStrictSortIOPSubClaim,
-    };
-
-
-    use std::ops::Neg;
+    use crate::zksql_poly_iop::bag_sort::bag_sort::BagStrictSortIOP;
 
 
     fn test_bag_strict_sort() -> Result<(), PolyIOPErrors> {
@@ -67,15 +52,6 @@ mod test {
         for i in 0..diff_nums.len() {
             m_range_nums[diff_nums[i] as usize] += 1;
         }
-
-        // debug
-        // for i in 0..sorted_poly_nums.len() {
-        //     m_range_nums[sorted_poly_nums[i] as usize] += 1;
-        // }
-        // println!("diff_nums: {:?}", diff_nums);
-        // println!("m_range_nums: {:?}", m_range_nums);
-        // println!("\n\n\n");
-        
         m_range_nums[1] += 1; // add one because the first number in diff_evals is set to 1
         let m_range_evals = m_range_nums.iter().map(|x| Fr::from(*x as u64)).collect();
         let m_range = Arc::new(DenseMultilinearExtension::from_evaluations_vec(num_range_pow, m_range_evals));

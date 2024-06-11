@@ -2,17 +2,15 @@
 // by showing it's elements are a subset of [0, 2^n] 
 // and the product of its elements is non-zero
 
-use arithmetic::{VPAuxInfo};
+use arithmetic::VPAuxInfo;
 use ark_ec::pairing::Pairing;
-use ark_ff::{Field, PrimeField};
+use ark_ff::PrimeField;
 use ark_poly::DenseMultilinearExtension;
 use ark_std::{end_timer, One, start_timer, Zero};
 use std::{fmt::Debug, marker::PhantomData, sync::Arc};
 use subroutines::{
     pcs::PolynomialCommitmentScheme,
-    poly_iop::{
-        errors::PolyIOPErrors,
-    },
+    poly_iop::errors::PolyIOPErrors,
 };
 use transcript::IOPTranscript;
 
@@ -224,48 +222,4 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
             range_subclaim: range_subclaim,
         })
     }
-
-    // fn calc_intermediate_polys(
-    //     sorted_poly: &Arc<DenseMultilinearExtension<E::ScalarField>>,
-    //     range_poly: &Arc<DenseMultilinearExtension<E::ScalarField>>,
-    // ) -> Vec<Arc<DenseMultilinearExtension<E::ScalarField>>> {
-    //     let sorted_nv = sorted_poly.num_vars;
-    //     let sorted_len = sorted_poly.evaluations.len();
-
-    //     // create shifted permutation poly and helpers
-    //     // 	    create first vector s=(0, 1, ..) and another that is the permuted version of it t=(2^{nv}, 0, 1, ..)
-    //     // 	    (p,q) are p is orig, q is p offset by 1 with wraparound
-    //     let mut perm_evals: Vec<E::ScalarField>  = Vec::<E::ScalarField>::with_capacity(sorted_nv);
-    //     perm_evals.push(E::ScalarField::from((sorted_len - 1) as u64));
-    //     perm_evals.extend((0..(sorted_len - 1)).map(|x| E::ScalarField::from(x as u64)));
-
-    //     let mut q_evals = Vec::<E::ScalarField>::with_capacity(sorted_nv);
-    //     q_evals.push(*sorted_poly.evaluations.last().unwrap());
-    //     q_evals.extend_from_slice(&sorted_poly.evaluations[..sorted_len]);
-    //     q_evals.pop();
-
-    //     let perm = Arc::new(DenseMultilinearExtension::from_evaluations_vec(sorted_nv, perm_evals));
-    //     let q = Arc::new(DenseMultilinearExtension::from_evaluations_vec(sorted_nv, q_evals));
-
-    //     // Get diff_poly and its multiplicities
-    //     // Multiply with selector with is 1 everywhere except at zero 
-    //     // Sorted_poly = [a_0, a_1, ..]
-    //     // Selector = [0, 1, 1, ..]
-    //     let one_poly = Arc::new(DenseMultilinearExtension::from_evaluations_vec(sorted_nv, vec![E::ScalarField::one(); sorted_len]));
-    //     let mut selector_evals = vec![E::ScalarField::one(); sorted_len];
-    //     selector_evals[0] = E::ScalarField::zero();
-    //     let selector = Arc::new(DenseMultilinearExtension::from_evaluations_vec(sorted_nv, selector_evals));
-        
-    //     let diff_evals = (0..sorted_len).map(
-    //         |i| selector[i] * (sorted_poly[i] - q[i]) + one_poly[i] - selector[i]
-    //     ).collect::<Vec<_>>();
-
-    //     println!("diff_evals: {:?}", diff_evals);
-
-    //     let diff_poly = Arc::new(DenseMultilinearExtension::from_evaluations_vec(sorted_nv, diff_evals));
-
-
-
-    // }
-
 }
