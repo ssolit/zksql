@@ -90,9 +90,9 @@ impl<F: PrimeField> ZeroCheckIOP<F> {
 
         end_timer!(start);
         Ok(ZeroCheckIOPSubClaim {
-            point: sum_subclaim.point,
+            point: sum_subclaim.point, // entire random vector
             expected_evaluation,
-            init_challenge: r,
+            init_challenge: r,         // first eq input (vect of log(n) field elements)
         })
     }
 }
