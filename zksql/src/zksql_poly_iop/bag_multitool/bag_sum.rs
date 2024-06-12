@@ -14,7 +14,9 @@ use subroutines::{
 };
 use transcript::IOPTranscript;
 
-use crate::zksql_poly_iop::bag_multitool::bag_multitool::{BagMultiToolIOP, BagMultiToolIOPProof};
+use crate::zksql_poly_iop::bag_multitool::bag_multitool::{Bag, BagMultiToolIOP, BagMultiToolIOPProof};
+
+use super::bag_multitool::ArcMLE;
 
 pub struct BagSumIOP<E: Pairing, PCS: PolynomialCommitmentScheme<E>>(PhantomData<E>, PhantomData<PCS>);
 
@@ -24,7 +26,6 @@ pub struct BagSumIOPProof<
     E: Pairing,
     PCS: PolynomialCommitmentScheme<E>,
 > {
-    pub null_offset: E::ScalarField,
     pub fhat0_comm: PCS::Commitment,
     pub fhat1_comm: PCS::Commitment,
     pub ghat_comm: PCS::Commitment,
@@ -45,10 +46,6 @@ pub struct BagSumIOPProof<
 /// two zerocheck claims to show denoms (fhat, ghat) in the sumcheck were constructed correctly
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct BagSumIOPSubClaim<F: PrimeField> {
-    // pub null_offset: F,
-    // pub lhs0_v: F,
-    // pub lhs1_v: F,
-    // pub rhs_v: F,
     pub lhs0_sumcheck_subclaim: SumCheckIOPSubClaim<F>,
     pub lhs1_sumcheck_subclaim: SumCheckIOPSubClaim<F>,
     pub rhs_sumcheck_subclaim: SumCheckIOPSubClaim<F>,
@@ -60,7 +57,7 @@ pub struct BagSumIOPSubClaim<F: PrimeField> {
 
 
 impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> BagSumIOP<E, PCS> 
-where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtension<E::ScalarField>>>
+where PCS: PolynomialCommitmentScheme<E, Polynomial =  ArcMLE<E>>
 {
     pub fn init_transcript() -> IOPTranscript<E::ScalarField> {
         IOPTranscript::<E::ScalarField>::new(b"Initializing BagSumIOP transcript")
@@ -68,10 +65,9 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
 
     pub fn prove(
         pcs_param: &PCS::ProverParam,
-        fx0: Arc<DenseMultilinearExtension<E::ScalarField>>,
-        fx1: Arc<DenseMultilinearExtension<E::ScalarField>>,
-        gx: Arc<DenseMultilinearExtension<E::ScalarField>>,
-        null_offset: E::ScalarField,
+        fx0: Bag<E>,
+        fx1:  Bag<E>,
+        gx:  Bag<E>,
         transcript: &mut IOPTranscript<E::ScalarField>,
     ) -> Result<
         (
@@ -89,9 +85,8 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
         let mgxs = vec![g_one_const_poly];
 
         // use bag_multitool
-        let (bag_multitool_proof,) = BagMultiToolIOP::<E, PCS>::prove(pcs_param, &[fx0, fx1], &[gx], &mfxs.clone(), &mgxs.clone(), null_offset,transcript)?;
+        let (bag_multitool_proof,) = BagMultiToolIOP::<E, PCS>::prove(pcs_param, &[fx0, fx1], &[gx], &mfxs.clone(), &mgxs.clone(), transcript)?;
         let bag_sum_iop_proof =  BagSumIOPProof::<E, PCS>{
-            null_offset,
             fhat0_comm: bag_multitool_proof.fhat_comms[0].clone(),
             fhat1_comm: bag_multitool_proof.fhat_comms[1].clone(),
             ghat_comm: bag_multitool_proof.ghat_comms[0].clone(),
@@ -112,19 +107,11 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
 
     pub fn verification_info(
         pcs_param: &PCS::ProverParam,
-        fx0: Arc<DenseMultilinearExtension<E::ScalarField>>,
-        fx1: Arc<DenseMultilinearExtension<E::ScalarField>>,
-        gx: Arc<DenseMultilinearExtension<E::ScalarField>>,
-        null_offset: E::ScalarField,
+        fx0: Bag<E>,
+        fx1:  Bag<E>,
+        gx:  Bag<E>,
         transcript: &mut IOPTranscript<E::ScalarField>,
-    ) -> Result<
-        (
-            VPAuxInfo<E::ScalarField>, 
-            VPAuxInfo<E::ScalarField>,
-            VPAuxInfo<E::ScalarField>
-        ),
-        PolyIOPErrors,
-    > {
+    ) -> (Vec<VPAuxInfo<E::ScalarField>>, Vec<VPAuxInfo<E::ScalarField>>, Vec<VPAuxInfo<E::ScalarField>>, Vec<VPAuxInfo<E::ScalarField>>){
         let fx0_one_const_poly = Arc::new(DenseMultilinearExtension::from_evaluations_vec(fx0.num_vars, vec![E::ScalarField::one(); 2_usize.pow(fx0.num_vars as u32)]));
         let fx1_one_const_poly = Arc::new(DenseMultilinearExtension::from_evaluations_vec(fx1.num_vars, vec![E::ScalarField::one(); 2_usize.pow(fx1.num_vars as u32)]));
         let g_one_const_poly = Arc::new(DenseMultilinearExtension::from_evaluations_vec(gx.num_vars, vec![E::ScalarField::one(); 2_usize.pow(gx.num_vars as u32)]));
@@ -133,28 +120,25 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
         let gxs = vec![gx];
         let mfs = vec![fx0_one_const_poly, fx1_one_const_poly];
         let mgs = vec![g_one_const_poly];
-        let (f_aux_info, g_aux_info) = BagMultiToolIOP::<E, PCS>::verification_info(pcs_param, &fxs, &gxs, &mfs, &mgs, null_offset, transcript);
-        return Ok((f_aux_info[0].clone(), f_aux_info[1].clone(), g_aux_info[0].clone()))
+        let (f_sc_info, f_zc_info, g_sc_info, g_zc_info) = BagMultiToolIOP::<E, PCS>::verification_info(pcs_param, &fxs, &gxs, &mfs, &mgs, transcript);
+        return (f_sc_info, f_zc_info, g_sc_info, g_zc_info)
     }
 
     pub fn verify(
         pcs_param: &PCS::ProverParam,
         proof: &BagSumIOPProof<E, PCS>,
-        fx1_aux_info: &VPAuxInfo<E::ScalarField>,
-        fx2_aux_info: &VPAuxInfo<E::ScalarField>,
-        gx_aux_info: &VPAuxInfo<E::ScalarField>,
+        f_sc_info: &Vec<VPAuxInfo<E::ScalarField>>,
+        f_zc_info: &Vec<VPAuxInfo<E::ScalarField>>,
+        g_sc_info: &Vec<VPAuxInfo<E::ScalarField>>,
+        g_zc_info: &Vec<VPAuxInfo<E::ScalarField>>,
         transcript: &mut IOPTranscript<E::ScalarField>,
     ) -> Result<BagSumIOPSubClaim<E::ScalarField>, PolyIOPErrors> {
         let start = start_timer!(|| "bagsumCheck verify");
-        let bag_multitool_proof = Self::bagsum_proof_to_bagmulti_proof(pcs_param,proof, fx1_aux_info.num_variables, fx2_aux_info.num_variables, gx_aux_info.num_variables)?;
-        let bag_multitool_subclaim = BagMultiToolIOP::verify(&bag_multitool_proof, &vec![fx1_aux_info.clone(), fx2_aux_info.clone()], &vec![gx_aux_info.clone()], transcript)?;
+        let bag_multitool_proof = Self::bagsum_proof_to_bagmulti_proof(pcs_param,proof, f_sc_info[0].num_variables,f_sc_info[1].num_variables, g_sc_info[0].num_variables)?;
+        let bag_multitool_subclaim = BagMultiToolIOP::verify(&bag_multitool_proof, f_sc_info, f_zc_info, g_sc_info, g_zc_info, transcript)?;
  
          end_timer!(start);
          Ok(BagSumIOPSubClaim{
-            // null_offset: bag_multitool_subclaim.null_offset,
-            // lhs0_v: bag_multitool_subclaim.lhs_vs[0],
-            // lhs1_v: bag_multitool_subclaim.lhs_vs[1],
-            // rhs_v: bag_multitool_subclaim.rhs_vs[0],
             lhs0_sumcheck_subclaim: bag_multitool_subclaim.lhs_sumcheck_subclaims[0].clone(),
             lhs1_sumcheck_subclaim: bag_multitool_subclaim.lhs_sumcheck_subclaims[1].clone(),
             rhs_sumcheck_subclaim: bag_multitool_subclaim.rhs_sumcheck_subclaims[0].clone(),
@@ -178,7 +162,6 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
         let mg_comms  = vec![mg_comm.clone()];
 
         let bag_multitool_proof: BagMultiToolIOPProof::<E, PCS> = BagMultiToolIOPProof{
-            null_offset: bagsum_proof.null_offset,
             lhs_sumcheck_proofs: vec![bagsum_proof.lhs0_sumcheck_proof.clone(), bagsum_proof.lhs1_sumcheck_proof.clone()],
             rhs_sumcheck_proofs: vec![bagsum_proof.rhs_sumcheck_proof.clone()],
             lhs_vs:  vec![bagsum_proof.lhs0_v, bagsum_proof.lhs1_v],

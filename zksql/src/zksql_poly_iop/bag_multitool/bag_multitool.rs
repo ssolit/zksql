@@ -15,6 +15,59 @@ use subroutines::{
 use transcript::IOPTranscript;
 
 
+pub type ArcMLE<E> = Arc<DenseMultilinearExtension<<E as Pairing>::ScalarField>>;
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Bag<E: Pairing> {
+    pub num_vars: usize,
+    pub poly: ArcMLE<E>,
+    pub selector: ArcMLE<E>,
+}
+
+impl <E: Pairing> Bag<E> {
+    pub fn new(poly: ArcMLE<E>, selector: ArcMLE<E>) -> Self {
+        #[cfg(debug_assertions)] {
+            if poly.num_vars != selector.num_vars {
+                panic!("Bag::new Error: poly num_vars does not match selector num_vars");
+            }
+            for i in 0..selector.evaluations.len() {
+                if selector.evaluations[i] != E::ScalarField::zero() && selector.evaluations[i] != E::ScalarField::one() {
+                    panic!("Bag::new Error: selector[{}] must be 0 or 1, was {}", i, selector.evaluations[i]);
+                }
+            }
+        }
+        let num_vars = poly.num_vars;
+        Self {
+            num_vars,
+            poly,
+            selector,
+        }
+    }
+    
+    // pub fn poly_evals(&self) -> Vec<E::ScalarField> {
+    //     self.poly.evaluations
+    // }
+
+    // pub fn selector_evals(&self) -> Vec<E::ScalarField> {
+    //     self.selector.evaluations
+    // }
+
+    // define an aux_info function?
+    pub fn aux_info(&self) -> VPAuxInfo<E::ScalarField> {
+        VPAuxInfo{
+            max_degree: 1, // MLEs are always degree 1
+            num_variables: self.num_vars,
+            phantom: PhantomData::default(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct BagComm<E: Pairing, PCS: PolynomialCommitmentScheme<E>> {
+    pub poly_comm: PCS::Commitment,
+    pub selector_comm: PCS::Commitment,
+}
+
 
 pub struct BagMultiToolIOP<E: Pairing, PCS: PolynomialCommitmentScheme<E>>(PhantomData<E>, PhantomData<PCS>);
 
@@ -24,7 +77,6 @@ pub struct BagMultiToolIOPProof<
     PCS: PolynomialCommitmentScheme<E>,
 
 > {
-    pub null_offset: E::ScalarField,
     pub mf_comms: Vec<PCS::Commitment>,
     pub mg_comms: Vec<PCS::Commitment>,
     pub fhat_comms: Vec<PCS::Commitment>,
@@ -51,7 +103,7 @@ pub struct BagMultiToolIOPSubClaim<F: PrimeField> {
 
 
 impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> BagMultiToolIOP<E, PCS> 
-where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtension<E::ScalarField>>>
+where PCS: PolynomialCommitmentScheme<E, Polynomial = ArcMLE<E>>
 {
     pub fn init_transcript() -> IOPTranscript<E::ScalarField> {
         IOPTranscript::<E::ScalarField>::new(b"Initializing BagMultiToolCheck transcript")
@@ -59,11 +111,10 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
 
     pub fn prove(
         pcs_param: &PCS::ProverParam,
-        fxs: &[Arc<DenseMultilinearExtension<E::ScalarField>>],
-        gxs: &[Arc<DenseMultilinearExtension<E::ScalarField>>],
-        mfxs: &[Arc<DenseMultilinearExtension<E::ScalarField>>],
-        mgxs: &[Arc<DenseMultilinearExtension<E::ScalarField>>],
-        null_offset: E::ScalarField,
+        fxs: &[Bag<E>],
+        gxs: &[Bag<E>],
+        mfxs: &[ArcMLE<E>],
+        mgxs: &[ArcMLE<E>],
         transcript: &mut IOPTranscript<E::ScalarField>,
     ) -> Result<
         (
@@ -132,7 +183,6 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
             transcript.append_serializable_element(b"mg", &mg_comm)?;
             mg_comms.push(mg_comm);
         }
-        transcript.append_serializable_element(b"null_offset", &null_offset)?;
         let gamma = transcript.get_and_append_challenge(b"gamma")?;
 
         // iterate over vector elements and prove:
@@ -155,7 +205,6 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
         end_timer!(start);
         Ok((
             BagMultiToolIOPProof::<E, PCS> {
-                null_offset,
                 mf_comms,
                 mg_comms,
                 fhat_comms,
@@ -172,8 +221,8 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
 
     fn prove_one_multiplicity_sum(
         pcs_param: &PCS::ProverParam,
-        p: Arc<DenseMultilinearExtension<E::ScalarField>>,
-        m: Arc<DenseMultilinearExtension<E::ScalarField>>,
+        bag: Bag<E>,
+        m: ArcMLE<E>,
         gamma: E::ScalarField,
         transcript: &mut IOPTranscript<E::ScalarField>,
     ) -> Result<
@@ -185,8 +234,10 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
         ),
         PolyIOPErrors,
     > {
-        let nv = p.num_vars;
+        let nv = bag.num_vars;
         
+        // construct phat = 1/(bag.p(x) - gamma), i.e. the denominator of the sum
+        let p = bag.poly.clone();
         let mut p_evals = p.evaluations.clone();
         let mut p_minus_gamma: Vec<<E as Pairing>::ScalarField> = p_evals.iter_mut().map(|x| *x - gamma).collect();
         let phat_evals = p_minus_gamma.as_mut_slice();
@@ -194,15 +245,18 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
         let phat = Arc::new(DenseMultilinearExtension::from_evaluations_slice(nv, phat_evals));
         let phat_comm = PCS::commit(pcs_param, &phat)?; 
         transcript.append_serializable_element(b"phat(x)", &phat_comm)?;
-        
-        let mut challenge_poly = VirtualPolynomial::new(nv);
-        challenge_poly.add_mle_list([phat.clone(), m.clone()], E::ScalarField::one())?; // cloning Arc ptr b/c need fhat again below
-        
+
+        // calculate what the final sum should be
         let m_evals = &m.evaluations;
+        let selector_evals = &bag.selector.evaluations;
         let mut v = E::ScalarField::zero();
         for i in 0..2_usize.pow(nv as u32) {
-            v += phat[i] * m_evals[i];
+            v += phat[i] * m_evals[i] * selector_evals[i];
         }
+        
+        // construct the full challenge polynomial by taking phat and multiplying by the selector and multiplicities
+        let mut challenge_poly = VirtualPolynomial::new(nv);
+        challenge_poly.add_mle_list([phat.clone(), m.clone(), bag.selector], E::ScalarField::one())?;
         let challenge_poly_sumcheck_proof = SumCheckIOP::<E::ScalarField>::prove(&challenge_poly, &mut transcript.clone())?;
 
         // prove phat(x) is created correctly, i.e. ZeroCheck [(p(x)-gamma) * phat(x)  - 1]
@@ -222,34 +276,58 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
 
     pub fn verification_info(
         _: &PCS::ProverParam,
-        fxs: &[Arc<DenseMultilinearExtension<E::ScalarField>>],
-        gxs: &[Arc<DenseMultilinearExtension<E::ScalarField>>],
-        _: &[Arc<DenseMultilinearExtension<E::ScalarField>>],
-        _: &[Arc<DenseMultilinearExtension<E::ScalarField>>],
-        _: E::ScalarField,
+        fxs: &[Bag<E>],
+        gxs: &[Bag<E>],
+        _: &[ArcMLE<E>],
+        _: &[ArcMLE<E>],
         _: &mut IOPTranscript<E::ScalarField>,
-    ) -> (Vec<VPAuxInfo<E::ScalarField>>, Vec<VPAuxInfo<E::ScalarField>>) {
-        let mut f_aux_info = Vec::new();
-        let mut g_aux_info = Vec::new();
+    ) -> (Vec<VPAuxInfo<E::ScalarField>>, Vec<VPAuxInfo<E::ScalarField>>, Vec<VPAuxInfo<E::ScalarField>>, Vec<VPAuxInfo<E::ScalarField>>) {
+        let mut f_sc_info = Vec::new();
+        let mut f_zc_info = Vec::new();
+        let mut g_sc_info = Vec::new();
+        let mut g_zc_info = Vec::new();
+
         for fx in fxs.iter() {
-            let virt = VirtualPolynomial::new_from_mle(&fx, E::ScalarField::one());
-            let mut aux_info = virt.aux_info.clone();
-            aux_info.max_degree = aux_info.max_degree + 1; // comes from f_hat having a multiplication in prove()
-            f_aux_info.push(aux_info);
+            f_sc_info.push(
+                VPAuxInfo{
+                    max_degree: 3, // comes from prove() creating phat with 2 multiplications
+                    num_variables: fx.num_vars,
+                    phantom: PhantomData::default(),
+                }
+            );
+            f_zc_info.push(
+                VPAuxInfo{
+                    max_degree: 2, 
+                    num_variables: fx.num_vars,
+                    phantom: PhantomData::default(),
+                }
+            )
         }
         for gx in gxs.iter() {
-            let virt = VirtualPolynomial::new_from_mle(&gx, E::ScalarField::one());
-            let mut aux_info = virt.aux_info.clone();
-            aux_info.max_degree = aux_info.max_degree + 1; // comes from g_hat having a multiplication in prove()
-            g_aux_info.push(aux_info);
+            g_sc_info.push(
+                VPAuxInfo{
+                    max_degree: 3, // comes from prove() creating phat with 2 multiplications
+                    num_variables: gx.num_vars,
+                    phantom: PhantomData::default(),
+                }
+            );
+            g_zc_info.push(
+                VPAuxInfo{
+                    max_degree: 2, 
+                    num_variables: gx.num_vars,
+                    phantom: PhantomData::default(),
+                }
+            )
         }
-        return (f_aux_info, g_aux_info)
+        return (f_sc_info, f_zc_info, g_sc_info, g_zc_info)
     }
 
     pub fn verify(
         proof: &BagMultiToolIOPProof<E, PCS>,
-        f_aux_info: &Vec<VPAuxInfo<E::ScalarField>>,
-        g_aux_info: &Vec<VPAuxInfo<E::ScalarField>>,
+        f_sc_info: &Vec<VPAuxInfo<E::ScalarField>>,
+        f_zc_info: &Vec<VPAuxInfo<E::ScalarField>>,
+        g_sc_info: &Vec<VPAuxInfo<E::ScalarField>>,
+        g_zc_info: &Vec<VPAuxInfo<E::ScalarField>>,
         transcript: &mut IOPTranscript<E::ScalarField>,
     ) -> Result<BagMultiToolIOPSubClaim<E::ScalarField>, PolyIOPErrors> {
         let start = start_timer!(|| "BagMultiToolCheck verify");
@@ -264,19 +342,16 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
             let mg_comm = proof.mg_comms[i].clone();
             transcript.append_serializable_element(b"mg", &mg_comm)?;
         }
-        transcript.append_serializable_element(b"null_offset", &proof.null_offset)?;
         let gamma = transcript.get_and_append_challenge(b"gamma")?;
 
         // check that the values of claimed sums are equal with factoring in null_offset
         let gamma_inverse = gamma.inverse().unwrap();
-        let null_offset = proof.null_offset;
         let lhs_v: E::ScalarField = proof.lhs_vs.iter().sum();
         let rhs_v: E::ScalarField = proof.rhs_vs.iter().sum();
 
-        if lhs_v + (gamma_inverse * null_offset) != rhs_v {
+        if lhs_v != rhs_v {
             let mut err_msg = "BagMutltiTool Verify Error: LHS and RHS have different sums".to_string();
             err_msg.push_str(&format!(" LHS: {}, RHS: {}", lhs_v, rhs_v));
-            err_msg.push_str(&format!(" null_offset: {}", null_offset));
             err_msg.push_str(&format!(" gamma_inverse: {}", gamma_inverse));
             return Err(PolyIOPErrors::InvalidVerifier(err_msg));
         }
@@ -294,38 +369,35 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
             let lhs_sumcheck_subclaim = SumCheckIOP::<E::ScalarField>::verify(
                 proof.lhs_vs[i],
                 &proof.lhs_sumcheck_proofs[i],
-                &f_aux_info[i],
+                &f_sc_info[i],
                 &mut transcript.clone(),
             )?;
             lhs_sumcheck_subclaims.push(lhs_sumcheck_subclaim);
 
             let fhat_zerocheck_subclaim = ZeroCheckIOP::<E::ScalarField>::verify(
                 &proof.fhat_zerocheck_proofs[i],
-                &  f_aux_info[i],
+                &f_zc_info[i],
                 &mut transcript.clone(),
             )?;
             fhat_zerocheck_subclaims.push(fhat_zerocheck_subclaim);
         }
         // println!("BagMutltiTool Verify: starting rhs subchecks");
         for i in 0..proof.rhs_sumcheck_proofs.len() {
-            // print!("start1\n");
             transcript.append_serializable_element(b"phat(x)", &proof.ghat_comms[i])?;
             let rhs_sumcheck_subclaim = SumCheckIOP::<E::ScalarField>::verify(
                 proof.rhs_vs[i],
                 &proof.rhs_sumcheck_proofs[i],
-                &g_aux_info[i],
+                &g_sc_info[i],
                 &mut transcript.clone(),
             )?;
             rhs_sumcheck_subclaims.push(rhs_sumcheck_subclaim);
-            // print!("finish1");
 
             let ghat_zerocheck_subclaim = ZeroCheckIOP::<E::ScalarField>::verify(
                 &proof.ghat_zerocheck_proofs[i],
-                &g_aux_info[i],
+                &g_zc_info[i],
                 &mut transcript.clone(),
             )?;
             ghat_zerocheck_subclaims.push(ghat_zerocheck_subclaim);
-            // print!("finish2\n\n");
         }
 
         end_timer!(start);

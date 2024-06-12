@@ -2,7 +2,7 @@ use arithmetic::VPAuxInfo;
 use ark_ec::pairing::Pairing;
 use ark_ff::PrimeField;
 use ark_poly::DenseMultilinearExtension;
-use ark_std::{end_timer, One, start_timer, Zero};
+use ark_std::{end_timer, One, start_timer};
 use std::{fmt::Debug, marker::PhantomData, sync::Arc};
 use subroutines::{
     pcs::PolynomialCommitmentScheme,
@@ -11,7 +11,7 @@ use subroutines::{
 use transcript::IOPTranscript;
 
 use super::{
-    bag_multitool::BagMultiToolIOP,
+    bag_multitool::{Bag, BagMultiToolIOP},
     bag_eq::{BagEqIOP, BagEqIOPProof, BagEqIOPSubClaim},
 };
 
@@ -42,9 +42,9 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
 
     pub fn prove(
         pcs_param: &PCS::ProverParam,
-        fx: Arc<DenseMultilinearExtension<E::ScalarField>>,
-        gx: Arc<DenseMultilinearExtension<E::ScalarField>>,
-        perm: Arc<DenseMultilinearExtension<E::ScalarField>>,
+        fx: &Bag<E>,
+        gx: &Bag<E>,
+        perm: &Arc<DenseMultilinearExtension<E::ScalarField>>,
         transcript: &mut IOPTranscript<E::ScalarField>,
     ) -> Result<
         (
@@ -71,10 +71,11 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
         // 	    (p,q) are p is orig, q is p offset by 1 with wraparound
         let ordered_evals: Vec<E::ScalarField> = (0..2_usize.pow(nv as u32)).map(|x| E::ScalarField::from(x as u64)).collect();
         let ordered_poly = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, ordered_evals));
+        let one_poly = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, vec![E::ScalarField::one(); 2_usize.pow(nv as u32)]));
 
         // get a verifier challenge gamma
-        let fx_comm = PCS::commit(pcs_param, &fx)?;
-        let gx_comm = PCS::commit(pcs_param, &gx)?;
+        let fx_comm = PCS::commit(pcs_param, &fx.poly)?;
+        let gx_comm = PCS::commit(pcs_param, &gx.poly)?;
         let perm_comm = PCS::commit(pcs_param, &perm)?;
         transcript.append_serializable_element(b"fx", &fx_comm)?;
         transcript.append_serializable_element(b"gx", &gx_comm)?;
@@ -82,10 +83,12 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
         let gamma = transcript.get_and_append_challenge(b"gamma")?;
 
         // calculate f_hat = s+gamma*p and g_hat = t+gamma*q, and prove these were created correctly
-        let fhat_evals = (0..2_usize.pow(fx.num_vars as u32)).map(|i| ordered_poly[i] + gamma * fx.evaluations[i]).collect::<Vec<_>>();
-        let ghat_evals = (0..2_usize.pow(gx.num_vars as u32)).map(|i| perm[i] + gamma * gx.evaluations[i]).collect::<Vec<_>>();
+        let fhat_evals = (0..2_usize.pow(fx.num_vars as u32)).map(|i| ordered_poly[i] + gamma * fx.poly.evaluations[i]).collect::<Vec<_>>();
+        let ghat_evals = (0..2_usize.pow(gx.num_vars as u32)).map(|i| perm[i] + gamma * gx.poly.evaluations[i]).collect::<Vec<_>>();
         let fhat = Arc::new(DenseMultilinearExtension::from_evaluations_vec(fx.num_vars, fhat_evals));
         let ghat = Arc::new(DenseMultilinearExtension::from_evaluations_vec(gx.num_vars, ghat_evals));
+        let fhat_bag = Bag::new(fhat, one_poly.clone());
+        let ghat_bag = Bag::new(ghat, one_poly.clone());
         // let fhat_comm = PCS::commit(pcs_param, &fhat)?;
         // let ghat_comm = PCS::commit(pcs_param, &ghat)?;
        
@@ -99,7 +102,7 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
 
 
         // prove f_hat, g_hat are bag_eq
-        let (bag_eq_proof,) = BagEqIOP::<E, PCS>::prove(pcs_param, fhat.clone(), ghat.clone(), &mut transcript.clone())?;
+        let (bag_eq_proof,) = BagEqIOP::<E, PCS>::prove(pcs_param, &fhat_bag, &ghat_bag, &mut transcript.clone())?;
         let bag_presc_perm_proof =  BagPrescPermIOPProof::<E, PCS>{
             fx_comm,
             gx_comm,
@@ -115,22 +118,25 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
 
     pub fn verification_info (
         pcs_param: &PCS::ProverParam,
-        fx: &Arc<DenseMultilinearExtension<E::ScalarField>>,
-        gx: &Arc<DenseMultilinearExtension<E::ScalarField>>,
+        fx: &Bag<E>,
+        gx: &Bag<E>,
         _: &Arc<DenseMultilinearExtension<E::ScalarField>>,
         transcript: &mut IOPTranscript<E::ScalarField>,
-    ) -> VPAuxInfo<E::ScalarField> {
+    ) -> (Vec<VPAuxInfo<E::ScalarField>>, Vec<VPAuxInfo<E::ScalarField>>, Vec<VPAuxInfo<E::ScalarField>>, Vec<VPAuxInfo<E::ScalarField>>) {
         let nv = fx.num_vars;
         let one_const_poly = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, vec![E::ScalarField::one(); 2_usize.pow(nv as u32)]));
         let mx = vec![one_const_poly.clone()];
-        let (f_aux_info, _) = BagMultiToolIOP::<E, PCS>::verification_info(pcs_param, &[fx.clone()], &[gx.clone()], &mx.clone(), &mx.clone(), E::ScalarField::zero(), transcript);
-        return f_aux_info[0].clone()
+        let (f_sc_info, f_zc_info, g_sc_info, g_zc_info) = BagMultiToolIOP::<E, PCS>::verification_info(pcs_param, &[fx.clone()], &[gx.clone()], &mx.clone(), &mx.clone(), transcript);
+        return (f_sc_info, f_zc_info, g_sc_info, g_zc_info)
     }
 
     pub fn verify(
         pcs_param: &PCS::ProverParam,
         proof: &BagPrescPermIOPProof<E, PCS>,
-        aux_info: &VPAuxInfo<E::ScalarField>,
+        f_sc_info: &Vec<VPAuxInfo<E::ScalarField>>,
+        f_zc_info: &Vec<VPAuxInfo<E::ScalarField>>,
+        g_sc_info: &Vec<VPAuxInfo<E::ScalarField>>,
+        g_zc_info: &Vec<VPAuxInfo<E::ScalarField>>,
         transcript: &mut IOPTranscript<E::ScalarField>,
     ) -> Result<BagPrescPermIOPSubClaim<E::ScalarField>, PolyIOPErrors> {
         let start = start_timer!(|| "BagPrescPermCheck verify");
@@ -140,7 +146,7 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtens
         transcript.append_serializable_element(b"perm", &proof.perm_comm)?;
         let _ = transcript.get_and_append_challenge(b"gamma")?;
         
-        let bag_eq_subclaim = BagEqIOP::<E, PCS>::verify(pcs_param, &proof.bag_eq_proof, &aux_info, &mut transcript.clone())?;
+        let bag_eq_subclaim = BagEqIOP::<E, PCS>::verify(pcs_param, &proof.bag_eq_proof, f_sc_info, f_zc_info, g_sc_info, g_zc_info, &mut transcript.clone())?;
 
          end_timer!(start);
          Ok(BagPrescPermIOPSubClaim{
