@@ -20,7 +20,6 @@ pub type SumCheckIOPSubClaim<F> = SumCheckSubClaim<F>;
 
 pub type SumCheckProof<F> = IOPProof<F>;
 pub type Transcript<F> = IOPTranscript<F>;
-// type MLE<F> = Arc<DenseMultilinearExtension<F>>;
 
 
 impl<F: PrimeField> SumCheckIOP<F> {

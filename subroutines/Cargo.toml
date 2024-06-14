@@ -19,6 +19,7 @@ rand_chacha = { version = "0.3.0", default-features = false }
 rayon = { version = "1.5.2", default-features = false, optional = true }
 transcript = { path = "../transcript" }
 util = { path = "../util" }
+uuid = { version = "1.2", features = ["v4"] }
 # # Benchmarks
 # [[bench]]
 # name = "poly-iop-benches"

@@ -1,16 +1,10 @@
-// Copyright (c) 2023 Espresso Systems (espressosys.com)
-// This file is part of the HyperPlonk library.
-
-// You should have received a copy of the MIT License
-// along with the HyperPlonk library. If not, see <https://mit-license.org/>.
-
-//! This module defines our main mathematical object `VirtualPolynomial`; and
-//! various functions associated with it.
-
-use crate::{errors::ArithErrors, multilinear_polynomial::random_zero_mle_list, random_mle_list};
-use ark_ff::PrimeField;
+use arithmetic::{ArithErrors, random_zero_mle_list, random_mle_list};
+use crate::poly_iop::PrimeField;
 use ark_poly::{DenseMultilinearExtension, MultilinearExtension};
+use ark_ec::pairing::Pairing;
+use crate::PolynomialCommitmentScheme;
 use ark_serialize::CanonicalSerialize;
+
 use ark_std::{
     end_timer,
     rand::{Rng, RngCore},
@@ -19,44 +13,51 @@ use ark_std::{
 use rayon::prelude::*;
 use std::{cmp::max, collections::HashMap, marker::PhantomData, ops::Add, sync::Arc};
 
-#[rustfmt::skip]
-/// A virtual polynomial is a sum of products of multilinear polynomials;
-/// where the multilinear polynomials are stored via their multilinear
-/// extensions:  `(coefficient, DenseMultilinearExtension)`
-///
-/// * Number of products n = `polynomial.products.len()`,
-/// * Number of multiplicands of ith product m_i =
-///   `polynomial.products[i].1.len()`,
-/// * Coefficient of ith product c_i = `polynomial.products[i].0`
-///
-/// The resulting polynomial is
-///
-/// $$ \sum_{i=0}^{n} c_i \cdot \prod_{j=0}^{m_i} P_{ij} $$
-///
-/// Example:
-///  f = c0 * f0 * f1 * f2 + c1 * f3 * f4
-/// where f0 ... f4 are multilinear polynomials
-///
-/// - flattened_ml_extensions stores the multilinear extension representation of
-///   f0, f1, f2, f3 and f4
-/// - products is 
-///     \[ 
-///         (c0, \[0, 1, 2\]), 
-///         (c1, \[3, 4\]) 
-///     \]
-/// - raw_pointers_lookup_table maps fi to i
-///
+use uuid::Uuid;
+
 #[derive(Clone, Debug, Default, PartialEq)]
-pub struct VirtualPolynomial<F: PrimeField> {
+pub struct LabeledPolynomial<F: PrimeField> {
+    pub label: String,
+    pub poly: Arc<DenseMultilinearExtension<F>>,
+    pub phantom: PhantomData<F>,
+}
+impl<F: PrimeField> LabeledPolynomial<F> {
+    pub fn new_with_label(label: String, poly: Arc<DenseMultilinearExtension<F>>) -> Self {
+        Self { label, poly, phantom: PhantomData::default() }
+    }
+    pub fn new_without_label(poly: Arc<DenseMultilinearExtension<F>>) -> Self {
+        Self { label: Uuid::new_v4().to_string(), poly, phantom: PhantomData::default() }
+    }
+    pub fn new_with_label_prefix(label_prefix: &str, poly: Arc<DenseMultilinearExtension<F>>) -> Self {
+        Self { label: format!("{}_{}", label_prefix, Uuid::new_v4()), poly, phantom: PhantomData::default() }
+    }
+    pub fn num_vars(&self) -> usize {
+        return self.poly.num_vars();
+    }
+    // pub fn evaluations(&self) -> Vec<F> {
+    //     return self.poly.evaluations;
+    // }
+    pub fn evaluate(&self, point: &[F]) -> Option<F> {
+        let res = self.poly.evaluate(point);
+        return res;
+    }
+    pub fn from_evaluations_vec(num_vars: usize, evaluations: Vec<F>) -> Self {
+        let mle = DenseMultilinearExtension::from_evaluations_vec(num_vars, evaluations);
+        Self::new_without_label(Arc::new(mle))
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct LabeledVirtualPolynomial<F: PrimeField> {
     /// Aux information about the multilinear polynomial
     pub aux_info: VPAuxInfo<F>,
     /// list of reference to products (as usize) of multilinear extension
     pub products: Vec<(F, Vec<usize>)>,
     /// Stores multilinear extensions in which product multiplicand can refer
     /// to.
-    pub flattened_ml_extensions: Vec<Arc<DenseMultilinearExtension<F>>>,
+    pub flattened_ml_extensions: Vec<Arc<LabeledPolynomial<F>>>,
     /// Pointers to the above poly extensions
-    raw_pointers_lookup_table: HashMap<*const DenseMultilinearExtension<F>, usize>,
+    raw_pointers_lookup_table: HashMap<*const LabeledPolynomial<F>, usize>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, CanonicalSerialize)]
@@ -71,13 +72,13 @@ pub struct VPAuxInfo<F: PrimeField> {
     pub phantom: PhantomData<F>,
 }
 
-impl<F: PrimeField> Add for &VirtualPolynomial<F> {
-    type Output = VirtualPolynomial<F>;
-    fn add(self, other: &VirtualPolynomial<F>) -> Self::Output {
+impl<F: PrimeField> Add for &LabeledVirtualPolynomial<F> {
+    type Output = LabeledVirtualPolynomial<F>;
+    fn add(self, other: &LabeledVirtualPolynomial<F>) -> Self::Output {
         let start = start_timer!(|| "virtual poly add");
         let mut res = self.clone();
         for products in other.products.iter() {
-            let cur: Vec<Arc<DenseMultilinearExtension<F>>> = products
+            let cur: Vec<Arc<LabeledPolynomial<F>>> = products
                 .1
                 .iter()
                 .map(|&x| other.flattened_ml_extensions[x].clone())
@@ -92,10 +93,10 @@ impl<F: PrimeField> Add for &VirtualPolynomial<F> {
 }
 
 // TODO: convert this into a trait
-impl<F: PrimeField> VirtualPolynomial<F> {
+impl<F: PrimeField> LabeledVirtualPolynomial<F> {
     /// Creates an empty virtual polynomial with `num_variables`.
     pub fn new(num_variables: usize) -> Self {
-        VirtualPolynomial {
+        LabeledVirtualPolynomial {
             aux_info: VPAuxInfo {
                 max_degree: 0,
                 num_variables,
@@ -108,16 +109,16 @@ impl<F: PrimeField> VirtualPolynomial<F> {
     }
 
     /// Creates an new virtual polynomial from a MLE and its coefficient.
-    pub fn new_from_mle(mle: &Arc<DenseMultilinearExtension<F>>, coefficient: F) -> Self {
-        let mle_ptr: *const DenseMultilinearExtension<F> = Arc::as_ptr(mle);
+    pub fn new_from_mle(mle: &Arc<LabeledPolynomial<F>>, coefficient: F) -> Self {
+        let mle_ptr: *const LabeledPolynomial<F> = Arc::as_ptr(mle);
         let mut hm = HashMap::new();
         hm.insert(mle_ptr, 0);
 
-        VirtualPolynomial {
+        LabeledVirtualPolynomial {
             aux_info: VPAuxInfo {
                 // The max degree is the max degree of any individual variable
                 max_degree: 1,
-                num_variables: mle.num_vars,
+                num_variables: mle.num_vars(),
                 phantom: PhantomData::default(),
             },
             // here `0` points to the first polynomial of `flattened_ml_extensions`
@@ -135,10 +136,10 @@ impl<F: PrimeField> VirtualPolynomial<F> {
     /// `coefficient`.
     pub fn add_mle_list(
         &mut self,
-        mle_list: impl IntoIterator<Item = Arc<DenseMultilinearExtension<F>>>,
+        mle_list: impl IntoIterator<Item = Arc<LabeledPolynomial<F>>>,
         coefficient: F,
     ) -> Result<(), ArithErrors> {
-        let mle_list: Vec<Arc<DenseMultilinearExtension<F>>> = mle_list.into_iter().collect();
+        let mle_list: Vec<Arc<LabeledPolynomial<F>>> = mle_list.into_iter().collect();
         let mut indexed_product = Vec::with_capacity(mle_list.len());
 
         if mle_list.is_empty() {
@@ -150,14 +151,14 @@ impl<F: PrimeField> VirtualPolynomial<F> {
         self.aux_info.max_degree = max(self.aux_info.max_degree, mle_list.len());
 
         for mle in mle_list {
-            if mle.num_vars != self.aux_info.num_variables {
+            if mle.num_vars() != self.aux_info.num_variables {
                 return Err(ArithErrors::InvalidParameters(format!(
                     "product has a multiplicand with wrong number of variables {} vs {}",
-                    mle.num_vars, self.aux_info.num_variables
+                    mle.num_vars(), self.aux_info.num_variables
                 )));
             }
 
-            let mle_ptr: *const DenseMultilinearExtension<F> = Arc::as_ptr(&mle);
+            let mle_ptr: *const LabeledPolynomial<F> = Arc::as_ptr(&mle);
             if let Some(index) = self.raw_pointers_lookup_table.get(&mle_ptr) {
                 indexed_product.push(*index)
             } else {
@@ -171,25 +172,35 @@ impl<F: PrimeField> VirtualPolynomial<F> {
         Ok(())
     }
 
-    /// Multiple the current VirtualPolynomial by an MLE:
+    pub fn add_unlabeled_mle_list(
+        &mut self,
+        unlabeled_mle_list: impl IntoIterator<Item = Arc<DenseMultilinearExtension<F>>>,
+        coefficient: F,
+    ) -> Result<(), ArithErrors> {
+        let labeled_mle_list: Vec<Arc<LabeledPolynomial<F>>> = unlabeled_mle_list.into_iter().map(|x| Arc::new(LabeledPolynomial::new_without_label(x))).collect();
+        self.add_mle_list(labeled_mle_list, coefficient)
+    }
+    
+
+    /// Multiple the current LabeledVirtualPolynomial by an MLE:
     /// - add the MLE to the MLE list;
     /// - multiple each product by MLE and its coefficient.
     /// Returns an error if the MLE has a different `num_vars` from self.
     pub fn mul_by_mle(
         &mut self,
-        mle: Arc<DenseMultilinearExtension<F>>,
+        mle: Arc<LabeledPolynomial<F>>,
         coefficient: F,
     ) -> Result<(), ArithErrors> {
         let start = start_timer!(|| "mul by mle");
 
-        if mle.num_vars != self.aux_info.num_variables {
+        if mle.num_vars() != self.aux_info.num_variables {
             return Err(ArithErrors::InvalidParameters(format!(
                 "product has a multiplicand with wrong number of variables {} vs {}",
-                mle.num_vars, self.aux_info.num_variables
+                mle.num_vars(), self.aux_info.num_variables
             )));
         }
 
-        let mle_ptr: *const DenseMultilinearExtension<F> = Arc::as_ptr(&mle);
+        let mle_ptr: *const LabeledPolynomial<F> = Arc::as_ptr(&mle);
 
         // check if this mle already exists in the virtual polynomial
         let mle_index = match self.raw_pointers_lookup_table.get(&mle_ptr) {
@@ -258,13 +269,13 @@ impl<F: PrimeField> VirtualPolynomial<F> {
         let start = start_timer!(|| "sample random virtual polynomial");
 
         let mut sum = F::zero();
-        let mut poly = VirtualPolynomial::new(nv);
+        let mut poly = LabeledVirtualPolynomial::new(nv);
         for _ in 0..num_products {
             let num_multiplicands =
                 rng.gen_range(num_multiplicands_range.0..num_multiplicands_range.1);
             let (product, product_sum) = random_mle_list(nv, num_multiplicands, rng);
             let coefficient = F::rand(rng);
-            poly.add_mle_list(product.into_iter(), coefficient)?;
+            poly.add_unlabeled_mle_list(product.into_iter(), coefficient)?;
             sum += product_sum * coefficient;
         }
 
@@ -280,13 +291,13 @@ impl<F: PrimeField> VirtualPolynomial<F> {
         num_products: usize,
         rng: &mut R,
     ) -> Result<Self, ArithErrors> {
-        let mut poly = VirtualPolynomial::new(nv);
+        let mut poly = LabeledVirtualPolynomial::new(nv);
         for _ in 0..num_products {
             let num_multiplicands =
                 rng.gen_range(num_multiplicands_range.0..num_multiplicands_range.1);
             let product = random_zero_mle_list(nv, num_multiplicands, rng);
             let coefficient = F::rand(rng);
-            poly.add_mle_list(product.into_iter(), coefficient)?;
+            poly.add_unlabeled_mle_list(product.into_iter(), coefficient)?;
         }
 
         Ok(poly)
@@ -330,40 +341,40 @@ impl<F: PrimeField> VirtualPolynomial<F> {
         println!()
     }
 
-    pub fn materialize(&self) -> DenseMultilinearExtension<F> {
+    pub fn materialize(&self) -> LabeledPolynomial<F> {
         let nv = self.aux_info.num_variables;
         let mut eval_vec = Vec::<F>::new();
         for pt in 0..2_usize.pow(nv as u32) {
             let pt_eval = 
             self.products
             .iter()
-            .map(|(coeff, prod)| *coeff * prod.iter().map(|&i| self.flattened_ml_extensions[i].evaluations[pt]).product::<F>())
+            .map(|(coeff, prod)| *coeff * prod.iter().map(|&i| self.flattened_ml_extensions[i].poly.evaluations[pt]).product::<F>())
             .sum();
 
             eval_vec.push(pt_eval);
         }
-        return DenseMultilinearExtension::from_evaluations_vec(nv, eval_vec);
+        return LabeledPolynomial::new_without_label(Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, eval_vec)));
     }
 
    
 }
 
-/// Evaluate eq polynomial.
-pub fn eq_eval<F: PrimeField>(x: &[F], y: &[F]) -> Result<F, ArithErrors> {
-    if x.len() != y.len() {
-        return Err(ArithErrors::InvalidParameters(
-            "x and y have different length".to_string(),
-        ));
-    }
-    let start = start_timer!(|| "eq_eval");
-    let mut res = F::one();
-    for (&xi, &yi) in x.iter().zip(y.iter()) {
-        let xi_yi = xi * yi;
-        res *= xi_yi + xi_yi - xi - yi + F::one();
-    }
-    end_timer!(start);
-    Ok(res)
-}
+// /// Evaluate eq polynomial.
+// pub fn eq_eval<F: PrimeField>(x: &[F], y: &[F]) -> Result<F, ArithErrors> {
+//     if x.len() != y.len() {
+//         return Err(ArithErrors::InvalidParameters(
+//             "x and y have different length".to_string(),
+//         ));
+//     }
+//     let start = start_timer!(|| "eq_eval");
+//     let mut res = F::one();
+//     for (&xi, &yi) in x.iter().zip(y.iter()) {
+//         let xi_yi = xi * yi;
+//         res *= xi_yi + xi_yi - xi - yi + F::one();
+//     }
+//     end_timer!(start);
+//     Ok(res)
+// }
 
 /// This function build the eq(x, r) polynomial for any given r.
 ///
@@ -373,9 +384,9 @@ pub fn eq_eval<F: PrimeField>(x: &[F], y: &[F]) -> Result<F, ArithErrors> {
 ///      eq(x,y) = \prod_i=1^num_var (x_i * r_i + (1-x_i)*(1-r_i))
 pub fn build_eq_x_r<F: PrimeField>(
     r: &[F],
-) -> Result<Arc<DenseMultilinearExtension<F>>, ArithErrors> {
+) -> Result<Arc<LabeledPolynomial<F>>, ArithErrors> {
     let evals = build_eq_x_r_vec(r)?;
-    let mle = DenseMultilinearExtension::from_evaluations_vec(r.len(), evals);
+    let mle = LabeledPolynomial::from_evaluations_vec(r.len(), evals);
 
     Ok(Arc::new(mle))
 }
@@ -456,6 +467,7 @@ pub fn bit_decompose(input: u64, num_var: usize) -> Vec<bool> {
     res
 }
 
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -471,9 +483,9 @@ mod test {
                 let base: Vec<Fr> = (0..nv).map(|_| Fr::rand(&mut rng)).collect();
 
                 let (a, _a_sum) =
-                    VirtualPolynomial::<Fr>::rand(nv, (2, 3), num_products, &mut rng)?;
+                    LabeledVirtualPolynomial::<Fr>::rand(nv, (2, 3), num_products, &mut rng)?;
                 let (b, _b_sum) =
-                    VirtualPolynomial::<Fr>::rand(nv, (2, 3), num_products, &mut rng)?;
+                    LabeledVirtualPolynomial::<Fr>::rand(nv, (2, 3), num_products, &mut rng)?;
                 let c = &a + &b;
 
                 assert_eq!(
@@ -494,11 +506,11 @@ mod test {
                 let base: Vec<Fr> = (0..nv).map(|_| Fr::rand(&mut rng)).collect();
 
                 let (a, _a_sum) =
-                    VirtualPolynomial::<Fr>::rand(nv, (2, 3), num_products, &mut rng)?;
+                    LabeledVirtualPolynomial::<Fr>::rand(nv, (2, 3), num_products, &mut rng)?;
                 let (b, _b_sum) = random_mle_list(nv, 1, &mut rng);
-                let b_mle = b[0].clone();
+                let b_mle = Arc::new(LabeledPolynomial::new_without_label(b[0].clone()));
                 let coeff = Fr::rand(&mut rng);
-                let b_vp = VirtualPolynomial::new_from_mle(&b_mle, coeff);
+                let b_vp = LabeledVirtualPolynomial::new_from_mle(&b_mle, coeff);
 
                 let mut c = a.clone();
 
@@ -521,7 +533,12 @@ mod test {
             let r: Vec<Fr> = (0..nv).map(|_| Fr::rand(&mut rng)).collect();
             let eq_x_r = build_eq_x_r(r.as_ref()).unwrap();
             let eq_x_r2 = build_eq_x_r_for_test(r.as_ref());
-            assert_eq!(eq_x_r, eq_x_r2);
+            assert_eq!(eq_x_r.poly, eq_x_r2.poly);
+            assert_ne!(eq_x_r, eq_x_r2);
+
+            let eq_x_r2_poly = eq_x_r2.poly.clone();
+            let eq_x_r_clone = Arc::new(LabeledPolynomial::new_with_label(eq_x_r.label.clone(), eq_x_r2_poly));
+            assert_eq!(eq_x_r.poly, eq_x_r_clone.poly);
         }
     }
 
@@ -531,7 +548,7 @@ mod test {
     //      eq(x,y) = \prod_i=1^num_var (x_i * y_i + (1-x_i)*(1-y_i))
     // over r, which is
     //      eq(x,y) = \prod_i=1^num_var (x_i * r_i + (1-x_i)*(1-r_i))
-    fn build_eq_x_r_for_test<F: PrimeField>(r: &[F]) -> Arc<DenseMultilinearExtension<F>> {
+    fn build_eq_x_r_for_test<F: PrimeField>(r: &[F]) -> Arc<LabeledPolynomial<F>> {
         // we build eq(x,r) from its evaluations
         // we want to evaluate eq(x,r) over x \in {0, 1}^num_vars
         // for example, with num_vars = 4, x is a binary vector of 4, then
@@ -563,6 +580,6 @@ mod test {
 
         let mle = DenseMultilinearExtension::from_evaluations_vec(num_var, eval);
 
-        Arc::new(mle)
+        Arc::new(LabeledPolynomial::new_with_label_prefix("eq_x_r", Arc::new(mle)))
     }
 }
