@@ -6,6 +6,13 @@
 
 //! useful macros.
 
+
+use crate::poly_iop::PrimeField;
+use ark_poly::DenseMultilinearExtension;
+use std::sync::Arc;
+use ark_ec::pairing::Pairing;
+use crate::PolynomialCommitmentScheme;
+
 /// Takes as input a struct, and converts them to a series of bytes. All traits
 /// that implement `CanonicalSerialize` can be automatically converted to bytes
 /// in this manner.
@@ -30,5 +37,28 @@ mod test {
         let mut bytes = ark_std::vec![];
         f1.serialize_compressed(&mut bytes).unwrap();
         assert_eq!(bytes, to_bytes!(&f1).unwrap());
+    }
+}
+
+
+pub struct LabeledPolynomial<F: PrimeField> {
+    pub label: String,
+    pub poly: Arc<DenseMultilinearExtension<F>>,
+}
+
+impl<F: PrimeField> LabeledPolynomial<F> {
+    pub fn new(label: String, poly: Arc<DenseMultilinearExtension<F>>) -> Self {
+        Self { label, poly }
+    }
+}
+
+pub struct LabeledCommitment<E: Pairing, PCS: PolynomialCommitmentScheme<E>> {
+    pub label: String,
+    pub commitment: PCS::Commitment,
+}
+
+impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> LabeledCommitment<E, PCS> {
+    pub fn new(label: String, commitment: PCS::Commitment) -> Self {
+        Self { label, commitment }
     }
 }

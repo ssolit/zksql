@@ -6,7 +6,8 @@
 
 //! This module implements useful functions for the product check protocol.
 
-use crate::poly_iop::{errors::PolyIOPErrors, structs::IOPProof, zero_check::ZeroCheckIOP};
+use crate::poly_iop::{errors::PolyIOPErrors, structs::IOPProof, 
+    zero_check::new_stuff::ZeroCheckIOP};
 use arithmetic::{get_index, VirtualPolynomial};
 use ark_ff::{batch_inversion, PrimeField};
 use ark_poly::DenseMultilinearExtension;
