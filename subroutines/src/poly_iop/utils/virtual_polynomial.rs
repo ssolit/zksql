@@ -15,6 +15,9 @@ use std::{cmp::max, collections::HashMap, marker::PhantomData, ops::Add, sync::A
 
 use uuid::Uuid;
 
+
+
+// LabeledPolynomial stuff
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct LabeledPolynomial<F: PrimeField> {
     pub label: String,
@@ -47,6 +50,8 @@ impl<F: PrimeField> LabeledPolynomial<F> {
     }
 }
 
+
+// Start of LabeledVirtualPolynomial
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct LabeledVirtualPolynomial<F: PrimeField> {
     /// Aux information about the multilinear polynomial
@@ -92,7 +97,6 @@ impl<F: PrimeField> Add for &LabeledVirtualPolynomial<F> {
     }
 }
 
-// TODO: convert this into a trait
 impl<F: PrimeField> LabeledVirtualPolynomial<F> {
     /// Creates an empty virtual polynomial with `num_variables`.
     pub fn new(num_variables: usize) -> Self {
