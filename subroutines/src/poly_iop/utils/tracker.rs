@@ -30,7 +30,7 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> LabeledCommitment<E, PCS> {
 }
 
 pub struct TrackerSumcheckClaim<F: PrimeField> {
-    label: String,
+    label: String, // a label refering to a polynomial stored in the tracker
     claimed_sum: F,
 } 
 
@@ -38,13 +38,13 @@ impl <F: PrimeField> TrackerSumcheckClaim<F> {
     pub fn new(label: String, claimed_sum: F) -> Self {
         Self { label, claimed_sum }
     }
-    pub fn from_labeled_poly(poly: LabeledPolynomial<F>, claimed_sum: F) -> Self {
+    pub fn from_labeled_poly(poly: LabeledVirtualPolynomial<F>, claimed_sum: F) -> Self {
         Self { label: poly.label, claimed_sum}
     }
 }
 
 pub struct TrackerZerocheckClaim<F: PrimeField> {
-    label: String,
+    label: String, // a label refering to a polynomial stored in the tracker
     pub phantom: PhantomData<F>,
 }
 
@@ -52,12 +52,12 @@ impl <F: PrimeField> TrackerZerocheckClaim<F> {
     pub fn new(label: String) -> Self {
         Self { label, phantom: PhantomData::default() }
     }
-    pub fn from_labeled_poly(poly: LabeledPolynomial<F>) -> Self {
+    pub fn from_labeled_poly(poly: LabeledVirtualPolynomial<F>) -> Self {
         Self { label: poly.label, phantom: PhantomData::default() }
     }
 }
 pub struct IOPClaimTracker<E: Pairing, PCS: PolynomialCommitmentScheme<E>> {
-    pub polys: HashMap<String, LabeledPolynomial<E::ScalarField>>,
+    pub polys: HashMap<String, LabeledVirtualPolynomial<E::ScalarField>>,
     pub poly_comms: HashMap<String, LabeledCommitment<E, PCS>>,
     pub sum_check_claims: Vec::<TrackerSumcheckClaim<E::ScalarField>>,
     pub sum_check_comms: Vec::<LabeledCommitment<E, PCS>>,
@@ -79,7 +79,7 @@ impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> IOPClaimTracker<E, PCS> {
 
     pub fn add_sumcheck_claim(
         &mut self, 
-        poly: LabeledPolynomial<E::ScalarField>, 
+        poly: LabeledVirtualPolynomial<E::ScalarField>, 
         comm: LabeledCommitment<E, PCS>,
         claimed_sum: E::ScalarField
     ) {
@@ -92,7 +92,7 @@ impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> IOPClaimTracker<E, PCS> {
 
     pub fn add_zerocheck_claim(
         &mut self, 
-        poly: LabeledPolynomial<E::ScalarField>, 
+        poly: LabeledVirtualPolynomial<E::ScalarField>, 
         comm: LabeledCommitment<E, PCS>,
     ) {
         assert_eq!(poly.label, comm.label, "IOPClaimTracker label mismatch");
@@ -104,5 +104,8 @@ impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> IOPClaimTracker<E, PCS> {
 }
 
 
-// TODO: These should be virtual polys and commitments instead of straight up polys and commitments
+// TODO: These should be virtual commitments instead of straight up polys and commitments
 // TODO: Seperate prover claims and verifier claims
+
+
+// In tracker, when add virtual poly, give it a label

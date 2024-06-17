@@ -1,8 +1,6 @@
 use arithmetic::{ArithErrors, random_zero_mle_list, random_mle_list};
 use crate::poly_iop::PrimeField;
 use ark_poly::{DenseMultilinearExtension, MultilinearExtension};
-use ark_ec::pairing::Pairing;
-use crate::PolynomialCommitmentScheme;
 use ark_serialize::CanonicalSerialize;
 
 use ark_std::{
@@ -25,14 +23,20 @@ pub struct LabeledPolynomial<F: PrimeField> {
     pub phantom: PhantomData<F>,
 }
 impl<F: PrimeField> LabeledPolynomial<F> {
+    fn generate_new_label() -> String {
+        Uuid::new_v4().to_string()
+    }
+    fn generate_new_label_with_prefix(prefix: String) -> String {
+        format!("{}_{}", prefix, Uuid::new_v4())
+    }
     pub fn new_with_label(label: String, poly: Arc<DenseMultilinearExtension<F>>) -> Self {
         Self { label, poly, phantom: PhantomData::default() }
     }
     pub fn new_without_label(poly: Arc<DenseMultilinearExtension<F>>) -> Self {
-        Self { label: Uuid::new_v4().to_string(), poly, phantom: PhantomData::default() }
+        Self { label: Self::generate_new_label(), poly, phantom: PhantomData::default() }
     }
-    pub fn new_with_label_prefix(label_prefix: &str, poly: Arc<DenseMultilinearExtension<F>>) -> Self {
-        Self { label: format!("{}_{}", label_prefix, Uuid::new_v4()), poly, phantom: PhantomData::default() }
+    pub fn new_with_label_prefix(prefix: String, poly: Arc<DenseMultilinearExtension<F>>) -> Self {
+        Self { label: Self::generate_new_label_with_prefix(prefix), poly, phantom: PhantomData::default() }
     }
     pub fn num_vars(&self) -> usize {
         return self.poly.num_vars();
@@ -54,15 +58,13 @@ impl<F: PrimeField> LabeledPolynomial<F> {
 // Start of LabeledVirtualPolynomial
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct LabeledVirtualPolynomial<F: PrimeField> {
+    pub label: String,
     /// Aux information about the multilinear polynomial
     pub aux_info: VPAuxInfo<F>,
-    /// list of reference to products (as usize) of multilinear extension
-    pub products: Vec<(F, Vec<usize>)>,
-    /// Stores multilinear extensions in which product multiplicand can refer
-    /// to.
-    pub flattened_ml_extensions: Vec<Arc<LabeledPolynomial<F>>>,
-    /// Pointers to the above poly extensions
-    raw_pointers_lookup_table: HashMap<*const LabeledPolynomial<F>, usize>,
+    /// list of reference to products, stored as Vec<(coefficient, Vec<Label>)>
+    pub products: Vec<(F, Vec<String>)>, 
+    /// Stores underlying labeled polynomials in which product multiplicand can refer
+    pub labeled_polys: HashMap<String, Arc<LabeledPolynomial<F>>>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, CanonicalSerialize)]
@@ -82,14 +84,17 @@ impl<F: PrimeField> Add for &LabeledVirtualPolynomial<F> {
     fn add(self, other: &LabeledVirtualPolynomial<F>) -> Self::Output {
         let start = start_timer!(|| "virtual poly add");
         let mut res = self.clone();
+        
         for products in other.products.iter() {
-            let cur: Vec<Arc<LabeledPolynomial<F>>> = products
+             // make list of cloned pointers to be added to the res
+            let cur_prod: Vec<Arc<LabeledPolynomial<F>>> = products
                 .1
                 .iter()
-                .map(|&x| other.flattened_ml_extensions[x].clone())
+                .map(|label| other.labeled_polys[&label.clone()].clone())
                 .collect();
 
-            res.add_mle_list(cur, products.0)
+            // add the list as a new product to the res
+            res.add_mle_list(cur_prod, products.0)
                 .expect("add product failed");
         }
         end_timer!(start);
@@ -101,34 +106,32 @@ impl<F: PrimeField> LabeledVirtualPolynomial<F> {
     /// Creates an empty virtual polynomial with `num_variables`.
     pub fn new(num_variables: usize) -> Self {
         LabeledVirtualPolynomial {
+            label: LabeledPolynomial::<F>::generate_new_label(),
             aux_info: VPAuxInfo {
                 max_degree: 0,
                 num_variables,
                 phantom: PhantomData::default(),
             },
             products: Vec::new(),
-            flattened_ml_extensions: Vec::new(),
-            raw_pointers_lookup_table: HashMap::new(),
+            labeled_polys: HashMap::new(),
         }
     }
 
     /// Creates an new virtual polynomial from a MLE and its coefficient.
     pub fn new_from_mle(mle: &Arc<LabeledPolynomial<F>>, coefficient: F) -> Self {
-        let mle_ptr: *const LabeledPolynomial<F> = Arc::as_ptr(mle);
-        let mut hm = HashMap::new();
-        hm.insert(mle_ptr, 0);
-
+        let mut labeled_polys = HashMap::new();
+        labeled_polys.insert(mle.label.clone(), mle.clone());
         LabeledVirtualPolynomial {
+            label: LabeledPolynomial::<F>::generate_new_label(),
             aux_info: VPAuxInfo {
-                // The max degree is the max degree of any individual variable
+                // Max degree of any individual variable. For a basic MLE this is 1 by definition.
                 max_degree: 1,
                 num_variables: mle.num_vars(),
                 phantom: PhantomData::default(),
             },
             // here `0` points to the first polynomial of `flattened_ml_extensions`
-            products: vec![(coefficient, vec![0])],
-            flattened_ml_extensions: vec![mle.clone()],
-            raw_pointers_lookup_table: hm,
+            products: vec![(coefficient, vec![mle.label.clone()])],
+            labeled_polys: labeled_polys,
         }
     }
 
@@ -144,7 +147,7 @@ impl<F: PrimeField> LabeledVirtualPolynomial<F> {
         coefficient: F,
     ) -> Result<(), ArithErrors> {
         let mle_list: Vec<Arc<LabeledPolynomial<F>>> = mle_list.into_iter().collect();
-        let mut indexed_product = Vec::with_capacity(mle_list.len());
+        let mut product_labels = Vec::with_capacity(mle_list.len());
 
         if mle_list.is_empty() {
             return Err(ArithErrors::InvalidParameters(
@@ -161,18 +164,20 @@ impl<F: PrimeField> LabeledVirtualPolynomial<F> {
                     mle.num_vars(), self.aux_info.num_variables
                 )));
             }
+            let label = mle.label.clone();
 
-            let mle_ptr: *const LabeledPolynomial<F> = Arc::as_ptr(&mle);
-            if let Some(index) = self.raw_pointers_lookup_table.get(&mle_ptr) {
-                indexed_product.push(*index)
+            // Add the labeled poly to the underlying labeled_polys map
+            if self.labeled_polys.contains_key(&label) {
+                #[cfg(debug_assertions)] {
+                    assert_eq!(self.labeled_polys[&label], mle, "add_mle_list Error: mle's with the same label are not the same");
+                }
             } else {
-                let curr_index = self.flattened_ml_extensions.len();
-                self.flattened_ml_extensions.push(mle.clone());
-                self.raw_pointers_lookup_table.insert(mle_ptr, curr_index);
-                indexed_product.push(curr_index);
+                self.labeled_polys.insert(label.clone(), mle);
             }
+
+            product_labels.push(label);
         }
-        self.products.push((coefficient, indexed_product));
+        self.products.push((coefficient, product_labels));
         Ok(())
     }
 
@@ -188,7 +193,7 @@ impl<F: PrimeField> LabeledVirtualPolynomial<F> {
 
     /// Multiple the current LabeledVirtualPolynomial by an MLE:
     /// - add the MLE to the MLE list;
-    /// - multiple each product by MLE and its coefficient.
+    /// - multiply each product by MLE and its coefficient.
     /// Returns an error if the MLE has a different `num_vars` from self.
     pub fn mul_by_mle(
         &mut self,
@@ -204,23 +209,20 @@ impl<F: PrimeField> LabeledVirtualPolynomial<F> {
             )));
         }
 
-        let mle_ptr: *const LabeledPolynomial<F> = Arc::as_ptr(&mle);
+        // Add the labeled poly to the underlying labeled_polys map
+        let label = mle.label.clone();
+        if self.labeled_polys.contains_key(&label) {
+            #[cfg(debug_assertions)] {
+                assert_eq!(self.labeled_polys[&label], mle, "add_mle_list Error: mle's with the same label are not the same");
+            }
+        } else {
+            self.labeled_polys.insert(label.clone(), mle);
+        }
 
-        // check if this mle already exists in the virtual polynomial
-        let mle_index = match self.raw_pointers_lookup_table.get(&mle_ptr) {
-            Some(&p) => p,
-            None => {
-                self.raw_pointers_lookup_table
-                    .insert(mle_ptr, self.flattened_ml_extensions.len());
-                self.flattened_ml_extensions.push(mle);
-                self.flattened_ml_extensions.len() - 1
-            },
-        };
-
-        for (prod_coef, indices) in self.products.iter_mut() {
+        for (prod_coef, label_list) in self.products.iter_mut() {
             // - add the MLE to the MLE list;
             // - multiple each product by MLE and its coefficient.
-            indices.push(mle_index);
+            label_list.push(label.clone());
             *prod_coef *= coefficient;
         }
 
@@ -243,20 +245,22 @@ impl<F: PrimeField> LabeledVirtualPolynomial<F> {
             )));
         }
 
-        let evals: Vec<F> = self
-            .flattened_ml_extensions
+        let mut evals: HashMap<String, F> = HashMap::new();
+        self
+            .labeled_polys
             .iter()
-            .map(|x| {
-                x.evaluate(point).unwrap() // safe unwrap here since we have
-                                           // already checked that num_var
-                                           // matches
-            })
-            .collect();
+            .for_each(|(label, poly)| {
+                let _ = evals.insert(label.clone(), poly.evaluate(point).unwrap()); // safe unwrap here since we have
+                                                                                    // already checked that num_var matches
+            });
+
+        println!("labels: {:?}", self.labeled_polys.keys());
+        println!("evals: {:?}", evals);
 
         let res = self
             .products
             .iter()
-            .map(|(c, p)| *c * p.iter().map(|&i| evals[i]).product::<F>())
+            .map(|(coeff, prod_labels)| *coeff * prod_labels.iter().map(|label| evals[&label.clone()]).product::<F>())
             .sum();
 
         end_timer!(start);
@@ -352,7 +356,7 @@ impl<F: PrimeField> LabeledVirtualPolynomial<F> {
             let pt_eval = 
             self.products
             .iter()
-            .map(|(coeff, prod)| *coeff * prod.iter().map(|&i| self.flattened_ml_extensions[i].poly.evaluations[pt]).product::<F>())
+            .map(|(coeff, prod)| *coeff * prod.iter().map(|label| self.labeled_polys[&label.clone()].poly.evaluations[pt]).product::<F>())
             .sum();
 
             eval_vec.push(pt_eval);
@@ -514,7 +518,7 @@ mod test {
                 let (b, _b_sum) = random_mle_list(nv, 1, &mut rng);
                 let b_mle = Arc::new(LabeledPolynomial::new_without_label(b[0].clone()));
                 let coeff = Fr::rand(&mut rng);
-                let b_vp = LabeledVirtualPolynomial::new_from_mle(&b_mle, coeff);
+                let b_vp = LabeledVirtualPolynomial::new_from_mle( &b_mle, coeff);
 
                 let mut c = a.clone();
 
@@ -584,6 +588,6 @@ mod test {
 
         let mle = DenseMultilinearExtension::from_evaluations_vec(num_var, eval);
 
-        Arc::new(LabeledPolynomial::new_with_label_prefix("eq_x_r", Arc::new(mle)))
+        Arc::new(LabeledPolynomial::new_with_label_prefix("eq_x_r".to_string(), Arc::new(mle)))
     }
 }
