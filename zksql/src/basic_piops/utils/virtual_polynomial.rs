@@ -1,5 +1,5 @@
 use arithmetic::{ArithErrors, random_zero_mle_list, random_mle_list};
-use crate::poly_iop::PrimeField;
+use ark_ff::PrimeField;
 use ark_poly::{DenseMultilinearExtension, MultilinearExtension};
 use ark_serialize::CanonicalSerialize;
 
@@ -114,6 +114,25 @@ impl<F: PrimeField> LabeledVirtualPolynomial<F> {
             },
             products: Vec::new(),
             labeled_polys: HashMap::new(),
+        }
+    }
+
+    /// Creates an new virtual polynomial from a MLE and its coefficient.
+    pub fn new_from_unlabeled_mle(mle: &Arc<DenseMultilinearExtension<F>>, coefficient: F) -> Self {
+        let labeled_mle  = Arc::new(LabeledPolynomial::new_without_label(mle.clone()));
+        let mut labeled_polys = HashMap::new();
+        labeled_polys.insert(labeled_mle.label.clone(), labeled_mle.clone());
+        LabeledVirtualPolynomial {
+            label: LabeledPolynomial::<F>::generate_new_label(),
+            aux_info: VPAuxInfo {
+                // Max degree of any individual variable. For a basic MLE this is 1 by definition.
+                max_degree: 1,
+                num_variables: mle.num_vars(),
+                phantom: PhantomData::default(),
+            },
+            // here `0` points to the first polynomial of `flattened_ml_extensions`
+            products: vec![(coefficient, vec![labeled_mle.label.clone()])],
+            labeled_polys: labeled_polys,
         }
     }
 

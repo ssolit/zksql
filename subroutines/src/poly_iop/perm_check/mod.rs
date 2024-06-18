@@ -1,15 +1,15 @@
-// // Copyright (c) 2023 Espresso Systems (espressosys.com)
-// // This file is part of the HyperPlonk library.
+// Copyright (c) 2023 Espresso Systems (espressosys.com)
+// This file is part of the HyperPlonk library.
 
-// // You should have received a copy of the MIT License
-// // along with the HyperPlonk library. If not, see <https://mit-license.org/>.
+// You should have received a copy of the MIT License
+// along with the HyperPlonk library. If not, see <https://mit-license.org/>.
 
-// //! Main module for the Permutation Check protocol
+//! Main module for the Permutation Check protocol
 
 use self::util::computer_nums_and_denoms;
 use crate::{
     pcs::PolynomialCommitmentScheme,
-    poly_iop::{errors::PolyIOPErrors, prod_check::{ProductCheck}, PolyIOP},
+    poly_iop::{errors::PolyIOPErrors, prelude::ProductCheck, PolyIOP},
 };
 use ark_ec::pairing::Pairing;
 use ark_poly::DenseMultilinearExtension;

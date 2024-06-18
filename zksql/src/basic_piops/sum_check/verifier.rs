@@ -7,17 +7,19 @@
 //! Verifier subroutines for a SumCheck protocol.
 
 use super::{SumCheckSubClaim, SumCheckVerifier};
-use crate::poly_iop::{
-    errors::PolyIOPErrors,
-    structs::{IOPProverMessage, IOPVerifierState},
-};
-use arithmetic::VPAuxInfo;
 use ark_ff::PrimeField;
 use ark_std::{end_timer, start_timer};
 use transcript::IOPTranscript;
 
+use crate::basic_piops::utils::{
+        virtual_polynomial::{VPAuxInfo},
+        errors::PolyIOPErrors,
+        structs::{IOPProof, IOPProverState, IOPVerifierState, IOPProverMessage},
+};
+
 #[cfg(feature = "parallel")]
 use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
+
 
 impl<F: PrimeField> SumCheckVerifier<F> for IOPVerifierState<F> {
     type VPAuxInfo = VPAuxInfo<F>;
@@ -319,7 +321,7 @@ fn u64_factorial(a: usize) -> u64 {
 #[cfg(test)]
 mod test {
     use super::interpolate_uni_poly;
-    use crate::poly_iop::errors::PolyIOPErrors;
+    use crate::basic_piops::utils::errors::PolyIOPErrors;
     use ark_bls12_381::Fr;
     use ark_poly::{univariate::DensePolynomial, DenseUVPolynomial, Polynomial};
     use ark_std::{vec::Vec, UniformRand};

@@ -7,11 +7,12 @@
 //! Prover subroutines for a SumCheck protocol.
 
 use super::SumCheckProver;
-use crate::poly_iop::{
+use crate::basic_piops::utils::{
     errors::PolyIOPErrors,
     structs::{IOPProverMessage, IOPProverState},
+    virtual_polynomial::{LabeledVirtualPolynomial, VPAuxInfo},
 };
-use arithmetic::{fix_variables, VirtualPolynomial};
+use arithmetic::{fix_variables};
 use ark_ff::{batch_inversion, PrimeField};
 use ark_poly::DenseMultilinearExtension;
 use ark_std::{cfg_into_iter, end_timer, start_timer, vec::Vec};
@@ -21,8 +22,9 @@ use std::sync::Arc;
 #[cfg(feature = "parallel")]
 use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
 
+
 impl<F: PrimeField> SumCheckProver<F> for IOPProverState<F> {
-    type VirtualPolynomial = VirtualPolynomial<F>;
+    type VirtualPolynomial = LabeledVirtualPolynomial<F>;
     type ProverMessage = IOPProverMessage<F>;
 
     /// Initialize the prover state to argue for the sum of the input polynomial

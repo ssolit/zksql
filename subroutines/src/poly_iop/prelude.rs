@@ -5,12 +5,13 @@
 // along with the HyperPlonk library. If not, see <https://mit-license.org/>.
 
 pub use crate::poly_iop::{
-    errors::PolyIOPErrors, perm_check::PermutationCheck, prod_check::ProductCheck,
-    structs::IOPProof, sum_check::SumCheck, utils::*, zero_check::ZeroCheck, PolyIOP,
+    errors::PolyIOPErrors, perm_check::PermutationCheck, 
+    prod_check::ProductCheck,
+    structs::IOPProof, sum_check::SumCheck, zero_check::ZeroCheck, PolyIOP,
 };
 
-pub use crate::poly_iop::{
-    prod_check::new_stuff::{ProductCheckIOP, ProductCheckIOPProof, ProductCheckIOPSubClaim},
-    sum_check::new_stuff::{SumCheckIOP, SumCheckIOPProof, SumCheckIOPSubClaim},
-    zero_check::new_stuff::{ZeroCheckIOP, ZeroCheckIOPProof, ZeroCheckIOPSubClaim},
-};
+// pub use crate::poly_iop::{
+//     prod_check::new_stuff::{ProductCheckIOP, ProductCheckIOPProof, ProductCheckIOPSubClaim},
+//     sum_check::new_stuff::{SumCheckIOP, SumCheckIOPProof, SumCheckIOPSubClaim},
+//     zero_check::new_stuff::{ZeroCheckIOP, ZeroCheckIOPProof, ZeroCheckIOPSubClaim},
+// };

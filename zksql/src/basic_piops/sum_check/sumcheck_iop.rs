@@ -1,17 +1,16 @@
-use crate::poly_iop::{
-    errors::PolyIOPErrors,
-    structs::{IOPProof, IOPProverState, IOPVerifierState},
-    // PolyIOP,
-};
-use arithmetic::{VPAuxInfo, VirtualPolynomial};
 use ark_ff::PrimeField;
-// use ark_poly::DenseMultilinearExtension;
 use ark_std::{end_timer, start_timer};
 use std::marker::PhantomData;
-// use std::{fmt::Debug, sync::Arc};
 use transcript::IOPTranscript;
 
-use crate::poly_iop::sum_check::{SumCheckProver, SumCheckVerifier, SumCheckSubClaim};
+use crate::basic_piops::{
+    sum_check::{SumCheckProver, SumCheckVerifier, SumCheckSubClaim},
+    utils::{
+        virtual_polynomial::{LabeledVirtualPolynomial, VPAuxInfo},
+        errors::PolyIOPErrors,
+        structs::{IOPProof, IOPProverState, IOPVerifierState},
+    },
+};
 
 
 pub struct SumCheckIOP<F: PrimeField>(PhantomData<F>);
@@ -38,7 +37,7 @@ impl<F: PrimeField> SumCheckIOP<F> {
     }
 
     pub fn prove(
-        poly: &VirtualPolynomial<F>,
+        poly: &LabeledVirtualPolynomial<F>,
         transcript: &mut Transcript<F>,
     ) -> Result<SumCheckProof<F>, PolyIOPErrors> {
         let start = start_timer!(|| "sum check prove");
@@ -78,7 +77,7 @@ impl<F: PrimeField> SumCheckIOP<F> {
         transcript.append_serializable_element(b"aux info", aux_info)?;
         let mut verifier_state = IOPVerifierState::verifier_init(aux_info);
         for i in 0..aux_info.num_variables {
-            let prover_msg = proof.proofs.get(i).expect("proof is incomplete");
+            let prover_msg = proof.proofs.get(i).expect("SumCheckIOP::verify error: proof is incomplete");
             transcript.append_serializable_element(b"prover msg", prover_msg)?;
             IOPVerifierState::verify_round_and_update_state(
                 &mut verifier_state,
@@ -101,8 +100,9 @@ mod test {
     use ark_bls12_381::Fr;
     use ark_ff::UniformRand;
     use ark_poly::{DenseMultilinearExtension, MultilinearExtension};
-    use ark_std::test_rng;
+    use ark_std::{test_rng};
     use std::sync::Arc;
+    use crate::basic_piops::utils::virtual_polynomial::LabeledPolynomial;
 
     fn test_sumcheck(
         nv: usize,
@@ -113,7 +113,7 @@ mod test {
         let mut transcript = SumCheckIOP::<Fr>::init_transcript();
 
         let (poly, asserted_sum) =
-            VirtualPolynomial::rand(nv, num_multiplicands_range, num_products, &mut rng)?;
+            LabeledVirtualPolynomial::rand(nv, num_multiplicands_range, num_products, &mut rng)?;
         let proof = SumCheckIOP::prove(&poly, &mut transcript)?;
         let poly_info = poly.aux_info.clone();
         let mut transcript = SumCheckIOP::init_transcript();
@@ -137,7 +137,7 @@ mod test {
     ) -> Result<(), PolyIOPErrors> {
         let mut rng = test_rng();
         let (poly, asserted_sum) =
-            VirtualPolynomial::<Fr>::rand(nv, num_multiplicands_range, num_products, &mut rng)?;
+            LabeledVirtualPolynomial::<Fr>::rand(nv, num_multiplicands_range, num_products, &mut rng)?;
         let poly_info = poly.aux_info.clone();
         let mut prover_state = IOPProverState::prover_init(&poly)?;
         let mut verifier_state = IOPVerifierState::verifier_init(&poly_info);
@@ -202,7 +202,7 @@ mod test {
     fn test_extract_sum() -> Result<(), PolyIOPErrors> {
         let mut rng = test_rng();
         let mut transcript = SumCheckIOP::init_transcript();
-        let (poly, asserted_sum) = VirtualPolynomial::<Fr>::rand(8, (3, 4), 3, &mut rng)?;
+        let (poly, asserted_sum) = LabeledVirtualPolynomial::<Fr>::rand(8, (3, 4), 3, &mut rng)?;
 
         let proof = SumCheckIOP::prove(&poly, &mut transcript)?;
         assert_eq!(
@@ -218,9 +218,9 @@ mod test {
     fn test_shared_reference() -> Result<(), PolyIOPErrors> {
         let mut rng = test_rng();
         let ml_extensions: Vec<_> = (0..5)
-            .map(|_| Arc::new(DenseMultilinearExtension::<Fr>::rand(8, &mut rng)))
+            .map(|_| Arc::new(LabeledPolynomial::new_without_label(Arc::new(DenseMultilinearExtension::<Fr>::rand(8, &mut rng)))))
             .collect();
-        let mut poly = VirtualPolynomial::new(8);
+        let mut poly = LabeledVirtualPolynomial::new(8);
         poly.add_mle_list(
             vec![
                 ml_extensions[2].clone(),
@@ -251,11 +251,11 @@ mod test {
         )?;
         poly.add_mle_list(vec![ml_extensions[4].clone()], Fr::rand(&mut rng))?;
 
-        assert_eq!(poly.flattened_ml_extensions.len(), 5);
+        assert_eq!(poly.labeled_polys.len(), 5);
 
         // test memory usage for prover
         let prover = IOPProverState::<Fr>::prover_init(&poly).unwrap();
-        assert_eq!(prover.poly.flattened_ml_extensions.len(), 5);
+        assert_eq!(prover.poly.labeled_polys.len(), 5);
         drop(prover);
 
         let mut transcript = SumCheckIOP::init_transcript();

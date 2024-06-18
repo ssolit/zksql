@@ -6,8 +6,7 @@
 
 //! This module implements useful functions for the product check protocol.
 
-use crate::poly_iop::{errors::PolyIOPErrors, structs::IOPProof, 
-    zero_check::new_stuff::ZeroCheckIOP};
+use crate::poly_iop::{errors::PolyIOPErrors, structs::IOPProof, zero_check::ZeroCheck, PolyIOP};
 use arithmetic::{get_index, VirtualPolynomial};
 use ark_ff::{batch_inversion, PrimeField};
 use ark_poly::DenseMultilinearExtension;
@@ -172,7 +171,7 @@ pub(super) fn prove_zero_check<F: PrimeField>(
     // - alpha * f1(x) * ... * fk(x)]
     q_x.add_mle_list(fxs.to_vec(), -*alpha)?;
 
-    let iop_proof = ZeroCheckIOP::<F>::prove(&q_x, transcript)?;
+    let iop_proof = <PolyIOP<F> as ZeroCheck<F>>::prove(&q_x, transcript)?;
 
     end_timer!(start);
     Ok((iop_proof, q_x))
