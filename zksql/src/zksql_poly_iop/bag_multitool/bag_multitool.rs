@@ -95,6 +95,7 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = ArcMLE<E>>
                 "BagMultiToolIOP Error: fxs and mf have different number of polynomials".to_string(),
             ));
         }
+
         for i in 0..fxs.len() {
             if fxs[i].poly.num_vars() != mfxs[i].num_vars() {
                 return Err(PolyIOPErrors::InvalidParameters(
@@ -160,7 +161,7 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = ArcMLE<E>>
         
         // construct phat = 1/(bag.p(x) - gamma), i.e. the denominator of the sum
         let p = bag.poly;
-        let mut p_evals = p.evaluations();
+        let mut p_evals = p.evaluations().to_vec();
         let mut p_minus_gamma: Vec<<E as Pairing>::ScalarField> = p_evals.iter_mut().map(|x| *x - gamma).collect();
         let phat_evals = p_minus_gamma.as_mut_slice();
         ark_ff::fields::batch_inversion(phat_evals);
@@ -184,6 +185,7 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = ArcMLE<E>>
         sumcheck_challenge_poly.label = LabeledPolynomial::<E::ScalarField>::generate_new_label_with_prefix(sumcheck_challenge_poly_prefix);
         sumcheck_challenge_poly.add_mle_list([phat.clone(), m.clone(), bag.selector], E::ScalarField::one())?;
 
+        type MLE<F> = DenseMultilinearExtension<F>;
        
         // Create Zerocheck claim for procing phat(x) is created correctly, 
         // i.e. ZeroCheck [(p(x)-gamma) * phat(x)  - 1]

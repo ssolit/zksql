@@ -16,7 +16,10 @@ use uuid::Uuid;
 
 use super::virtual_polynomial::*;
 
+pub struct PolyID(String);
+
 pub struct IOPClaimTracker<E: Pairing, PCS: PolynomialCommitmentScheme<E>> {
+    // TODO: Change claim polys to be `HashMap<PolyID, Vec<(E::ScalarField, Vec<PolyID>)>`
     pub claim_polys: HashMap<String, Vec<(E::ScalarField, Vec<String>)>>,               // virtual polynomials, keyed by label
     pub materialized_polys: HashMap<String, Arc<LabeledPolynomial<E::ScalarField>>>,    // underlying materialized polynomials, keyed by label
     pub claim_comms: HashMap<String, Vec<(E::ScalarField, Vec<String>)>>,
@@ -36,7 +39,23 @@ impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> IOPClaimTracker<E, PCS> {
             zero_check_claims: Vec::new(),
         }
     }
-
+    
+    pub fn new_polynomial(
+        &mut self,
+        polynomial: DenseMultilinearExtension<E::ScalarField>
+    ) -> PolyID {
+        // Instead of generating PolyID  as a UUID, maintain a counter and increment it.
+        // Generate new PolyID
+        // Add mapping to HashMap (PolyID -> polynomial)
+        // Return PolyID
+        todo!()
+    }
+    
+    pub fn get_polynomial(&self, id: PolyID) -> Option<&DenseMultilinearExtension<E::ScalarField>> {
+        todo!()
+    }
+     
+    // adds a virtual polynomial to the tracker and its materialized polys to the map
     pub fn record_virtual_claim_poly(
         &mut self,
         poly: LabeledVirtualPolynomial<E::ScalarField>,
@@ -88,6 +107,29 @@ impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> IOPClaimTracker<E, PCS> {
     }
 
 
+}
+
+pub struct TrackedPoly<E: Pairing> {
+    pub id: PolyID,
+    pub tracker: Rc<RefCell<IOPClaimTracker<E>>>,
+}
+
+impl<E: Pairing> TrackedPoly<E> {
+    pub fn new(id: PolyID, tracker: Rc<RefCell<IOPClaimTracker<E>>>) -> Self {
+        Self { id, tracker }
+    }
+    
+    pub fn add(self, other: TrackedPoly<E>) -> Self {
+        // Add the two polynomials together
+        // Add the new polynomial to the tracker
+        // Return the new polynomial
+        todo!()
+    }
+    
+    pub fn evaluations(&self) -> &[E::ScalarField] {
+        // Get the evaluations of the polynomial
+        todo!()
+    }
 }
 
 

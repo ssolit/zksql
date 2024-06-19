@@ -9,7 +9,7 @@ use ark_std::{
     start_timer,
 };
 use rayon::prelude::*;
-use std::{cmp::max, collections::HashMap, marker::PhantomData, ops::Add, sync::Arc};
+use std::{cmp::max, collections::HashMap, marker::PhantomData, ops::{Add, Deref}, sync::Arc};
 
 use uuid::Uuid;
 
@@ -19,41 +19,56 @@ use uuid::Uuid;
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct LabeledPolynomial<F: PrimeField> {
     pub label: String,
-    pub poly: Arc<DenseMultilinearExtension<F>>,
+    pub poly: DenseMultilinearExtension<F>,
     pub phantom: PhantomData<F>,
 }
+
 impl<F: PrimeField> LabeledPolynomial<F> {
     pub fn generate_new_label() -> String {
         Uuid::new_v4().to_string()
     }
+
     pub fn generate_new_label_with_prefix(prefix: String) -> String {
         format!("{}_{}", prefix, Uuid::new_v4())
     }
-    pub fn new_with_label(label: String, poly: Arc<DenseMultilinearExtension<F>>) -> Self {
+
+    pub fn new_with_label(label: String, poly: DenseMultilinearExtension<F>) -> Self {
         Self { label, poly, phantom: PhantomData::default() }
     }
-    pub fn new_without_label(poly: Arc<DenseMultilinearExtension<F>>) -> Self {
+
+    pub fn new_without_label(poly: DenseMultilinearExtension<F>) -> Self {
         Self { label: Self::generate_new_label(), poly, phantom: PhantomData::default() }
     }
-    pub fn new_with_label_prefix(prefix: String, poly: Arc<DenseMultilinearExtension<F>>) -> Self {
+
+    pub fn new_with_label_prefix(prefix: String, poly: DenseMultilinearExtension<F>) -> Self {
         Self { label: Self::generate_new_label_with_prefix(prefix), poly, phantom: PhantomData::default() }
     }
+
     pub fn num_vars(&self) -> usize {
-        return self.poly.num_vars();
+        self.poly.num_vars()
     }
-    pub fn evaluations(&self) -> Vec<F> {
-        return self.poly.evaluations.clone(); //Bad? Should not allow cloning? 
+
+    pub fn evaluations(&self) -> &[F] {
+        &self.poly.evaluations
     }
+
     pub fn evaluate(&self, point: &[F]) -> Option<F> {
-        let res = self.poly.evaluate(point);
-        return res;
+        self.poly.evaluate(point)
     }
+
     pub fn from_evaluations_vec(num_vars: usize, evaluations: Vec<F>) -> Self {
         let mle = DenseMultilinearExtension::from_evaluations_vec(num_vars, evaluations);
-        Self::new_without_label(Arc::new(mle))
+        Self::new_without_label(mle)
     }
 }
 
+impl<F: PrimeField> Deref for LabeledPolynomial<F> {
+    type Target = DenseMultilinearExtension<F>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.poly
+    }
+}
 
 // Start of LabeledVirtualPolynomial
 #[derive(Clone, Debug, Default, PartialEq)]

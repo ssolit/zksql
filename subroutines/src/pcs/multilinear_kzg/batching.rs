@@ -59,7 +59,7 @@ where
     E: Pairing,
     PCS: PolynomialCommitmentScheme<
         E,
-        Polynomial = Arc<DenseMultilinearExtension<E::ScalarField>>,
+        Polynomial = DenseMultilinearExtension<E::ScalarField>,
         Point = Vec<E::ScalarField>,
         Evaluation = E::ScalarField,
     >,
@@ -103,7 +103,7 @@ where
                 .collect::<Vec<_>>(),
             |mut merged_tilde_gs, ((poly, point), coeff)| {
                 *Arc::make_mut(&mut merged_tilde_gs[point_indices[point]]) +=
-                    (*coeff, poly.deref());
+                    (*coeff, poly);
                 merged_tilde_gs
             },
         );
@@ -191,7 +191,7 @@ where
     E: Pairing,
     PCS: PolynomialCommitmentScheme<
         E,
-        Polynomial = Arc<DenseMultilinearExtension<E::ScalarField>>,
+        Polynomial = DenseMultilinearExtension<E::ScalarField>,
         Point = Vec<E::ScalarField>,
         Evaluation = E::ScalarField,
         Commitment = Commitment<E>,
@@ -282,7 +282,7 @@ mod tests {
 
     fn test_multi_open_helper<R: Rng>(
         ml_params: &MultilinearUniversalParams<E>,
-        polys: &[Arc<DenseMultilinearExtension<Fr>>],
+        polys: &[DenseMultilinearExtension<Fr>],
         rng: &mut R,
     ) -> Result<(), PCSError> {
         let merged_nv = get_batched_nv(polys[0].num_vars(), polys.len());
@@ -340,7 +340,7 @@ mod tests {
         for num_poly in 5..6 {
             for nv in 15..16 {
                 let polys1: Vec<_> = (0..num_poly)
-                    .map(|_| Arc::new(DenseMultilinearExtension::rand(nv, &mut rng)))
+                    .map(|_| DenseMultilinearExtension::rand(nv, &mut rng))
                     .collect();
                 test_multi_open_helper(&ml_params, &polys1, &mut rng)?;
             }

@@ -53,7 +53,7 @@ impl<E: Pairing> PolynomialCommitmentScheme<E> for MultilinearKzgPCS<E> {
     type VerifierParam = MultilinearVerifierParam<E>;
     type SRS = MultilinearUniversalParams<E>;
     // Polynomial and its associated types
-    type Polynomial = Arc<DenseMultilinearExtension<E::ScalarField>>;
+    type Polynomial = DenseMultilinearExtension<E::ScalarField>;
     type Point = Vec<E::ScalarField>;
     type Evaluation = E::ScalarField;
     // Commitments and proofs
