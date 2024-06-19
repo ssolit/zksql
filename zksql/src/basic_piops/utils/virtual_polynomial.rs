@@ -23,10 +23,10 @@ pub struct LabeledPolynomial<F: PrimeField> {
     pub phantom: PhantomData<F>,
 }
 impl<F: PrimeField> LabeledPolynomial<F> {
-    fn generate_new_label() -> String {
+    pub fn generate_new_label() -> String {
         Uuid::new_v4().to_string()
     }
-    fn generate_new_label_with_prefix(prefix: String) -> String {
+    pub fn generate_new_label_with_prefix(prefix: String) -> String {
         format!("{}_{}", prefix, Uuid::new_v4())
     }
     pub fn new_with_label(label: String, poly: Arc<DenseMultilinearExtension<F>>) -> Self {
@@ -41,9 +41,9 @@ impl<F: PrimeField> LabeledPolynomial<F> {
     pub fn num_vars(&self) -> usize {
         return self.poly.num_vars();
     }
-    // pub fn evaluations(&self) -> Vec<F> {
-    //     return self.poly.evaluations;
-    // }
+    pub fn evaluations(&self) -> Vec<F> {
+        return self.poly.evaluations.clone(); //Bad? Should not allow cloning? 
+    }
     pub fn evaluate(&self, point: &[F]) -> Option<F> {
         let res = self.poly.evaluate(point);
         return res;
@@ -107,6 +107,19 @@ impl<F: PrimeField> LabeledVirtualPolynomial<F> {
     pub fn new(num_variables: usize) -> Self {
         LabeledVirtualPolynomial {
             label: LabeledPolynomial::<F>::generate_new_label(),
+            aux_info: VPAuxInfo {
+                max_degree: 0,
+                num_variables,
+                phantom: PhantomData::default(),
+            },
+            products: Vec::new(),
+            labeled_polys: HashMap::new(),
+        }
+    }
+
+    pub fn new_with_label_prefix(prefix: String, num_variables: usize) -> Self {
+        LabeledVirtualPolynomial {
+            label: LabeledPolynomial::<F>::generate_new_label_with_prefix(prefix),
             aux_info: VPAuxInfo {
                 max_degree: 0,
                 num_variables,
