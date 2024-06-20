@@ -1,9 +1,10 @@
 [workspace]
 members = [
   "arithmetic",
-  "hyperplonk",
-  "subroutines",
+  # "hyperplonk",
+  # "subroutines",
   "transcript",
-  "util",
-  "zksql",
+  # "util",
+  # "zksql",
+  "zksql-experimental",
 ]
