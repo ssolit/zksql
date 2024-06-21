@@ -21,11 +21,13 @@ use core::panic;
 use std::{collections::HashMap, ops::Add, sync::Arc};
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::marker::PhantomData;
 
 use uuid::Uuid;
 
 use std::ops::Deref;
 use std::borrow::{Borrow, BorrowMut};
+use std::cell::Ref;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Display)]
 pub struct PolyID(String);
@@ -253,45 +255,84 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> IOPClaimTracker<E, PCS> {
 }
 
 
-// #[derive(Clone, Debug, Default, PartialEq)]
-// pub struct LabeledCommitment<E: Pairing, PCS: PolynomialCommitmentScheme<E>> {
-//     pub label: PolyID,
-//     pub commitment: PCS::Commitment,
-// }
-// impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> LabeledCommitment<E, PCS> {
-//     pub fn new(label: PolyID, commitment: PCS::Commitment) -> Self {
-//         Self { label, commitment }
-//     }
-// }
+pub struct TrackedPoly<E: Pairing, PCS: PolynomialCommitmentScheme<E>> {
+    pub id: PolyID,
+    pub tracker: Rc<RefCell<IOPClaimTracker<E, PCS>>>,
+}
 
-// pub struct TrackerSumcheckClaim<F: PrimeField> {
-//     label: PolyID, // a label refering to a polynomial stored in the tracker
-//     claimed_sum: F,
-// } 
+impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> TrackedPoly<E, PCS> {
+    pub fn new(id: PolyID, tracker: Rc<RefCell<IOPClaimTracker<E, PCS>>>) -> Self {
+        Self { id, tracker }
+    }
 
-// impl <F: PrimeField> TrackerSumcheckClaim<F> {
-//     pub fn new(label: PolyID, claimed_sum: F) -> Self {
-//         Self { label, claimed_sum }
-//     }
-//     pub fn from_labeled_poly(poly: LabeledVirtualPolynomial<F>, claimed_sum: F) -> Self {
-//         Self { label: poly.label, claimed_sum}
-//     }
-// }
+    pub fn same_tracker(&self, other: &TrackedPoly<E, PCS>) -> bool {
+        Rc::ptr_eq(&self.tracker, &other.tracker)
+    }
+
+    pub fn assert_same_tracker(&self, other: &TrackedPoly<E, PCS>) {
+        assert!(self.same_tracker(other), "TrackedPolys are not from the same tracker");
+    }
+    
+    pub fn add(&self, other: TrackedPoly<E, PCS>) -> Self {
+        self.assert_same_tracker(&other);
+        let tracker_ref: &RefCell<IOPClaimTracker<E, PCS>> = self.tracker.borrow();
+        let res_id = tracker_ref.borrow().add_polys(self.id, other.id);
+        TrackedPoly::new(res_id, self.tracker)
+    }
+
+    pub fn mul(&self, other: TrackedPoly<E, PCS>) -> Self {
+        self.assert_same_tracker(&other);
+        let tracker_ref: &RefCell<IOPClaimTracker<E, PCS>> = self.tracker.borrow();
+        let res_id = tracker_ref.borrow().mul_polys(self.id, other.id);
+        TrackedPoly::new(res_id, self.tracker)
+    }
+
+    pub fn evaluate(&self, pt: &[E::ScalarField]) -> E::ScalarField {
+        let tracker_ref: &RefCell<IOPClaimTracker<E, PCS>> = self.tracker.borrow();
+        tracker_ref.borrow().evaluate(self.id, pt)
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct LabeledCommitment<E: Pairing, PCS: PolynomialCommitmentScheme<E>> {
+    pub label: PolyID,
+    pub commitment: PCS::Commitment,
+}
+impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> LabeledCommitment<E, PCS> {
+    pub fn new(label: PolyID, commitment: PCS::Commitment) -> Self {
+        Self { label, commitment }
+    }
+}
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct TrackerSumcheckClaim<F: PrimeField> {
+    label: PolyID, // a label refering to a polynomial stored in the tracker
+    claimed_sum: F,
+} 
+
+impl <F: PrimeField> TrackerSumcheckClaim<F> {
+    pub fn new(label: PolyID, claimed_sum: F) -> Self {
+        Self { label, claimed_sum }
+    }
+    // pub fn from_labeled_poly(poly: TrackedPoly, claimed_sum: F) -> Self {
+    //     Self { label: poly.label, claimed_sum}
+    // }
+}
 
 
-// pub struct TrackerZerocheckClaim<F: PrimeField> {
-//     label: PolyID, // a label refering to a polynomial stored in the tracker
-//     pub phantom: PhantomData<F>,
-// }
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct TrackerZerocheckClaim<F: PrimeField> {
+    label: PolyID, // a label refering to a polynomial stored in the tracker
+    pub phantom: PhantomData<F>,
+}
 
-// impl <F: PrimeField> TrackerZerocheckClaim<F> {
-//     pub fn new(label: PolyID) -> Self {
-//         Self { label, phantom: PhantomData::default() }
-//     }
-//     pub fn from_labeled_poly(poly: LabeledVirtualPolynomial<F>) -> Self {
-//         Self { label: poly.label, phantom: PhantomData::default() }
-//     }
-// }
+impl <F: PrimeField> TrackerZerocheckClaim<F> {
+    pub fn new(label: PolyID) -> Self {
+        Self { label, phantom: PhantomData::default() }
+    }
+    // pub fn from_tracked_poly(poly: TrackedPoly) -> Self {
+    //     Self { label: poly.label, phantom: PhantomData::default() }
+    // }
+}
 
 
 
