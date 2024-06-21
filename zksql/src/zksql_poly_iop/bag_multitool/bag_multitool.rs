@@ -211,138 +211,138 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = ArcMLE<E>>
 
     }
 
-    // pub fn verification_info(
-    //     _: &PCS::ProverParam,
-    //     fxs: &[Bag<E>],
-    //     gxs: &[Bag<E>],
-    //     _: &[ArcLPoly<E>],
-    //     _: &[ArcLPoly<E>],
-    //     _: &mut IOPTranscript<E::ScalarField>,
-    // ) -> (Vec<VPAuxInfo<E::ScalarField>>, Vec<VPAuxInfo<E::ScalarField>>, Vec<VPAuxInfo<E::ScalarField>>, Vec<VPAuxInfo<E::ScalarField>>) {
-    //     let mut f_sc_info = Vec::new();
-    //     let mut f_zc_info = Vec::new();
-    //     let mut g_sc_info = Vec::new();
-    //     let mut g_zc_info = Vec::new();
+    pub fn verification_info(
+        _: &PCS::ProverParam,
+        fxs: &[Bag<E>],
+        gxs: &[Bag<E>],
+        _: &[ArcLPoly<E>],
+        _: &[ArcLPoly<E>],
+        _: &mut IOPTranscript<E::ScalarField>,
+    ) -> (Vec<VPAuxInfo<E::ScalarField>>, Vec<VPAuxInfo<E::ScalarField>>, Vec<VPAuxInfo<E::ScalarField>>, Vec<VPAuxInfo<E::ScalarField>>) {
+        let mut f_sc_info = Vec::new();
+        let mut f_zc_info = Vec::new();
+        let mut g_sc_info = Vec::new();
+        let mut g_zc_info = Vec::new();
 
-    //     for fx in fxs.iter() {
-    //         f_sc_info.push(
-    //             VPAuxInfo{
-    //                 max_degree: 3, // comes from prove() creating phat with 2 multiplications
-    //                 num_variables: fx.num_vars,
-    //                 phantom: PhantomData::default(),
-    //             }
-    //         );
-    //         f_zc_info.push(
-    //             VPAuxInfo{
-    //                 max_degree: 2, 
-    //                 num_variables: fx.num_vars,
-    //                 phantom: PhantomData::default(),
-    //             }
-    //         )
-    //     }
-    //     for gx in gxs.iter() {
-    //         g_sc_info.push(
-    //             VPAuxInfo{
-    //                 max_degree: 3, // comes from prove() creating phat with 2 multiplications
-    //                 num_variables: gx.num_vars,
-    //                 phantom: PhantomData::default(),
-    //             }
-    //         );
-    //         g_zc_info.push(
-    //             VPAuxInfo{
-    //                 max_degree: 2, 
-    //                 num_variables: gx.num_vars,
-    //                 phantom: PhantomData::default(),
-    //             }
-    //         )
-    //     }
-    //     return (f_sc_info, f_zc_info, g_sc_info, g_zc_info)
-    // }
+        for fx in fxs.iter() {
+            f_sc_info.push(
+                VPAuxInfo{
+                    max_degree: 3, // comes from prove() creating phat with 2 multiplications
+                    num_variables: fx.num_vars,
+                    phantom: PhantomData::default(),
+                }
+            );
+            f_zc_info.push(
+                VPAuxInfo{
+                    max_degree: 2, 
+                    num_variables: fx.num_vars,
+                    phantom: PhantomData::default(),
+                }
+            )
+        }
+        for gx in gxs.iter() {
+            g_sc_info.push(
+                VPAuxInfo{
+                    max_degree: 3, // comes from prove() creating phat with 2 multiplications
+                    num_variables: gx.num_vars,
+                    phantom: PhantomData::default(),
+                }
+            );
+            g_zc_info.push(
+                VPAuxInfo{
+                    max_degree: 2, 
+                    num_variables: gx.num_vars,
+                    phantom: PhantomData::default(),
+                }
+            )
+        }
+        return (f_sc_info, f_zc_info, g_sc_info, g_zc_info)
+    }
 
-    // pub fn verify(
-    //     proof: &BagMultiToolIOPProof<E, PCS>,
-    //     f_sc_info: &Vec<VPAuxInfo<E::ScalarField>>,
-    //     f_zc_info: &Vec<VPAuxInfo<E::ScalarField>>,
-    //     g_sc_info: &Vec<VPAuxInfo<E::ScalarField>>,
-    //     g_zc_info: &Vec<VPAuxInfo<E::ScalarField>>,
-    //     transcript: &mut IOPTranscript<E::ScalarField>,
-    // ) -> Result<BagMultiToolIOPSubClaim<E::ScalarField>, PolyIOPErrors> {
-    //     let start = start_timer!(|| "BagMultiToolCheck verify");
+    pub fn verify(
+        proof: &BagMultiToolIOPProof<E, PCS>,
+        f_sc_info: &Vec<VPAuxInfo<E::ScalarField>>,
+        f_zc_info: &Vec<VPAuxInfo<E::ScalarField>>,
+        g_sc_info: &Vec<VPAuxInfo<E::ScalarField>>,
+        g_zc_info: &Vec<VPAuxInfo<E::ScalarField>>,
+        transcript: &mut IOPTranscript<E::ScalarField>,
+    ) -> Result<BagMultiToolIOPSubClaim<E::ScalarField>, PolyIOPErrors> {
+        let start = start_timer!(|| "BagMultiToolCheck verify");
 
 
-    //     // initialize transcript 
-    //     for i in 0..proof.mf_comms.len() {
-    //         let mf_comm = proof.mf_comms[i].clone();
-    //         transcript.append_serializable_element(b"mf", &mf_comm)?;
-    //     }
-    //     for i in 0..proof.mg_comms.len() {
-    //         let mg_comm = proof.mg_comms[i].clone();
-    //         transcript.append_serializable_element(b"mg", &mg_comm)?;
-    //     }
-    //     let gamma = transcript.get_and_append_challenge(b"gamma")?;
+        // initialize transcript 
+        for i in 0..proof.mf_comms.len() {
+            let mf_comm = proof.mf_comms[i].clone();
+            transcript.append_serializable_element(b"mf", &mf_comm)?;
+        }
+        for i in 0..proof.mg_comms.len() {
+            let mg_comm = proof.mg_comms[i].clone();
+            transcript.append_serializable_element(b"mg", &mg_comm)?;
+        }
+        let gamma = transcript.get_and_append_challenge(b"gamma")?;
 
-    //     // check that the values of claimed sums are equal with factoring in null_offset
-    //     let gamma_inverse = gamma.inverse().unwrap();
-    //     let lhs_v: E::ScalarField = proof.lhs_vs.iter().sum();
-    //     let rhs_v: E::ScalarField = proof.rhs_vs.iter().sum();
+        // check that the values of claimed sums are equal with factoring in null_offset
+        let gamma_inverse = gamma.inverse().unwrap();
+        let lhs_v: E::ScalarField = proof.lhs_vs.iter().sum();
+        let rhs_v: E::ScalarField = proof.rhs_vs.iter().sum();
 
-    //     if lhs_v != rhs_v {
-    //         let mut err_msg = "BagMutltiTool Verify Error: LHS and RHS have different sums".to_string();
-    //         err_msg.push_str(&format!(" LHS: {}, RHS: {}", lhs_v, rhs_v));
-    //         err_msg.push_str(&format!(" gamma_inverse: {}", gamma_inverse));
-    //         return Err(PolyIOPErrors::InvalidVerifier(err_msg));
-    //     }
+        if lhs_v != rhs_v {
+            let mut err_msg = "BagMutltiTool Verify Error: LHS and RHS have different sums".to_string();
+            err_msg.push_str(&format!(" LHS: {}, RHS: {}", lhs_v, rhs_v));
+            err_msg.push_str(&format!(" gamma_inverse: {}", gamma_inverse));
+            return Err(PolyIOPErrors::InvalidVerifier(err_msg));
+        }
 
-    //     // create the subclaims for each sumcheck and zerocheck
-    //     let mut lhs_sumcheck_subclaims = Vec::<SumCheckIOPSubClaim<E::ScalarField>>::new();
-    //     let mut rhs_sumcheck_subclaims = Vec::<SumCheckIOPSubClaim<E::ScalarField>>::new();
-    //     let mut fhat_zerocheck_subclaims = Vec::<ZeroCheckIOPSubClaim<E::ScalarField>>::new();
-    //     let mut ghat_zerocheck_subclaims = Vec::<ZeroCheckIOPSubClaim<E::ScalarField>>::new();
+        // create the subclaims for each sumcheck and zerocheck
+        let mut lhs_sumcheck_subclaims = Vec::<SumCheckIOPSubClaim<E::ScalarField>>::new();
+        let mut rhs_sumcheck_subclaims = Vec::<SumCheckIOPSubClaim<E::ScalarField>>::new();
+        let mut fhat_zerocheck_subclaims = Vec::<ZeroCheckIOPSubClaim<E::ScalarField>>::new();
+        let mut ghat_zerocheck_subclaims = Vec::<ZeroCheckIOPSubClaim<E::ScalarField>>::new();
 
-    //     // println!("BagMutltiTool Verify: starting lhs subchecks");
-    //     for i in 0..proof.lhs_sumcheck_proofs.len() {
-    //         transcript.append_serializable_element(b"phat(x)", &proof.fhat_comms[i])?;
+        // println!("BagMutltiTool Verify: starting lhs subchecks");
+        for i in 0..proof.lhs_sumcheck_proofs.len() {
+            transcript.append_serializable_element(b"phat(x)", &proof.fhat_comms[i])?;
             
-    //         let lhs_sumcheck_subclaim = SumCheckIOP::<E::ScalarField>::verify(
-    //             proof.lhs_vs[i],
-    //             &proof.lhs_sumcheck_proofs[i],
-    //             &f_sc_info[i],
-    //             &mut transcript.clone(),
-    //         )?;
-    //         lhs_sumcheck_subclaims.push(lhs_sumcheck_subclaim);
+            let lhs_sumcheck_subclaim = SumCheckIOP::<E::ScalarField>::verify(
+                proof.lhs_vs[i],
+                &proof.lhs_sumcheck_proofs[i],
+                &f_sc_info[i],
+                &mut transcript.clone(),
+            )?;
+            lhs_sumcheck_subclaims.push(lhs_sumcheck_subclaim);
 
-    //         let fhat_zerocheck_subclaim = ZeroCheckIOP::<E::ScalarField>::verify(
-    //             &proof.fhat_zerocheck_proofs[i],
-    //             &f_zc_info[i],
-    //             &mut transcript.clone(),
-    //         )?;
-    //         fhat_zerocheck_subclaims.push(fhat_zerocheck_subclaim);
-    //     }
-    //     // println!("BagMutltiTool Verify: starting rhs subchecks");
-    //     for i in 0..proof.rhs_sumcheck_proofs.len() {
-    //         transcript.append_serializable_element(b"phat(x)", &proof.ghat_comms[i])?;
-    //         let rhs_sumcheck_subclaim = SumCheckIOP::<E::ScalarField>::verify(
-    //             proof.rhs_vs[i],
-    //             &proof.rhs_sumcheck_proofs[i],
-    //             &g_sc_info[i],
-    //             &mut transcript.clone(),
-    //         )?;
-    //         rhs_sumcheck_subclaims.push(rhs_sumcheck_subclaim);
+            let fhat_zerocheck_subclaim = ZeroCheckIOP::<E::ScalarField>::verify(
+                &proof.fhat_zerocheck_proofs[i],
+                &f_zc_info[i],
+                &mut transcript.clone(),
+            )?;
+            fhat_zerocheck_subclaims.push(fhat_zerocheck_subclaim);
+        }
+        // println!("BagMutltiTool Verify: starting rhs subchecks");
+        for i in 0..proof.rhs_sumcheck_proofs.len() {
+            transcript.append_serializable_element(b"phat(x)", &proof.ghat_comms[i])?;
+            let rhs_sumcheck_subclaim = SumCheckIOP::<E::ScalarField>::verify(
+                proof.rhs_vs[i],
+                &proof.rhs_sumcheck_proofs[i],
+                &g_sc_info[i],
+                &mut transcript.clone(),
+            )?;
+            rhs_sumcheck_subclaims.push(rhs_sumcheck_subclaim);
 
-    //         let ghat_zerocheck_subclaim = ZeroCheckIOP::<E::ScalarField>::verify(
-    //             &proof.ghat_zerocheck_proofs[i],
-    //             &g_zc_info[i],
-    //             &mut transcript.clone(),
-    //         )?;
-    //         ghat_zerocheck_subclaims.push(ghat_zerocheck_subclaim);
-    //     }
+            let ghat_zerocheck_subclaim = ZeroCheckIOP::<E::ScalarField>::verify(
+                &proof.ghat_zerocheck_proofs[i],
+                &g_zc_info[i],
+                &mut transcript.clone(),
+            )?;
+            ghat_zerocheck_subclaims.push(ghat_zerocheck_subclaim);
+        }
 
-    //     end_timer!(start);
-    //     Ok(BagMultiToolIOPSubClaim::<E::ScalarField>{
-    //         lhs_sumcheck_subclaims, 
-    //         rhs_sumcheck_subclaims,
-    //         fhat_zerocheck_subclaims,
-    //         ghat_zerocheck_subclaims,
-    //     })
-    // }
+        end_timer!(start);
+        Ok(BagMultiToolIOPSubClaim::<E::ScalarField>{
+            lhs_sumcheck_subclaims, 
+            rhs_sumcheck_subclaims,
+            fhat_zerocheck_subclaims,
+            ghat_zerocheck_subclaims,
+        })
+    }
 }

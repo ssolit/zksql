@@ -254,7 +254,63 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> IOPClaimTracker<E, PCS> {
 //     }
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct TrackerRef<E: Pairing, PCS: PolynomialCommitmentScheme<E>> {
+    tracker: Rc<RefCell<IOPClaimTracker<E, PCS>>>,
+}
 
+impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> TrackerRef<E, PCS> {
+    pub fn new(tracker: Rc<RefCell<IOPClaimTracker<E, PCS>>>) -> Self {
+        Self { tracker }
+    }
+
+    pub fn track_mat_poly(
+        &mut self,
+        polynomial: DenseMultilinearExtension<E::ScalarField>,
+    ) -> TrackedPoly<E, PCS> {
+        let tracker_ref_cell: &RefCell<IOPClaimTracker<E, PCS>> = self.tracker.borrow();
+        let res_id = tracker_ref_cell.borrow_mut().track_mat_poly(polynomial);
+        TrackedPoly::new(res_id, self.tracker.clone())
+    }
+
+    pub fn add_polys(
+        &mut self, 
+        p1_id: PolyID, 
+        p2_id: PolyID,
+    ) -> TrackedPoly<E, PCS> {
+        let tracker_ref_cell: &RefCell<IOPClaimTracker<E, PCS>> = self.tracker.borrow();
+        let res_id = tracker_ref_cell.borrow_mut().add_polys(p1_id, p2_id);
+        TrackedPoly::new(res_id, self.tracker.clone())
+    }
+
+    pub fn mul_polys(
+        &mut self, 
+        p1_id: PolyID, 
+        p2_id: PolyID,
+    ) -> TrackedPoly<E, PCS> {
+        let tracker_ref_cell: &RefCell<IOPClaimTracker<E, PCS>> = self.tracker.borrow();
+        let res_id = tracker_ref_cell.borrow_mut().mul_polys(p1_id, p2_id);
+        TrackedPoly::new(res_id, self.tracker.clone())
+    }
+
+    pub fn evaluate(&self, id: PolyID, pt: &[E::ScalarField]) -> E::ScalarField {
+        let tracker_ref_cell: &RefCell<IOPClaimTracker<E, PCS>> = self.tracker.borrow();
+        tracker_ref_cell.borrow().evaluate(id, pt)
+    }
+
+    pub fn get_mat_poly(&self, id: PolyID) -> Arc<DenseMultilinearExtension<E::ScalarField>> {
+        let tracker_ref_cell: &RefCell<IOPClaimTracker<E, PCS>> = self.tracker.borrow();
+        tracker_ref_cell.borrow().get_mat_poly(id).unwrap().clone()
+    }
+
+    pub fn get_virt_poly(&self, id: PolyID) -> Vec<(E::ScalarField, Vec<PolyID>)> {
+        let tracker_ref_cell: &RefCell<IOPClaimTracker<E, PCS>> = self.tracker.borrow();
+        tracker_ref_cell.borrow().get_virt_poly(id).unwrap().clone()
+    }
+}
+
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct TrackedPoly<E: Pairing, PCS: PolynomialCommitmentScheme<E>> {
     pub id: PolyID,
     pub tracker: Rc<RefCell<IOPClaimTracker<E, PCS>>>,
@@ -276,22 +332,25 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> TrackedPoly<E, PCS> {
     pub fn add(&self, other: TrackedPoly<E, PCS>) -> Self {
         self.assert_same_tracker(&other);
         let tracker_ref: &RefCell<IOPClaimTracker<E, PCS>> = self.tracker.borrow();
-        let res_id = tracker_ref.borrow().add_polys(self.id, other.id);
-        TrackedPoly::new(res_id, self.tracker)
+        let res_id = tracker_ref.borrow_mut().add_polys(self.id.clone(), other.id.clone());
+        TrackedPoly::new(res_id, self.tracker.clone())
     }
 
     pub fn mul(&self, other: TrackedPoly<E, PCS>) -> Self {
         self.assert_same_tracker(&other);
         let tracker_ref: &RefCell<IOPClaimTracker<E, PCS>> = self.tracker.borrow();
-        let res_id = tracker_ref.borrow().mul_polys(self.id, other.id);
-        TrackedPoly::new(res_id, self.tracker)
+        let res_id = tracker_ref.borrow_mut().mul_polys(self.id.clone(), other.id.clone());
+        TrackedPoly::new(res_id, self.tracker.clone())
     }
 
     pub fn evaluate(&self, pt: &[E::ScalarField]) -> E::ScalarField {
         let tracker_ref: &RefCell<IOPClaimTracker<E, PCS>> = self.tracker.borrow();
-        tracker_ref.borrow().evaluate(self.id, pt)
+        tracker_ref.borrow().evaluate(self.id.clone(), pt)
     }
 }
+
+
+
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct LabeledCommitment<E: Pairing, PCS: PolynomialCommitmentScheme<E>> {
@@ -340,6 +399,8 @@ impl <F: PrimeField> TrackerZerocheckClaim<F> {
 mod test {
     use std::ops::Deref;
 
+    use crate::utils::tracker;
+
     use super::*;
     use ark_bls12_381::Fr;
     use ark_bls12_381::Bls12_381;
@@ -351,7 +412,7 @@ mod test {
     #[test]
     fn test_track_mat_poly() -> Result<(), ArithErrors> {
         let mut rng = test_rng();
-        let mut tracker = IOPClaimTracker::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>::new();
+        let mut tracker = TrackerRef::new(Rc::new(RefCell::new(IOPClaimTracker::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>::new())));
         let nv = 4;
 
         let rand_mle_1 = DenseMultilinearExtension::<Fr>::rand(nv,  &mut rng);
@@ -361,10 +422,10 @@ mod test {
         let poly2 = tracker.track_mat_poly(rand_mle_2.clone());
         
         // assert polys get different ids
-        assert_ne!(poly1, poly2);
+        assert_ne!(poly1.id, poly2.id);
 
         // assert that we can get the polys back
-        let lookup_poly1 = tracker.get_mat_poly(poly1).unwrap();
+        let lookup_poly1 = tracker.get_mat_poly(poly1.id);
         assert_eq!(*lookup_poly1.deref(), rand_mle_1);
         Ok(())
     }
@@ -372,7 +433,7 @@ mod test {
     #[test]
     fn test_add_mat_polys() -> Result<(), ArithErrors> {
         let mut rng = test_rng();
-        let mut tracker = IOPClaimTracker::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>::new();
+        let mut tracker = TrackerRef::new(Rc::new(RefCell::new(IOPClaimTracker::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>::new())));
         let nv = 4;
 
         let rand_mle_1 = DenseMultilinearExtension::<Fr>::rand(nv,  &mut rng);
@@ -380,15 +441,16 @@ mod test {
 
         let poly1 = tracker.track_mat_poly(rand_mle_1.clone());
         let poly2 = tracker.track_mat_poly(rand_mle_2.clone());
-        let sum_poly = tracker.add_polys(poly1.clone(), poly2.clone());
+        let sum_poly = tracker.add_polys(poly1.id.clone(), poly2.id.clone());
+        // let sum_poly_2 = poly1.add(poly2.clone()); // TODO: Ask about cloning config
 
         // assert addition list is constructed correctly
-        let sum_poly_id_repr = tracker.get_virt_poly(sum_poly.clone()).unwrap();
+        let sum_poly_id_repr = tracker.get_virt_poly(sum_poly.id);
         assert_eq!(sum_poly_id_repr.len(), 2);
         assert_eq!(sum_poly_id_repr[0].0, Fr::one());
-        assert_eq!(sum_poly_id_repr[0].1, vec![poly1.clone()]);
+        assert_eq!(sum_poly_id_repr[0].1, vec![poly1.id]);
         assert_eq!(sum_poly_id_repr[1].0, Fr::one());
-        assert_eq!(sum_poly_id_repr[1].1, vec![poly2.clone()]);
+        assert_eq!(sum_poly_id_repr[1].1, vec![poly2.id]);
         Ok(())
     }
 
@@ -479,4 +541,45 @@ mod test {
 
         Ok(())
     }
+
+    #[test]
+    fn test_tracked_poly_same_tracker() -> Result<(), ArithErrors> {
+        let mut rng = test_rng();
+        let mut tracker1 = IOPClaimTracker::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>::new();
+        let mut tracker2 = IOPClaimTracker::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>::new();
+        let nv = 4;
+        
+        let rand_mle = DenseMultilinearExtension::<Fr>::rand(nv,  &mut rng);
+
+        let poly_id_1 = tracker1.track_mat_poly(rand_mle.clone());
+        let poly_id_2 = tracker2.track_mat_poly(rand_mle.clone());
+        let poly1 = TrackedPoly::new(poly_id_1, Rc::new(RefCell::new(tracker1)));
+        let poly2 = TrackedPoly::new(poly_id_2, Rc::new(RefCell::new(tracker2)));
+
+        assert!(!poly1.same_tracker(&poly2));
+        assert!(poly1.same_tracker(&poly1));
+        Ok(())
+    }
+
+    // #[test]
+    // fn test_tracked_poly_additions() -> Result<(), ArithErrors> {
+    //     let mut rng = test_rng();
+    //     let mut tracker = IOPClaimTracker::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>::new();
+    //     let nv = 4;
+        
+    //     let rand_mle_1 = DenseMultilinearExtension::<Fr>::rand(nv,  &mut rng);
+    //     let rand_mle_2 = DenseMultilinearExtension::<Fr>::rand(nv,  &mut rng);
+
+    //     let poly1id = tracker.track_mat_poly(rand_mle_1.clone());
+    //     let poly2id = tracker.track_mat_poly(rand_mle_2.clone());
+
+    //     let tracker_ref = Rc::new(RefCell::new(tracker));
+    //     let poly1 = TrackedPoly::new(poly1id, tracker_ref.clone());
+    //     let poly2 = TrackedPoly::new(poly2id, tracker_ref.clone());
+
+    //     let sum_poly = poly1.add(poly2);
+    //     assert!(tracker.get_virt_poly(sum_poly.id).unwrap().len() == 2);
+        
+    //     Ok(())
+    // }
 }
