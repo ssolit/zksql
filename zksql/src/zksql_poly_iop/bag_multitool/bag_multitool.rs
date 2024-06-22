@@ -299,6 +299,9 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = ArcMLE<E>>
         let mut fhat_zerocheck_subclaims = Vec::<ZeroCheckIOPSubClaim<E::ScalarField>>::new();
         let mut ghat_zerocheck_subclaims = Vec::<ZeroCheckIOPSubClaim<E::ScalarField>>::new();
 
+
+        
+
         // println!("BagMutltiTool Verify: starting lhs subchecks");
         for i in 0..proof.lhs_sumcheck_proofs.len() {
             transcript.append_serializable_element(b"phat(x)", &proof.fhat_comms[i])?;
