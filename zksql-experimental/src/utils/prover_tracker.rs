@@ -7,85 +7,106 @@
 /// 
 /// 
 
-use arithmetic::{ArithErrors, random_zero_mle_list, random_mle_list};
-use ark_ff::PrimeField;
-use ark_poly::{evaluations, DenseMultilinearExtension, MultilinearExtension};
-use ark_ec::pairing::Pairing;
-use displaydoc::Display;
-use subroutines::{PolynomialCommitmentScheme, MultilinearKzgPCS};
-use ark_serialize::CanonicalSerialize;
 
-use ark_std::One;
-use ark_std::Zero;
-use core::panic;
-use std::{collections::HashMap, ops::Add, sync::Arc};
-use std::cell::RefCell;
-use std::rc::Rc;
-use std::marker::PhantomData;
+
+use ark_ff::PrimeField;
+use ark_poly::{DenseMultilinearExtension, MultilinearExtension};
+use ark_ec::pairing::Pairing;
+use ark_std::{One, Zero};
+use displaydoc::Display;
+use subroutines::PolynomialCommitmentScheme;
 use transcript::IOPTranscript;
 
-use std::ops::Deref;
-use std::borrow::{Borrow, BorrowMut};
-use std::cell::Ref;
+use std::{
+    collections::HashMap,
+    // ops::Add,
+    sync::Arc,
+    cell::RefCell,
+    rc::Rc,
+    marker::PhantomData,
+    borrow::{Borrow, BorrowMut},
+    panic,
+};
 
-#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Display, Copy)]
-pub struct PolyID(usize);
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Display)]
+pub struct TrackerID(usize);
 
 #[derive(Clone, Display)]
 pub struct ProverTracker<E: Pairing, PCS: PolynomialCommitmentScheme<E>> {
-    pub poly_counter: usize,
-    pub materialized_polys: HashMap<PolyID, Arc<DenseMultilinearExtension<E::ScalarField>>>, // underlying materialized polynomials, keyed by label
-    pub virtual_polys: HashMap<PolyID, Vec<(E::ScalarField, Vec<PolyID>)>>, // virtual polynomials, keyed by label. Invariant: values contain only material PolyIDs
-    pub materialized_comms: HashMap<PolyID, Arc<PCS::Commitment>>,
-    pub virtual_comms: HashMap<PolyID, Vec<(E::ScalarField, Vec<PolyID>)>>,
+    pub id_counter: usize,
+    pcs_param: PCS::ProverParam,
+    pub materialized_polys: HashMap<TrackerID, Arc<DenseMultilinearExtension<E::ScalarField>>>, // underlying materialized polynomials, keyed by label
+    pub virtual_polys: HashMap<TrackerID, Vec<(E::ScalarField, Vec<TrackerID>)>>, // virtual polynomials, keyed by label. Invariant: values contain only material TrackerIDs
+    pub materialized_comms: HashMap<TrackerID, Arc<PCS::Commitment>>,
     pub transcript: IOPTranscript<E::ScalarField>,
 }
 
 impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
     pub fn new() -> Self {
         Self {
-            poly_counter: 0,
+            id_counter: 0,
+            pcs_param: PCS::ProverParam::default(),
             virtual_polys: HashMap::new(),
             materialized_polys: HashMap::new(),
-            virtual_comms: HashMap::new(),
             materialized_comms: HashMap::new(),
             transcript: IOPTranscript::<E::ScalarField>::new(b"ProverTracker"),
         }
     }
 
-    pub fn gen_poly_id(&mut self) -> PolyID {
-        let id = self.poly_counter;
-        self.poly_counter += 1;
-        PolyID(id)
+    /// Generates a new `TrackerID`.
+    ///
+    /// This function increments an internal counter and returns a new `TrackerID`
+    /// based on the current value of the counter. It ensures that each generated
+    /// `TrackerID` is unique.
+    pub fn gen_id(&mut self) -> TrackerID {
+        let id = self.id_counter;
+        self.id_counter += 1;
+        TrackerID(id)
     }
 
     pub fn track_mat_poly(
         &mut self,
         polynomial: DenseMultilinearExtension<E::ScalarField>,
-    ) -> PolyID {
-        // Create the new PolyID
-        let poly_id = self.gen_poly_id();
+    ) -> TrackerID {
+        // Create the new TrackerID
+        let poly_id = self.gen_id();
 
         // Add the polynomial to the materialized map
         self.materialized_polys.insert(poly_id.clone(), Arc::new(polynomial));
 
-        // Return the new PolyID
+        // commit to the polynomial and add to the commitment map
+        let commitment = PCS::commit(self.pcs_param.clone(), &polynomial);
+        self.materialized_comms.insert(poly_id.clone(), commitment);
+
+        // Return the new TrackerID
         poly_id
     }
 
-    pub fn get_mat_poly(&self, id: PolyID) -> Option<&Arc<DenseMultilinearExtension<E::ScalarField>>> {
+    fn track_virt_poly(
+        &mut self, 
+        virt: Vec<(E::ScalarField, Vec<TrackerID>)>
+    ) -> TrackerID {
+        let poly_id = self.gen_id();
+        self.virtual_polys.insert(poly_id, virt);
+        // No need to commit to virtual polynomials
+        poly_id
+    }
+       
+
+    pub fn get_mat_poly(&self, id: TrackerID) -> Option<&Arc<DenseMultilinearExtension<E::ScalarField>>> {
         self.materialized_polys.get(&id)
     }
 
-    pub fn get_virt_poly(&self, id: PolyID) -> Option<&Vec<(E::ScalarField, Vec<PolyID>)>> {
+    pub fn get_virt_poly(&self, id: TrackerID) -> Option<&Vec<(E::ScalarField, Vec<TrackerID>)>> {
         self.virtual_polys.get(&id)
     }
 
     pub fn add_polys(
         &mut self, 
-        p1_id: PolyID, 
-        p2_id: PolyID
-    ) -> PolyID {
+        p1_id: TrackerID, 
+        p2_id: TrackerID
+    ) -> TrackerID {
         let p1_mat = self.get_mat_poly(p1_id.clone());
         let p1_virt = self.get_virt_poly(p1_id.clone());
         let p2_mat = self.get_mat_poly(p2_id.clone());
@@ -95,11 +116,11 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
         match (p1_mat.is_some(), p1_virt.is_some(), p2_mat.is_some(), p2_virt.is_some()) {
             // Bad Case: p1 not found
             (false, false, _, _) => {
-                panic!("Unknown p1 PolyID {:?}", p1_id);
+                panic!("Unknown p1 TrackerID {:?}", p1_id);
             }
             // Bad Case: p2 not found
             (_, _, false, false) => {
-                panic!("Unknown p2 PolyID {:?}", p2_id);
+                panic!("Unknown p2 TrackerID {:?}", p2_id);
             }
             // Case 1: both p1 and p2 are materialized
             (true, false, true, false) => {
@@ -126,17 +147,14 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
                 panic!("Internal tracker::add_polys error. This code should be unreachable");
             },
         }
-
-        let poly_id = self.gen_poly_id();
-        self.virtual_polys.insert(poly_id.clone(), new_virt_rep);
-        poly_id
+        return self.track_virt_poly(new_virt_rep);
     }
 
     fn mul_polys(
         &mut self, 
-        p1_id: PolyID, 
-        p2_id: PolyID
-    ) -> PolyID {
+        p1_id: TrackerID, 
+        p2_id: TrackerID
+    ) -> TrackerID {
         let p1_mat = self.get_mat_poly(p1_id.clone());
         let p1_virt = self.get_virt_poly(p1_id.clone());
         let p2_mat = self.get_mat_poly(p2_id.clone());
@@ -146,11 +164,11 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
         match (p1_mat.is_some(), p1_virt.is_some(), p2_mat.is_some(), p2_virt.is_some()) {
             // Bad Case: p1 not found
             (false, false, _, _) => {
-                panic!("Unknown p1 PolyID {:?}", p1_id);
+                panic!("Unknown p1 TrackerID {:?}", p1_id);
             }
             // Bad Case: p2 not found
             (_, _, false, false) => {
-                panic!("Unknown p2 PolyID {:?}", p2_id);
+                panic!("Unknown p2 TrackerID {:?}", p2_id);
             }
             // Case 1: both p1 and p2 are materialized
             (true, false, true, false) => {
@@ -192,13 +210,10 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
                 panic!("Internal tracker::mul_polys error. This code should be unreachable");
             },
         }
-
-        let poly_id = self.gen_poly_id();
-        self.virtual_polys.insert(poly_id.clone(), new_virt_rep);
-        poly_id
+        return self.track_virt_poly(new_virt_rep);
     }
 
-    fn evaluate(&self, id: PolyID, pt: &[E::ScalarField]) -> Option<E::ScalarField>{
+    fn evaluate(&self, id: TrackerID, pt: &[E::ScalarField]) -> Option<E::ScalarField>{
         // if the poly is materialized, return the evaluation
         let mat_poly = self.materialized_polys.get(&id);
         if mat_poly.is_some() {
@@ -210,7 +225,7 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
         if virt_poly.is_none() {
             panic!("Unknown poly id: {:?}", id);
         }
-        let virt_poly = virt_poly.unwrap(); // Invariant: contains only material PolyIDs
+        let virt_poly = virt_poly.unwrap(); // Invariant: contains only material TrackerIDs
 
         // calculate the evaluation of each product list
         let prod_evals: Vec<E::ScalarField> = virt_poly.iter().map(|(coeff, prod)| {
@@ -230,6 +245,19 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
         // return the eval
         Some(eval)
     }
+
+    // fn compile_proof(&mut self) -> CompiledProof {
+    //     // creates a finished proof based off the subclaims that have been recorded
+    //     // 1) uses a new challenge to aggregate the subclaims
+    //     // 2) generates a sumcheck proof and invokes PCS::open
+    //     // 3) takes all relevant stuff and returns a CompiledProof
+
+    //     // CompiledProof {
+    //     //     pub commitments: HashMap<TrackerID, PCS::Commitment>,
+    //     //     pub evaluations: HashMap<(TrackerID, E::ScalarrField), E::ScalarField>,
+    //     //     ... other stuff like evaluation proof.
+    //     // }
+    // }
 }
 
 #[derive(Clone)]
@@ -258,8 +286,8 @@ impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTrackerRef<E, PCS> {
 
     pub fn add_polys(
         &mut self, 
-        p1_id: PolyID, 
-        p2_id: PolyID,
+        p1_id: TrackerID, 
+        p2_id: TrackerID,
     ) -> TrackedPoly<E, PCS> {
         let tracker_ref_cell: &RefCell<ProverTracker<E, PCS>> = self.tracker_rc.borrow();
         let res_id = tracker_ref_cell.borrow_mut().add_polys(p1_id, p2_id);
@@ -268,25 +296,25 @@ impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTrackerRef<E, PCS> {
 
     pub fn mul_polys(
         &mut self, 
-        p1_id: PolyID, 
-        p2_id: PolyID,
+        p1_id: TrackerID, 
+        p2_id: TrackerID,
     ) -> TrackedPoly<E, PCS> {
         let tracker_ref_cell: &RefCell<ProverTracker<E, PCS>> = self.tracker_rc.borrow();
         let res_id = tracker_ref_cell.borrow_mut().mul_polys(p1_id, p2_id);
         TrackedPoly::new(res_id, self.tracker_rc.clone())
     }
 
-    pub fn evaluate(&self, id: PolyID, pt: &[E::ScalarField]) -> Option<E::ScalarField> {
+    pub fn evaluate(&self, id: TrackerID, pt: &[E::ScalarField]) -> Option<E::ScalarField> {
         let tracker_ref_cell: &RefCell<ProverTracker<E, PCS>> = self.tracker_rc.borrow();
         tracker_ref_cell.borrow().evaluate(id, pt)
     }
 
-    pub fn get_mat_poly(&self, id: PolyID) -> Arc<DenseMultilinearExtension<E::ScalarField>> {
+    pub fn get_mat_poly(&self, id: TrackerID) -> Arc<DenseMultilinearExtension<E::ScalarField>> {
         let tracker_ref_cell: &RefCell<ProverTracker<E, PCS>> = self.tracker_rc.borrow();
         tracker_ref_cell.borrow().get_mat_poly(id).unwrap().clone()
     }
 
-    pub fn get_virt_poly(&self, id: PolyID) -> Vec<(E::ScalarField, Vec<PolyID>)> {
+    pub fn get_virt_poly(&self, id: TrackerID) -> Vec<(E::ScalarField, Vec<TrackerID>)> {
         let tracker_ref_cell: &RefCell<ProverTracker<E, PCS>> = self.tracker_rc.borrow();
         tracker_ref_cell.borrow().get_virt_poly(id).unwrap().clone()
     }
@@ -298,7 +326,7 @@ use derivative::Derivative;
     Clone(bound = "PCS: PolynomialCommitmentScheme<E>"),
 )]
 pub struct TrackedPoly<E: Pairing, PCS: PolynomialCommitmentScheme<E>> {
-    pub id: PolyID,
+    pub id: TrackerID,
     pub tracker: Rc<RefCell<ProverTracker<E, PCS>>>,
 }
 
@@ -310,7 +338,7 @@ impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> PartialEq for TrackedPoly<
 
 
 impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> TrackedPoly<E, PCS> {
-    pub fn new(id: PolyID, tracker: Rc<RefCell<ProverTracker<E, PCS>>>) -> Self {
+    pub fn new(id: TrackerID, tracker: Rc<RefCell<ProverTracker<E, PCS>>>) -> Self {
         Self { id, tracker }
     }
 
@@ -345,24 +373,20 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> TrackedPoly<E, PCS> {
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct TrackerZerocheckClaim<F: PrimeField> {
-    label: PolyID, // a label refering to a polynomial stored in the tracker
+    label: TrackerID, // a label refering to a polynomial stored in the tracker
     pub phantom: PhantomData<F>,
 }
 
 
 #[cfg(test)]
 mod test {
-    use std::ops::Deref;
-
-    use crate::utils::prover_tracker;
-
     use super::*;
+    use arithmetic::ArithErrors;
     use ark_bls12_381::Fr;
     use ark_bls12_381::Bls12_381;
     use ark_ff::UniformRand;
     use ark_std::test_rng;
     use subroutines::MultilinearKzgPCS;
-    use ark_std::Zero;
 
     #[test]
     fn test_track_mat_poly() -> Result<(), ArithErrors> {
