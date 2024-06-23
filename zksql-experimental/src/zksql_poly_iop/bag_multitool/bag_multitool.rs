@@ -3,6 +3,7 @@ use ark_ec::pairing::Pairing;
 use ark_ff::{Field, PrimeField};
 use ark_poly::DenseMultilinearExtension;
 use ark_std::{end_timer, One, start_timer, Zero};
+use derivative::Derivative;
 use std::{fmt::{Debug}, marker::PhantomData, ops::Neg, sync::Arc};
 use subroutines::{
     pcs::PolynomialCommitmentScheme,
@@ -14,51 +15,65 @@ use subroutines::{
 };
 use transcript::IOPTranscript;
 
-use crate::utils::tracker::{IOPClaimTracker, PolyID, TrackerRef};
+use crate::utils::{
+    tracker_structs::{TrackerID, TrackerSumcheckClaim, TrackerZerocheckClaim},
+    prover_tracker::{ProverTracker, ProverTrackerRef, TrackedPoly},
+    verifier_tracker::{VerifierTracker, VerifierTrackerRef},
+};
 
 
 pub type ArcMLE<E> = Arc<DenseMultilinearExtension<<E as Pairing>::ScalarField>>;
 
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Derivative)]
+#[derivative(
+    Clone(bound = "PCS: PolynomialCommitmentScheme<E>"),
+    PartialEq(bound = "PCS: PolynomialCommitmentScheme<E>"),
+)]
 pub struct Bag<E: Pairing, PCS: PolynomialCommitmentScheme<E>> {
-    pub poly: PolyID,
-    pub selector: PolyID,
-    pub tracker: TrackerRef<E, PCS>,
+    pub poly: TrackedPoly<E, PCS>,
+    pub selector: TrackedPoly<E, PCS>,
 }
 
 impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> Bag<E, PCS> {
-    pub fn new(poly: PolyID, selector: PolyID, tracker: TrackerRef<E, PCS>) -> Self {
+    pub fn new(poly: TrackedPoly<E, PCS>, selector: TrackedPoly<E, PCS>, tracker: ProverTrackerRef<E, PCS>) -> Self {
+        #[cfg(debug_assertions)]
+        {
+            assert_eq!(poly.num_vars, selector.num_vars);
+            assert!(poly.same_tracker(&selector));
+        }
         Self {
             poly,
             selector,
-            tracker,
         }
+    }
+
+    pub fn num_vars(&self) -> usize {
+        self.poly.num_vars()
+    }
+
+    pub fn tracker_ref(&self) -> ProverTrackerRef<E, PCS> {
+        ProverTrackerRef::new(self.poly.tracker.clone())
     }
 }
 
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct BagComm<E: Pairing, PCS: PolynomialCommitmentScheme<E>> {
-    pub poly_comm: PCS::Commitment,
-    pub selector_comm: PCS::Commitment,
-}
+// #[derive(Clone, Debug, Default, PartialEq)]
+// pub struct BagComm<E: Pairing, PCS: PolynomialCommitmentScheme<E>> {
+//     pub poly_comm: PCS::Commitment,
+//     pub selector_comm: PCS::Commitment,
+// }
 
 
 pub struct BagMultiToolIOP<E: Pairing, PCS: PolynomialCommitmentScheme<E>>(PhantomData<E>, PhantomData<PCS>);
 impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> BagMultiToolIOP<E, PCS> 
 where PCS: PolynomialCommitmentScheme<E, Polynomial = ArcMLE<E>>
 {
-    pub fn init_transcript() -> IOPTranscript<E::ScalarField> {
-        IOPTranscript::<E::ScalarField>::new(b"Initializing BagMultiToolCheck transcript")
-    }
 
     pub fn prove(
-        pcs_param: &PCS::ProverParam,
-        fxs: &[Bag<E>],
-        gxs: &[Bag<E>],
-        mfxs: &[ArcLPoly<E>],
-        mgxs: &[ArcLPoly<E>],
-        transcript: &mut IOPTranscript<E::ScalarField>,
-        claim_tracker: &mut IOPClaimTracker<E, PCS>,
+        tracker: &mut ProverTrackerRef<E, PCS>,
+        fxs: &[Bag<E, PCS>],
+        gxs: &[Bag<E, PCS>],
+        mfxs: &[TrackedPoly<E, PCS>],
+        mgxs: &[TrackedPoly<E, PCS>],
     ) -> Result<(),PolyIOPErrors> {
 
 
@@ -102,35 +117,24 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = ArcMLE<E>>
             ));
         }
         for i in 0..gxs.len() {
-            if gxs[i].num_vars != mgxs[i].num_vars() {
+            if gxs[i].num_vars() != mgxs[i].num_vars() {
                 return Err(PolyIOPErrors::InvalidParameters(
                     "BagMultiToolIOP Error: gxs[i] and mgxs[i] have different number of polynomials".to_string(),
                 ));
             }
         }
 
-
-        // initialize transcript 
-        // let mut transcript = Self::init_transcript();
-        // for i in 0..mfxs.len() {
-        //     let mf_comm = PCS::commit(pcs_param, &mfxs[i])?;
-        //     transcript.append_serializable_element(b"mf", &mf_comm)?;
-        //     // mf_comms.push(mf_comm);
-        // }
-        // for i in 0..mgxs.len() {
-        //     let mg_comm = PCS::commit(pcs_param, &mgxs[i])?;
-        //     transcript.append_serializable_element(b"mg", &mg_comm)?;
-        //     // mg_comms.push(mg_comm);
-        // }
-        let gamma = transcript.get_and_append_challenge(b"gamma")?;
+        // assumption is that the tracker is already initialized and the polynomials are already tracked
+        // so the commitments have already been added to the tracker transcript
+        let gamma = tracker.get_and_append_challenge(b"gamma")?;
 
         // iterate over vector elements and generate subclaims:
         for i in 0..fxs.len() {
-            Self::generate_subclaims(pcs_param, fxs[i].clone(), mfxs[i].clone(), gamma, transcript, claim_tracker)?;
+            Self::generate_subclaims(tracker, fxs[i].clone(), mfxs[i].clone(), gamma)?;
         }   
 
         for i in 0..gxs.len() {
-            Self::generate_subclaims(pcs_param, gxs[i].clone(), mgxs[i].clone(), gamma, transcript, claim_tracker)?;
+            Self::generate_subclaims(tracker, gxs[i].clone(), mgxs[i].clone(), gamma)?;
         } 
 
         end_timer!(start);
@@ -138,14 +142,12 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = ArcMLE<E>>
     }
 
     fn generate_subclaims(
-        pcs_param: &PCS::ProverParam,
-        bag: Bag<E>,
-        m: ArcLPoly<E>,
+        tracker: &mut ProverTrackerRef<E, PCS>,
+        bag: Bag<E, PCS>,
+        m: TrackedPoly<E, PCS>,
         gamma: E::ScalarField,
-        transcript: &mut IOPTranscript<E::ScalarField>,
-        claim_tracker: &mut IOPClaimTracker<E, PCS>,
     ) -> Result<(), PolyIOPErrors> {
-        let nv = bag.num_vars;
+        let nv = bag.num_vars();
         
         // construct phat = 1/(bag.p(x) - gamma), i.e. the denominator of the sum
         let p = bag.poly;
@@ -153,9 +155,7 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = ArcMLE<E>>
         let mut p_minus_gamma: Vec<<E as Pairing>::ScalarField> = p_evals.iter_mut().map(|x| *x - gamma).collect();
         let phat_evals = p_minus_gamma.as_mut_slice();
         ark_ff::fields::batch_inversion(phat_evals);
-        let phat_mle = Arc::new(DenseMultilinearExtension::from_evaluations_slice(nv, phat_evals));
-        let phat_comm = PCS::commit(pcs_param, &phat_mle)?; 
-        transcript.append_serializable_element(b"phat(x)", &phat_comm)?;
+        let phat_mle = DenseMultilinearExtension::from_evaluations_slice(nv, phat_evals);
 
         // calculate what the final sum should be
         let m_evals = &m.evaluations();
@@ -166,171 +166,114 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = ArcMLE<E>>
         }
         
         // construct the full challenge polynomial by taking phat and multiplying by the selector and multiplicities
-        let phat_label_prefix = "bag_multitool_phat".to_string();
-        let phat = Arc::new(LabeledPolynomial::new_with_label_prefix(phat_label_prefix, phat_mle));
-        let sumcheck_challenge_poly_prefix = "bag_multitool_sumcheck_challenge_poly".to_string();
-        let mut sumcheck_challenge_poly = LabeledVirtualPolynomial::new(nv);
-        sumcheck_challenge_poly.label = LabeledPolynomial::<E::ScalarField>::generate_new_label_with_prefix(sumcheck_challenge_poly_prefix);
-        sumcheck_challenge_poly.add_mle_list([phat.clone(), m.clone(), bag.selector], E::ScalarField::one())?;
-
-        type MLE<F> = DenseMultilinearExtension<F>;
+        let phat = tracker.track_mat_poly(phat_mle)?;
+        let sumcheck_challenge_poly = phat.mul(&m).mul(&bag.selector);
        
         // Create Zerocheck claim for procing phat(x) is created correctly, 
         // i.e. ZeroCheck [(p(x)-gamma) * phat(x)  - 1]
-        let one_const_mle = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, vec![E::ScalarField::one(); 2_usize.pow(nv as u32)]));
-        let one_const_label_prefix = format!("one_const_{}_", nv);
-        let one_const_poly = Arc::new(LabeledPolynomial::new_with_label_prefix(one_const_label_prefix, one_const_mle));
-        let gamma_const_mle = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, vec![gamma.clone(); 2_usize.pow(nv as u32)]));
-        let gamma_const_label_prefix = format!("gamma_const_{}_", gamma);
-        let gamma_const_poly = Arc::new(LabeledPolynomial::new_with_label_prefix(gamma_const_label_prefix, gamma_const_mle));
-
-        let phat_check_prefix = "bag_multitool_phat_check_".to_string();
-        let mut phat_check_poly = LabeledVirtualPolynomial::new_with_label_prefix(phat_check_prefix, p.num_vars());
-        phat_check_poly.add_mle_list([p], E::ScalarField::one())?;
-        phat_check_poly.add_mle_list([gamma_const_poly.clone()], E::ScalarField::one().neg())?;
-        phat_check_poly.mul_by_mle(phat, E::ScalarField::one())?;
-        phat_check_poly.add_mle_list([one_const_poly.clone()], E::ScalarField::one().neg())?;
-
+        let one_const_mle = DenseMultilinearExtension::from_evaluations_vec(nv, vec![E::ScalarField::one(); 2_usize.pow(nv as u32)]);
+        let one_const_poly = tracker.track_mat_poly(one_const_mle)?;
+        let gamma_const_mle = DenseMultilinearExtension::from_evaluations_vec(nv, vec![gamma.clone(); 2_usize.pow(nv as u32)]);
+        let gamma_const_poly = tracker.track_mat_poly(gamma_const_mle)?;
+        let phat_check_poly = p.sub(&gamma_const_poly).mul(&phat).sub(&one_const_poly);
+       
+        
         // add the delayed prover claims to the tracker
-        claim_tracker.add_sumcheck_claim_from_virtual_poly(sumcheck_challenge_poly, v);
-        claim_tracker.add_zerocheck_claim_from_virtual_poly(phat_check_poly);
+        tracker.add_sumcheck_claim(sumcheck_challenge_poly.id, v);
+        tracker.add_zerocheck_claim(phat_check_poly.id);
 
         return Ok(())
-
     }
 
-    // pub fn verification_info(
-    //     _: &PCS::ProverParam,
-    //     fxs: &[Bag<E>],
-    //     gxs: &[Bag<E>],
-    //     _: &[ArcLPoly<E>],
-    //     _: &[ArcLPoly<E>],
-    //     _: &mut IOPTranscript<E::ScalarField>,
-    // ) -> (Vec<VPAuxInfo<E::ScalarField>>, Vec<VPAuxInfo<E::ScalarField>>, Vec<VPAuxInfo<E::ScalarField>>, Vec<VPAuxInfo<E::ScalarField>>) {
-    //     let mut f_sc_info = Vec::new();
-    //     let mut f_zc_info = Vec::new();
-    //     let mut g_sc_info = Vec::new();
-    //     let mut g_zc_info = Vec::new();
+    pub fn verify(
+        tracker: &mut VerifierTrackerRef<E, PCS>,
+        proof: &CompiledProof<E, PCS>,
+    ) -> Result<(), PolyIOPErrors> {
+        let start = start_timer!(|| "BagMultiToolCheck verify");
 
-    //     for fx in fxs.iter() {
-    //         f_sc_info.push(
-    //             VPAuxInfo{
-    //                 max_degree: 3, // comes from prove() creating phat with 2 multiplications
-    //                 num_variables: fx.num_vars,
-    //                 phantom: PhantomData::default(),
-    //             }
-    //         );
-    //         f_zc_info.push(
-    //             VPAuxInfo{
-    //                 max_degree: 2, 
-    //                 num_variables: fx.num_vars,
-    //                 phantom: PhantomData::default(),
-    //             }
-    //         )
-    //     }
-    //     for gx in gxs.iter() {
-    //         g_sc_info.push(
-    //             VPAuxInfo{
-    //                 max_degree: 3, // comes from prove() creating phat with 2 multiplications
-    //                 num_variables: gx.num_vars,
-    //                 phantom: PhantomData::default(),
-    //             }
-    //         );
-    //         g_zc_info.push(
-    //             VPAuxInfo{
-    //                 max_degree: 2, 
-    //                 num_variables: gx.num_vars,
-    //                 phantom: PhantomData::default(),
-    //             }
-    //         )
-    //     }
-    //     return (f_sc_info, f_zc_info, g_sc_info, g_zc_info)
-    // }
+        // assumption is that proof inputs are already added to the tracker 
+        // create challenges and commitments in same fashion as prover
+        // 1. pick gamma
+        // 2. add phat_comm
+        // 3. add sumcheck_challenge-comm
+        // 4. add one_comm
+        // 5. add gamma_comm
+        // 6 add phat_check_comm
+        let gamma = tracker.get_and_append_challenge(b"gamma")?;
 
-    // pub fn verify(
-    //     proof: &BagMultiToolIOPProof<E, PCS>,
-    //     f_sc_info: &Vec<VPAuxInfo<E::ScalarField>>,
-    //     f_zc_info: &Vec<VPAuxInfo<E::ScalarField>>,
-    //     g_sc_info: &Vec<VPAuxInfo<E::ScalarField>>,
-    //     g_zc_info: &Vec<VPAuxInfo<E::ScalarField>>,
-    //     transcript: &mut IOPTranscript<E::ScalarField>,
-    // ) -> Result<BagMultiToolIOPSubClaim<E::ScalarField>, PolyIOPErrors> {
-    //     let start = start_timer!(|| "BagMultiToolCheck verify");
+        let phat_mat_comm: PCS::Commitment = proof.comms[tracker.get_next_id()].unwrap();
+        let phat = tracker.track_mat_comm(phat_mat_comm, |id, x| tracker.eval_maps[id].clone()(id, x));
+
+        let sumcheck_challenge_comm = phat.mul(&m).mul(&bag.selector);
+
+        let one_closure = |tracker_id: TrackerID, scalar: E::ScalarField| -> E::ScalarField {E::ScalarField::one()};
+        let one_comm = tracker.track_mat_comm(Option::None, one_closure);
+        
+        let gamma_closure = |tracker_id: TrackerID, scalar: E::ScalarField| -> E::ScalarField {gamma};
+        let gamma_comm = tracker.track_mat_comm(Option::None, gamma_closure);
+        
 
 
-    //     // initialize transcript 
-    //     for i in 0..proof.mf_comms.len() {
-    //         let mf_comm = proof.mf_comms[i].clone();
-    //         transcript.append_serializable_element(b"mf", &mf_comm)?;
-    //     }
-    //     for i in 0..proof.mg_comms.len() {
-    //         let mg_comm = proof.mg_comms[i].clone();
-    //         transcript.append_serializable_element(b"mg", &mg_comm)?;
-    //     }
-    //     let gamma = transcript.get_and_append_challenge(b"gamma")?;
+        // check that the values of claimed sums are equal
+        let lhs_v: E::ScalarField = proof.lhs_vs.iter().sum();
+        let rhs_v: E::ScalarField = proof.rhs_vs.iter().sum();
 
-    //     // check that the values of claimed sums are equal with factoring in null_offset
-    //     let gamma_inverse = gamma.inverse().unwrap();
-    //     let lhs_v: E::ScalarField = proof.lhs_vs.iter().sum();
-    //     let rhs_v: E::ScalarField = proof.rhs_vs.iter().sum();
+        if lhs_v != rhs_v {
+            let mut err_msg = "BagMutltiTool Verify Error: LHS and RHS have different sums".to_string();
+            err_msg.push_str(&format!(" LHS: {}, RHS: {}", lhs_v, rhs_v));
+            return Err(PolyIOPErrors::InvalidVerifier(err_msg));
+        }
 
-    //     if lhs_v != rhs_v {
-    //         let mut err_msg = "BagMutltiTool Verify Error: LHS and RHS have different sums".to_string();
-    //         err_msg.push_str(&format!(" LHS: {}, RHS: {}", lhs_v, rhs_v));
-    //         err_msg.push_str(&format!(" gamma_inverse: {}", gamma_inverse));
-    //         return Err(PolyIOPErrors::InvalidVerifier(err_msg));
-    //     }
+        // create the subclaims for each sumcheck and zerocheck
+        let mut lhs_sumcheck_subclaims = Vec::<TrackerSumcheckClaim<E::ScalarField>>::new();
+        let mut rhs_sumcheck_subclaims = Vec::<TrackerSumcheckClaim<E::ScalarField>>::new();
+        let mut fhat_zerocheck_subclaims = Vec::<TrackerZerocheckClaim<E::ScalarField>>::new();
+        let mut ghat_zerocheck_subclaims = Vec::<TrackerZerocheckClaim<E::ScalarField>>::new();
 
-    //     // create the subclaims for each sumcheck and zerocheck
-    //     let mut lhs_sumcheck_subclaims = Vec::<SumCheckIOPSubClaim<E::ScalarField>>::new();
-    //     let mut rhs_sumcheck_subclaims = Vec::<SumCheckIOPSubClaim<E::ScalarField>>::new();
-    //     let mut fhat_zerocheck_subclaims = Vec::<ZeroCheckIOPSubClaim<E::ScalarField>>::new();
-    //     let mut ghat_zerocheck_subclaims = Vec::<ZeroCheckIOPSubClaim<E::ScalarField>>::new();
-
-    //     // println!("BagMutltiTool Verify: starting lhs subchecks");
-    //     for i in 0..proof.lhs_sumcheck_proofs.len() {
-    //         transcript.append_serializable_element(b"phat(x)", &proof.fhat_comms[i])?;
+        // println!("BagMutltiTool Verify: starting lhs subchecks");
+        for i in 0..proof.lhs_sumcheck_proofs.len() {
+            tracker.append_serializable_element(b"phat(x)", &proof.fhat_comms[i])?;
             
-    //         let lhs_sumcheck_subclaim = SumCheckIOP::<E::ScalarField>::verify(
-    //             proof.lhs_vs[i],
-    //             &proof.lhs_sumcheck_proofs[i],
-    //             &f_sc_info[i],
-    //             &mut transcript.clone(),
-    //         )?;
-    //         lhs_sumcheck_subclaims.push(lhs_sumcheck_subclaim);
+            let lhs_sumcheck_subclaim = SumCheckIOP::<E::ScalarField>::verify(
+                proof.lhs_vs[i],
+                &proof.lhs_sumcheck_proofs[i],
+                &f_sc_info[i],
+                &mut tracker.clone(),
+            )?;
+            lhs_sumcheck_subclaims.push(lhs_sumcheck_subclaim);
 
-    //         let fhat_zerocheck_subclaim = ZeroCheckIOP::<E::ScalarField>::verify(
-    //             &proof.fhat_zerocheck_proofs[i],
-    //             &f_zc_info[i],
-    //             &mut transcript.clone(),
-    //         )?;
-    //         fhat_zerocheck_subclaims.push(fhat_zerocheck_subclaim);
-    //     }
-    //     // println!("BagMutltiTool Verify: starting rhs subchecks");
-    //     for i in 0..proof.rhs_sumcheck_proofs.len() {
-    //         transcript.append_serializable_element(b"phat(x)", &proof.ghat_comms[i])?;
-    //         let rhs_sumcheck_subclaim = SumCheckIOP::<E::ScalarField>::verify(
-    //             proof.rhs_vs[i],
-    //             &proof.rhs_sumcheck_proofs[i],
-    //             &g_sc_info[i],
-    //             &mut transcript.clone(),
-    //         )?;
-    //         rhs_sumcheck_subclaims.push(rhs_sumcheck_subclaim);
+            let fhat_zerocheck_subclaim = ZeroCheckIOP::<E::ScalarField>::verify(
+                &proof.fhat_zerocheck_proofs[i],
+                &f_zc_info[i],
+                &mut tracker.clone(),
+            )?;
+            fhat_zerocheck_subclaims.push(fhat_zerocheck_subclaim);
+        }
+        // println!("BagMutltiTool Verify: starting rhs subchecks");
+        for i in 0..proof.rhs_sumcheck_proofs.len() {
+            tracker.append_serializable_element(b"phat(x)", &proof.ghat_comms[i])?;
+            let rhs_sumcheck_subclaim = SumCheckIOP::<E::ScalarField>::verify(
+                proof.rhs_vs[i],
+                &proof.rhs_sumcheck_proofs[i],
+                &g_sc_info[i],
+                &mut tracker.clone(),
+            )?;
+            rhs_sumcheck_subclaims.push(rhs_sumcheck_subclaim);
 
-    //         let ghat_zerocheck_subclaim = ZeroCheckIOP::<E::ScalarField>::verify(
-    //             &proof.ghat_zerocheck_proofs[i],
-    //             &g_zc_info[i],
-    //             &mut transcript.clone(),
-    //         )?;
-    //         ghat_zerocheck_subclaims.push(ghat_zerocheck_subclaim);
-    //     }
+            let ghat_zerocheck_subclaim = ZeroCheckIOP::<E::ScalarField>::verify(
+                &proof.ghat_zerocheck_proofs[i],
+                &g_zc_info[i],
+                &mut tracker.clone(),
+            )?;
+            ghat_zerocheck_subclaims.push(ghat_zerocheck_subclaim);
+        }
 
-    //     end_timer!(start);
-    //     Ok(BagMultiToolIOPSubClaim::<E::ScalarField>{
-    //         lhs_sumcheck_subclaims, 
-    //         rhs_sumcheck_subclaims,
-    //         fhat_zerocheck_subclaims,
-    //         ghat_zerocheck_subclaims,
-    //     })
-    // }
+        end_timer!(start);
+        Ok(BagMultiToolIOPSubClaim::<E::ScalarField>{
+            lhs_sumcheck_subclaims, 
+            rhs_sumcheck_subclaims,
+            fhat_zerocheck_subclaims,
+            ghat_zerocheck_subclaims,
+        })
+    }
 }

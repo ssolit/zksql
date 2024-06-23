@@ -13,39 +13,43 @@ use displaydoc::Display;
 use ark_std::One;
 use core::panic;
 use subroutines::PolynomialCommitmentScheme;
-use transcript::IOPTranscript;
+use transcript::{IOPTranscript, TranscriptError};
 
 use std::{
     collections::HashMap,
+    ops::Neg,
     // ops::Add,
     sync::Arc,
-    // cell::RefCell,
-    // rc::Rc,
-    // marker::PhantomData,
-    // borrow::{Borrow, BorrowMut},
+    cell::RefCell,
+    rc::Rc,
+    borrow::Borrow,
 };
 
+use ark_serialize::CanonicalSerialize;
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Display)]
-pub struct TrackerID(usize);
+use crate::utils::tracker_structs::{TrackerID, TrackerSumcheckClaim, TrackerZerocheckClaim};
 
 #[derive(Display)]
 pub struct VerifierTracker<E: Pairing, PCS: PolynomialCommitmentScheme<E>>{
-    pub id_counter: usize,
-    pub materialized_comms: HashMap<TrackerID, Arc<PCS::Commitment>>,
-    pub virtual_comms: HashMap<TrackerID, Vec<(E::ScalarField, Vec<TrackerID>)>>,
     pub transcript: IOPTranscript<E::ScalarField>,
+    pub id_counter: usize,
+    pub materialized_comms: HashMap<TrackerID, Arc<Option<PCS::Commitment>>>,
+    pub virtual_comms: HashMap<TrackerID, Vec<(E::ScalarField, Vec<TrackerID>)>>,
     pub eval_maps: HashMap<TrackerID, Box<dyn Fn(TrackerID, E::ScalarField) -> E::ScalarField>>,
+    pub sum_check_claims: Vec<TrackerSumcheckClaim<E::ScalarField>>,
+    pub zero_check_claims: Vec<TrackerZerocheckClaim<E::ScalarField>>,
 }
 
 impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTracker<E, PCS> {
     pub fn new() -> Self {
         Self {
+            transcript: IOPTranscript::<E::ScalarField>::new(b"Initializing Tracnscript"),
             id_counter: 0,
             virtual_comms: HashMap::new(),
             materialized_comms: HashMap::new(),
-            transcript: IOPTranscript::<E::ScalarField>::new(b"ProverTracker"),
             eval_maps: HashMap::new(),
+            sum_check_claims: Vec::new(),
+            zero_check_claims: Vec::new(),
         }
     }
 
@@ -55,7 +59,7 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTracker<E, PCS> {
         TrackerID(id)
     }
 
-    pub fn track_mat_comm(&mut self, commitment: PCS::Commitment, f: impl Fn(TrackerID, E::ScalarField) -> E::ScalarField + 'static) -> TrackerID {
+    pub fn track_mat_comm(&mut self, commitment: Option<PCS::Commitment>, f: impl Fn(TrackerID, E::ScalarField) -> E::ScalarField + 'static) -> TrackerID {
         // Create the new TrackerID
         let id = self.gen_id();
 
@@ -69,7 +73,20 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTracker<E, PCS> {
         id
     }
 
-    pub fn get_mat_comm(&self, id: TrackerID) -> Option<&Arc<PCS::Commitment>> {
+    pub fn track_virt_comm(
+        &mut self,
+        virt: Vec<(E::ScalarField, Vec<TrackerID>)>
+    ) -> TrackerID {
+        let id = self.gen_id();
+        self.virtual_comms.insert(id.clone(), virt);
+        id
+    }
+
+    pub fn get_next_id(&mut self) -> TrackerID {
+        TrackerID(self.id_counter)
+    }
+
+    pub fn get_mat_comm(&self, id: TrackerID) -> Option<&Arc<Option<PCS::Commitment>>> {
         self.materialized_comms.get(&id)
     }
 
@@ -126,6 +143,15 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTracker<E, PCS> {
         let comm_id = self.gen_id();
         self.virtual_comms.insert(comm_id.clone(), new_virt_rep);
         comm_id
+    }
+
+    pub fn sub_comms(
+        &mut self, 
+        c1_id: TrackerID, 
+        c2_id: TrackerID
+    ) -> TrackerID {
+        let neg_c2_id = self.track_virt_comm(vec![(E::ScalarField::one().neg(), vec![c2_id])]);
+        self.add_comms(c1_id, neg_c2_id)
     }
 
     fn mul_comms(
@@ -195,7 +221,7 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTracker<E, PCS> {
     }
 
     // like evalutate for prover tracker
-    // actually don't thing I need this, since verifier_compiled_proof will do everything
+    // actually don't thing I need this, since verifier_compiled_proof will do everything?
     // fn open_comm( 
     //     &self, 
     //     comm_id: TrackerID, 
@@ -206,8 +232,139 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTracker<E, PCS> {
     //     todo!()
     // }
 
+
+    pub fn get_and_append_challenge(&mut self, label: &'static [u8]) -> Result<E::ScalarField, TranscriptError> {
+        self.transcript.get_and_append_challenge(label)
+    }
+
+    pub fn append_serializable_element<S: CanonicalSerialize>(
+        &mut self,
+        label: &'static [u8],
+        group_elem: &S,
+    ) -> Result<(), TranscriptError> {
+        self.transcript.append_serializable_element(label, group_elem)
+    }
+
+    pub fn add_sumcheck_claim(&mut self, poly_id: TrackerID, claimed_sum: E::ScalarField) {
+        self.sum_check_claims.push(TrackerSumcheckClaim::new(poly_id, claimed_sum));
+    }
+    pub fn add_zerocheck_claim(&mut self, poly_id: TrackerID) {
+        self.zero_check_claims.push(TrackerZerocheckClaim::new(poly_id));
+    }
+
 }
 
+#[derive(Clone)]
+pub struct VerifierTrackerRef<E: Pairing, PCS: PolynomialCommitmentScheme<E>> {
+    tracker_rc: Rc<RefCell<VerifierTracker<E, PCS>>>,
+}
+impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> PartialEq for VerifierTrackerRef<E, PCS> {
+    fn eq(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.tracker_rc, &other.tracker_rc)
+    }
+}
+
+impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTrackerRef<E, PCS> {
+    pub fn new(tracker_rc: Rc<RefCell<VerifierTracker<E, PCS>>>) -> Self {
+        Self {tracker_rc}
+    }
+
+    pub fn new_from_tracker(tracker: VerifierTracker<E, PCS>) -> Self {
+        Self {tracker_rc: Rc::new(RefCell::new(tracker)) }
+    }
+
+    pub fn track_mat_comm(
+        &mut self,
+        comm: Option<PCS::Commitment>,
+        f: impl Fn(TrackerID, E::ScalarField) -> E::ScalarField + 'static,
+    ) -> TrackedComm<E, PCS> {
+        let tracker_ref_cell: &RefCell<VerifierTracker<E, PCS>> = self.tracker_rc.borrow();
+        let res_id = tracker_ref_cell.borrow_mut().track_mat_comm(comm, f);
+        TrackedComm::new(res_id, self.tracker_rc.clone())
+    }
+
+    pub fn get_mat_comm(&self, id: TrackerID) -> Arc<Option<PCS::Commitment>> {
+        let tracker_ref_cell: &RefCell<VerifierTracker<E, PCS>> = self.tracker_rc.borrow();
+        tracker_ref_cell.borrow().get_mat_comm(id).unwrap().clone()
+    }
+
+    pub fn get_virt_comm(&self, id: TrackerID) -> Vec<(E::ScalarField, Vec<TrackerID>)> {
+        let tracker_ref_cell: &RefCell<VerifierTracker<E, PCS>> = self.tracker_rc.borrow();
+        tracker_ref_cell.borrow().get_virt_comm(id).unwrap().clone()
+    }
+
+    pub fn get_next_id(&mut self) -> TrackerID {
+        let tracker_ref_cell: &RefCell<VerifierTracker<E, PCS>> = self.tracker_rc.borrow();
+        tracker_ref_cell.borrow_mut().get_next_id()
+    }
+
+    pub fn get_and_append_challenge(&mut self, label: &'static [u8]) -> Result<E::ScalarField, TranscriptError> {
+        let tracker_ref_cell: &RefCell<VerifierTracker<E, PCS>> = self.tracker_rc.borrow();
+        tracker_ref_cell.borrow_mut().get_and_append_challenge(label)
+    }
+
+    pub fn append_serializable_element<S: CanonicalSerialize>(
+        &mut self,
+        label: &'static [u8],
+        group_elem: &S,
+    ) -> Result<(), TranscriptError> {
+        let tracker_ref_cell: &RefCell<VerifierTracker<E, PCS>> = self.tracker_rc.borrow();
+        tracker_ref_cell.borrow_mut().append_serializable_element(label, group_elem)
+    }
+
+    pub fn add_sumcheck_claim(&mut self, poly_id: TrackerID, claimed_sum: E::ScalarField) {
+        let tracker_ref_cell: &RefCell<VerifierTracker<E, PCS>> = self.tracker_rc.borrow();
+        tracker_ref_cell.borrow_mut().add_sumcheck_claim(poly_id, claimed_sum);
+    }
+    pub fn add_zerocheck_claim(&mut self, poly_id: TrackerID) {
+        let tracker_ref_cell: &RefCell<VerifierTracker<E, PCS>> = self.tracker_rc.borrow();
+        tracker_ref_cell.borrow_mut().add_zerocheck_claim(poly_id);
+    }
+}
+
+pub struct TrackedComm<E: Pairing, PCS: PolynomialCommitmentScheme<E>> {
+    pub id: TrackerID,
+    pub tracker: Rc<RefCell<VerifierTracker<E, PCS>>>,
+}
+impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> PartialEq for TrackedComm<E, PCS> {
+    fn eq(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.tracker, &other.tracker)
+    }
+}
+impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> TrackedComm<E, PCS> {
+    pub fn new(id: TrackerID, tracker: Rc<RefCell<VerifierTracker<E, PCS>>>) -> Self {
+        Self { id, tracker }
+    }
+
+    pub fn same_tracker(&self, other: &TrackedComm<E, PCS>) -> bool {
+        Rc::ptr_eq(&self.tracker, &other.tracker)
+    }
+
+    pub fn assert_same_tracker(&self, other: &TrackedComm<E, PCS>) {
+        assert!(self.same_tracker(other), "TrackedComms are not from the same tracker");
+    }
+    
+    pub fn add(&self, other: &TrackedComm<E, PCS>) -> Self {
+        self.assert_same_tracker(&other);
+        let tracker_ref: &RefCell<VerifierTracker<E, PCS>> = self.tracker.borrow();
+        let res_id = tracker_ref.borrow_mut().add_comms(self.id.clone(), other.id.clone());
+        TrackedComm::new(res_id, self.tracker.clone())
+    }
+
+    pub fn sub(&self, other: &TrackedComm<E, PCS>) -> Self {
+        self.assert_same_tracker(&other);
+        let tracker_ref: &RefCell<VerifierTracker<E, PCS>> = self.tracker.borrow();
+        let res_id = tracker_ref.borrow_mut().sub_comms(self.id.clone(), other.id.clone());
+        TrackedComm::new(res_id, self.tracker.clone())
+    }
+
+    pub fn mul(&self, other: &TrackedComm<E, PCS>) -> Self {
+        self.assert_same_tracker(&other);
+        let tracker_ref: &RefCell<VerifierTracker<E, PCS>> = self.tracker.borrow();
+        let res_id = tracker_ref.borrow_mut().mul_comms(self.id.clone(), other.id.clone());
+        TrackedComm::new(res_id, self.tracker.clone())
+    }
+}
 
 // fn verifier(proof: Proof, tracker: &mut VerifierTracker) -> bool {
 //     // Verifier expects a commitment from the prover
@@ -216,4 +373,3 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTracker<E, PCS> {
 //     let evaluation = tracker.evaluate(id, challenge);
 //     tracker.verify_compiled_proof() // invokes PCS::verify
 // }
-
