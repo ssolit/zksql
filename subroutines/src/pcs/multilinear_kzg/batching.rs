@@ -50,18 +50,15 @@ where
 /// the sumcheck's point 7. open g'(X) at point (a2)
 pub(crate) fn multi_open_internal<E, PCS>(
     prover_param: &PCS::ProverParam,
-    polynomials: &[PCS::Polynomial],
-    points: &[PCS::Point],
-    evals: &[PCS::Evaluation],
+    polynomials: &[DenseMultilinearExtension<E::ScalarField>],
+    points: &[Vec<E::ScalarField>],
+    evals: &[E::ScalarField],
     transcript: &mut IOPTranscript<E::ScalarField>,
 ) -> Result<BatchProof<E, PCS>, PCSError>
 where
     E: Pairing,
     PCS: PolynomialCommitmentScheme<
         E,
-        Polynomial = DenseMultilinearExtension<E::ScalarField>,
-        Point = Vec<E::ScalarField>,
-        Evaluation = E::ScalarField,
     >,
 {
     let open_timer = start_timer!(|| format!("multi open {} points", points.len()));
@@ -183,7 +180,7 @@ where
 pub(crate) fn batch_verify_internal<E, PCS>(
     verifier_param: &PCS::VerifierParam,
     f_i_commitments: &[Commitment<E>],
-    points: &[PCS::Point],
+    points: &[Vec<E::ScalarField>],
     proof: &BatchProof<E, PCS>,
     transcript: &mut IOPTranscript<E::ScalarField>,
 ) -> Result<bool, PCSError>
@@ -191,9 +188,6 @@ where
     E: Pairing,
     PCS: PolynomialCommitmentScheme<
         E,
-        Polynomial = DenseMultilinearExtension<E::ScalarField>,
-        Point = Vec<E::ScalarField>,
-        Evaluation = E::ScalarField,
         Commitment = Commitment<E>,
     >,
 {

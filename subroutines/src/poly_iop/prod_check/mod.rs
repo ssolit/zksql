@@ -148,7 +148,7 @@ pub struct ProductCheckProof<
 impl<E, PCS> ProductCheck<E, PCS> for PolyIOP<E::ScalarField>
 where
     E: Pairing,
-    PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtension<E::ScalarField>>>,
+    PCS: PolynomialCommitmentScheme<E>,
 {
     type ProductCheckSubClaim = ProductCheckSubClaim<E::ScalarField, Self>;
     type ProductCheckProof = ProductCheckProof<E, PCS, Self>;
@@ -303,7 +303,6 @@ mod test {
         E: Pairing,
         PCS: PolynomialCommitmentScheme<
             E,
-            Polynomial = Arc<DenseMultilinearExtension<E::ScalarField>>,
         >,
     {
         let mut transcript = <PolyIOP<E::ScalarField> as ProductCheck<E, PCS>>::init_transcript();

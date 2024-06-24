@@ -187,7 +187,10 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = ArcMLE<E>>
 
     pub fn verify(
         tracker: &mut VerifierTrackerRef<E, PCS>,
-        proof: &CompiledProof<E, PCS>,
+        fxs: &[BagComm<E, PCS>],
+        gxs: &[BagComm<E, PCS>],
+        mfxs: &[TrackedComm<E, PCS>],
+        mgxs: &[TrackedComm<E, PCS>],
     ) -> Result<(), PolyIOPErrors> {
         let start = start_timer!(|| "BagMultiToolCheck verify");
 

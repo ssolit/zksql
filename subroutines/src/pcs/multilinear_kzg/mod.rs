@@ -52,10 +52,6 @@ impl<E: Pairing> PolynomialCommitmentScheme<E> for MultilinearKzgPCS<E> {
     type ProverParam = MultilinearProverParam<E>;
     type VerifierParam = MultilinearVerifierParam<E>;
     type SRS = MultilinearUniversalParams<E>;
-    // Polynomial and its associated types
-    type Polynomial = DenseMultilinearExtension<E::ScalarField>;
-    type Point = Vec<E::ScalarField>;
-    type Evaluation = E::ScalarField;
     // Commitments and proofs
     type Commitment = Commitment<E>;
     type Proof = MultilinearKzgProof<E>;
@@ -101,7 +97,7 @@ impl<E: Pairing> PolynomialCommitmentScheme<E> for MultilinearKzgPCS<E> {
     /// G1.
     fn commit(
         prover_param: impl Borrow<Self::ProverParam>,
-        poly: &Self::Polynomial,
+        poly: &DenseMultilinearExtension<E::ScalarField>,
     ) -> Result<Self::Commitment, PCSError> {
         let prover_param = prover_param.borrow();
         let commit_timer = start_timer!(|| "commit");
@@ -137,9 +133,9 @@ impl<E: Pairing> PolynomialCommitmentScheme<E> for MultilinearKzgPCS<E> {
     ///   elements.
     fn open(
         prover_param: impl Borrow<Self::ProverParam>,
-        polynomial: &Self::Polynomial,
-        point: &Self::Point,
-    ) -> Result<(Self::Proof, Self::Evaluation), PCSError> {
+        polynomial: &DenseMultilinearExtension<E::ScalarField>,
+        point: &[E::ScalarField],
+    ) -> Result<(Self::Proof, E::ScalarField), PCSError> {
         open_internal(prover_param.borrow(), polynomial, point)
     }
 
@@ -147,9 +143,9 @@ impl<E: Pairing> PolynomialCommitmentScheme<E> for MultilinearKzgPCS<E> {
     /// a transcript, compute a multi-opening for all the polynomials.
     fn multi_open(
         prover_param: impl Borrow<Self::ProverParam>,
-        polynomials: &[Self::Polynomial],
-        points: &[Self::Point],
-        evals: &[Self::Evaluation],
+        polynomials: &[DenseMultilinearExtension<E::ScalarField>],
+        points: &[Vec<E::ScalarField>],
+        evals: &[E::ScalarField],
         transcript: &mut IOPTranscript<E::ScalarField>,
     ) -> Result<BatchProof<E, Self>, PCSError> {
         multi_open_internal(
@@ -170,7 +166,7 @@ impl<E: Pairing> PolynomialCommitmentScheme<E> for MultilinearKzgPCS<E> {
     fn verify(
         verifier_param: &Self::VerifierParam,
         commitment: &Self::Commitment,
-        point: &Self::Point,
+        point: &[E::ScalarField],
         value: &E::ScalarField,
         proof: &Self::Proof,
     ) -> Result<bool, PCSError> {
@@ -182,7 +178,7 @@ impl<E: Pairing> PolynomialCommitmentScheme<E> for MultilinearKzgPCS<E> {
     fn batch_verify(
         verifier_param: &Self::VerifierParam,
         commitments: &[Self::Commitment],
-        points: &[Self::Point],
+        points: &[Vec<E::ScalarField>],
         batch_proof: &Self::BatchProof,
         transcript: &mut IOPTranscript<E::ScalarField>,
     ) -> Result<bool, PCSError> {

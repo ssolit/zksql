@@ -101,7 +101,7 @@ where
 impl<E, PCS> PermutationCheck<E, PCS> for PolyIOP<E::ScalarField>
 where
     E: Pairing,
-    PCS: PolynomialCommitmentScheme<E, Polynomial = Arc<DenseMultilinearExtension<E::ScalarField>>>,
+    PCS: PolynomialCommitmentScheme<E>,
 {
     type PermutationCheckSubClaim = PermutationCheckSubClaim<E, PCS, Self>;
     type PermutationProof = Self::ProductCheckProof;
@@ -212,7 +212,6 @@ mod test {
         E: Pairing,
         PCS: PolynomialCommitmentScheme<
             E,
-            Polynomial = Arc<DenseMultilinearExtension<E::ScalarField>>,
         >,
     {
         let nv = fxs[0].num_vars;

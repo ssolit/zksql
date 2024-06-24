@@ -7,7 +7,7 @@
 mod errors;
 mod multilinear_kzg;
 mod structs;
-mod univariate_kzg;
+// mod univariate_kzg;
 
 pub mod prelude;
 
@@ -18,6 +18,7 @@ use ark_std::rand::Rng;
 use errors::PCSError;
 use std::{borrow::Borrow, fmt::Debug, hash::Hash};
 use transcript::IOPTranscript;
+use ark_poly::DenseMultilinearExtension;
 
 /// This trait defines APIs for polynomial commitment schemes.
 /// Note that for our usage of PCS, we do not require the hiding property.
@@ -28,12 +29,6 @@ pub trait PolynomialCommitmentScheme<E: Pairing> {
     type VerifierParam: Clone + CanonicalSerialize + CanonicalDeserialize;
     /// Structured reference string
     type SRS: Clone + Debug;
-    /// Polynomial and its associated types
-    type Polynomial: Clone + Debug + Hash + PartialEq + Eq;
-    /// Polynomial input domain
-    type Point: Clone + Ord + Debug + Sync + Hash + PartialEq + Eq;
-    /// Polynomial Evaluation
-    type Evaluation: Field;
     /// Commitments
     type Commitment: Clone + CanonicalSerialize + CanonicalDeserialize + Debug + PartialEq + Eq;
     /// Proofs
@@ -81,24 +76,24 @@ pub trait PolynomialCommitmentScheme<E: Pairing> {
     /// Arc<Self::ProverParam>, ..)` etc.
     fn commit(
         prover_param: impl Borrow<Self::ProverParam>,
-        poly: &Self::Polynomial,
+        poly: &DenseMultilinearExtension<E::ScalarField>,
     ) -> Result<Self::Commitment, PCSError>;
 
     /// On input a polynomial `p` and a point `point`, outputs a proof for the
     /// same.
     fn open(
         prover_param: impl Borrow<Self::ProverParam>,
-        polynomial: &Self::Polynomial,
-        point: &Self::Point,
-    ) -> Result<(Self::Proof, Self::Evaluation), PCSError>;
+        polynomial: &DenseMultilinearExtension<E::ScalarField>,
+        point: &[E::ScalarField],
+    ) -> Result<(Self::Proof, E::ScalarField), PCSError>;
 
     /// Input a list of multilinear extensions, and a same number of points, and
     /// a transcript, compute a multi-opening for all the polynomials.
     fn multi_open(
         _prover_param: impl Borrow<Self::ProverParam>,
-        _polynomials: &[Self::Polynomial],
-        _points: &[Self::Point],
-        _evals: &[Self::Evaluation],
+        _polynomials: &[DenseMultilinearExtension<E::ScalarField>],
+        _points: &[Vec::<E::ScalarField>],
+        _evals: &[E::ScalarField],
         _transcript: &mut IOPTranscript<E::ScalarField>,
     ) -> Result<Self::BatchProof, PCSError> {
         // the reason we use unimplemented!() is to enable developers to implement the
@@ -111,7 +106,7 @@ pub trait PolynomialCommitmentScheme<E: Pairing> {
     fn verify(
         verifier_param: &Self::VerifierParam,
         commitment: &Self::Commitment,
-        point: &Self::Point,
+        point: &[E::ScalarField],
         value: &E::ScalarField,
         proof: &Self::Proof,
     ) -> Result<bool, PCSError>;
@@ -121,7 +116,7 @@ pub trait PolynomialCommitmentScheme<E: Pairing> {
     fn batch_verify(
         _verifier_param: &Self::VerifierParam,
         _commitments: &[Self::Commitment],
-        _points: &[Self::Point],
+        _points: &[Vec::<E::ScalarField>],
         _batch_proof: &Self::BatchProof,
         _transcript: &mut IOPTranscript<E::ScalarField>,
     ) -> Result<bool, PCSError> {

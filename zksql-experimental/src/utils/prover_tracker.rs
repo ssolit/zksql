@@ -33,7 +33,9 @@ use ark_serialize::CanonicalSerialize;
 use crate::utils::tracker_structs::{TrackerID, TrackerSumcheckClaim, TrackerZerocheckClaim};
 
 #[derive(Clone, Display)]
-pub struct ProverTracker<E: Pairing, PCS: PolynomialCommitmentScheme<E>> {
+pub struct ProverTracker<E: Pairing, PCS: PolynomialCommitmentScheme<E>>
+// where PCS: PolynomialCommitmentScheme<E, Polynomial = DenseMultilinearExtension<E::ScalarField>>
+ {
     pub transcript: IOPTranscript<E::ScalarField>,
     pub id_counter: usize,
     pcs_param: PCS::ProverParam,
@@ -81,7 +83,7 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
         self.materialized_polys.insert(poly_id.clone(), polynomial.clone());
 
         // // commit to the polynomial and add to the commitment map
-        let commitment = PCS::commit(self.pcs_param.clone(), polynomial.clone())?;
+        let commitment = PCS::commit(self.pcs_param.clone(), &polynomial)?;
         self.materialized_comms.insert(poly_id.clone(), Arc::new(commitment));
 
         // Return the new TrackerID
