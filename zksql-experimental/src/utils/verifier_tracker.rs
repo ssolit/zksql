@@ -10,11 +10,11 @@
 use ark_ec::pairing::Pairing;
 use displaydoc::Display;
 
+use ark_serialize::CanonicalSerialize;
 use ark_std::One;
 use core::panic;
+use derivative::Derivative;
 use subroutines::PolynomialCommitmentScheme;
-use transcript::{IOPTranscript, TranscriptError};
-
 use std::{
     collections::HashMap,
     ops::Neg,
@@ -24,10 +24,12 @@ use std::{
     rc::Rc,
     borrow::Borrow,
 };
+use transcript::{IOPTranscript, TranscriptError};
 
-use ark_serialize::CanonicalSerialize;
+
 
 use crate::utils::tracker_structs::{TrackerID, TrackerSumcheckClaim, TrackerZerocheckClaim};
+use crate::utils::prover_tracker::CompiledZKSQLProof;
 
 #[derive(Display)]
 pub struct VerifierTracker<E: Pairing, PCS: PolynomialCommitmentScheme<E>>{
@@ -35,13 +37,15 @@ pub struct VerifierTracker<E: Pairing, PCS: PolynomialCommitmentScheme<E>>{
     pub id_counter: usize,
     pub materialized_comms: HashMap<TrackerID, Arc<Option<PCS::Commitment>>>,
     pub virtual_comms: HashMap<TrackerID, Vec<(E::ScalarField, Vec<TrackerID>)>>,
-    pub eval_maps: HashMap<TrackerID, Box<dyn Fn(TrackerID, E::ScalarField) -> E::ScalarField>>,
+    // pub eval_maps: HashMap<TrackerID, Box<dyn Fn(TrackerID, E::ScalarField) -> E::ScalarField>>,
+    pub eval_map: HashMap<TrackerID, Box<dyn Fn(TrackerID, E::ScalarField) -> E::ScalarField>>,
     pub sum_check_claims: Vec<TrackerSumcheckClaim<E::ScalarField>>,
     pub zero_check_claims: Vec<TrackerZerocheckClaim<E::ScalarField>>,
+    pub proof: CompiledZKSQLProof<E, PCS>,
 }
 
 impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTracker<E, PCS> {
-    pub fn new() -> Self {
+    pub fn new(proof: CompiledZKSQLProof<E, PCS>) -> Self {
         Self {
             transcript: IOPTranscript::<E::ScalarField>::new(b"Initializing Tracnscript"),
             id_counter: 0,
@@ -50,6 +54,7 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTracker<E, PCS> {
             eval_maps: HashMap::new(),
             sum_check_claims: Vec::new(),
             zero_check_claims: Vec::new(),
+            proof,
         }
     }
 
@@ -233,6 +238,7 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTracker<E, PCS> {
     // }
 
 
+
     pub fn get_and_append_challenge(&mut self, label: &'static [u8]) -> Result<E::ScalarField, TranscriptError> {
         self.transcript.get_and_append_challenge(label)
     }
@@ -250,6 +256,14 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTracker<E, PCS> {
     }
     pub fn add_zerocheck_claim(&mut self, poly_id: TrackerID) {
         self.zero_check_claims.push(TrackerZerocheckClaim::new(poly_id));
+    }
+
+    pub fn get_prover_comm(&self, id: TrackerID) -> Option<&Arc<PCS::Commitment>> {
+        self.proof.comms.get(&id)
+    }
+
+    pub fn get_prover_sumcheck_claim(&self, id: TrackerID) -> Option<&E::ScalarField> {
+        self.proof.sum_check_claims.get(&id)
     }
 
 }
@@ -320,9 +334,22 @@ impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTrackerRef<E, PCS>
         let tracker_ref_cell: &RefCell<VerifierTracker<E, PCS>> = self.tracker_rc.borrow();
         tracker_ref_cell.borrow_mut().add_zerocheck_claim(poly_id);
     }
+
+    pub fn get_prover_comm(&self, id: TrackerID) -> Option<&Arc<PCS::Commitment>> {
+        let tracker_ref_cell: &RefCell<VerifierTracker<E, PCS>> = self.tracker_rc.borrow();
+        tracker_ref_cell.borrow().get_prover_comm(id)
+    }
+
+    pub fn get_prover_sumcheck_claim(&self, id: TrackerID) -> Option<&E::ScalarField> {
+        let tracker_ref_cell: &RefCell<VerifierTracker<E, PCS>> = self.tracker_rc.borrow();
+        tracker_ref_cell.borrow().get_prover_sumcheck_claim(id)
+    }
 }
 
-pub struct TrackedComm<E: Pairing, PCS: PolynomialCommitmentScheme<E>> {
+#[derive(Derivative)]
+#[derivative(
+    Clone(bound = "PCS: PolynomialCommitmentScheme<E>"),
+)]pub struct TrackedComm<E: Pairing, PCS: PolynomialCommitmentScheme<E>> {
     pub id: TrackerID,
     pub tracker: Rc<RefCell<VerifierTracker<E, PCS>>>,
 }

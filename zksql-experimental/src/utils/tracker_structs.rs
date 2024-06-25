@@ -6,8 +6,8 @@ pub struct TrackerID(pub usize);
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct TrackerSumcheckClaim<F: PrimeField> {
-    label: TrackerID, // a label refering to a polynomial stored in the tracker
-    claimed_sum: F,
+    pub label: TrackerID, // a label refering to a polynomial stored in the tracker
+    pub claimed_sum: F,
 } 
 
 impl <F: PrimeField> TrackerSumcheckClaim<F> {
@@ -18,7 +18,7 @@ impl <F: PrimeField> TrackerSumcheckClaim<F> {
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct TrackerZerocheckClaim<F: PrimeField> {
-    label: TrackerID, // a label refering to a polynomial stored in the tracker
+    pub label: TrackerID, // a label refering to a polynomial stored in the tracker
     pub phantom: PhantomData<F>,
 }
 

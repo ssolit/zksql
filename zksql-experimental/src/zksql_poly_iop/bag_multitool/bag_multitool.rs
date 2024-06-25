@@ -13,12 +13,9 @@ use subroutines::{
     },
     IOPProof,
 };
-use transcript::IOPTranscript;
 
 use crate::utils::{
-    tracker_structs::{TrackerID, TrackerSumcheckClaim, TrackerZerocheckClaim},
-    prover_tracker::{ProverTracker, ProverTrackerRef, TrackedPoly},
-    verifier_tracker::{VerifierTracker, VerifierTrackerRef},
+    prover_tracker::{ProverTracker, ProverTrackerRef, TrackedPoly}, tracker_structs::{TrackerID, TrackerSumcheckClaim, TrackerZerocheckClaim}, verifier_tracker::{TrackedComm, VerifierTracker, VerifierTrackerRef}
 };
 
 
@@ -56,16 +53,20 @@ impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> Bag<E, PCS> {
     }
 }
 
-// #[derive(Clone, Debug, Default, PartialEq)]
-// pub struct BagComm<E: Pairing, PCS: PolynomialCommitmentScheme<E>> {
-//     pub poly_comm: PCS::Commitment,
-//     pub selector_comm: PCS::Commitment,
-// }
+#[derive(Derivative)]
+#[derivative(
+    Clone(bound = "PCS: PolynomialCommitmentScheme<E>"),
+    PartialEq(bound = "PCS: PolynomialCommitmentScheme<E>"),
+)]
+pub struct BagComm<E: Pairing, PCS: PolynomialCommitmentScheme<E>> {
+    pub poly: TrackedComm<E, PCS>,
+    pub selector: TrackedComm<E, PCS>,
+}
 
 
 pub struct BagMultiToolIOP<E: Pairing, PCS: PolynomialCommitmentScheme<E>>(PhantomData<E>, PhantomData<PCS>);
 impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> BagMultiToolIOP<E, PCS> 
-where PCS: PolynomialCommitmentScheme<E, Polynomial = ArcMLE<E>>
+where PCS: PolynomialCommitmentScheme<E>
 {
 
     pub fn prove(
@@ -75,20 +76,6 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = ArcMLE<E>>
         mfxs: &[TrackedPoly<E, PCS>],
         mgxs: &[TrackedPoly<E, PCS>],
     ) -> Result<(),PolyIOPErrors> {
-
-
-        // fn prover(tracker: &mut IOPClaimTracker<E, PCS>) -> Proof {
-        //     // generate a polynomial p in previous steps 
-        //     let (id, cm) = tracker.add_mat_comm(p); // This guy will update the internal HashMap (materialized_polys and materialized_cms)
-        //     let challenge = tracker.challenge();
-        //     let evaluation = tracker.evaluate(id, challenge); // This will update the internal HashMap `(id, point) -> evaluation`
-        //     tracker.compile_proof() // Return a Proof, and internally invokes PCS::open
-        // }
-
-
-
-        let start = start_timer!(|| "BagMultiTool_check prove");
-
         // check input shapes are correct
         if fxs.is_empty() {
             return Err(PolyIOPErrors::InvalidParameters("BagMultiToolIOP Error: fxs is empty".to_string()));
@@ -130,18 +117,17 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = ArcMLE<E>>
 
         // iterate over vector elements and generate subclaims:
         for i in 0..fxs.len() {
-            Self::generate_subclaims(tracker, fxs[i].clone(), mfxs[i].clone(), gamma)?;
+            Self::prove_generate_subclaims(tracker, fxs[i].clone(), mfxs[i].clone(), gamma)?;
         }   
 
         for i in 0..gxs.len() {
-            Self::generate_subclaims(tracker, gxs[i].clone(), mgxs[i].clone(), gamma)?;
+            Self::prove_generate_subclaims(tracker, gxs[i].clone(), mgxs[i].clone(), gamma)?;
         } 
 
-        end_timer!(start);
         Ok(())
     }
 
-    fn generate_subclaims(
+    fn prove_generate_subclaims(
         tracker: &mut ProverTrackerRef<E, PCS>,
         bag: Bag<E, PCS>,
         m: TrackedPoly<E, PCS>,
@@ -194,89 +180,79 @@ where PCS: PolynomialCommitmentScheme<E, Polynomial = ArcMLE<E>>
     ) -> Result<(), PolyIOPErrors> {
         let start = start_timer!(|| "BagMultiToolCheck verify");
 
-        // assumption is that proof inputs are already added to the tracker 
+        // check input shapes are correct
+        if fxs.is_empty() {
+            return Err(PolyIOPErrors::InvalidParameters("BagMultiToolIOP Error: fxs is empty".to_string()));
+        }
+        if fxs.len() != mfxs.len() {
+            return Err(PolyIOPErrors::InvalidParameters(
+                "BagMultiToolIOP Error: fxs and mf have different number of polynomials".to_string(),
+            ));
+        }
+        if gxs.is_empty() {
+            return Err(PolyIOPErrors::InvalidParameters("BagMultiToolIOP Error: fxs is empty".to_string()));
+        }
+       
+        if gxs.len() != mgxs.len() {
+            return Err(PolyIOPErrors::InvalidParameters(
+                "BagMultiToolIOP Error: fxs and mf have different number of polynomials".to_string(),
+            ));
+        }
+
         // create challenges and commitments in same fashion as prover
-        // 1. pick gamma
-        // 2. add phat_comm
-        // 3. add sumcheck_challenge-comm
-        // 4. add one_comm
-        // 5. add gamma_comm
-        // 6 add phat_check_comm
+        // assumption is that proof inputs are already added to the tracker 
         let gamma = tracker.get_and_append_challenge(b"gamma")?;
 
-        let phat_mat_comm: PCS::Commitment = proof.comms[tracker.get_next_id()].unwrap();
-        let phat = tracker.track_mat_comm(phat_mat_comm, |id, x| tracker.eval_maps[id].clone()(id, x));
+        // iterate over vector elements and generate subclaims:
+        let lhs_v: E::ScalarField = E::ScalarField::zero();
+        let rhs_v: E::ScalarField = E::ScalarField::zero();
+        for i in 0..fxs.len() {
+            let sum_claim_v = Self::verify_generate_subclaims(tracker, fxs[i].clone(), mfxs[i].clone(), gamma)?;
+            lhs_v += sum_claim_v;
+        }   
 
-        let sumcheck_challenge_comm = phat.mul(&m).mul(&bag.selector);
-
-        let one_closure = |tracker_id: TrackerID, scalar: E::ScalarField| -> E::ScalarField {E::ScalarField::one()};
-        let one_comm = tracker.track_mat_comm(Option::None, one_closure);
-        
-        let gamma_closure = |tracker_id: TrackerID, scalar: E::ScalarField| -> E::ScalarField {gamma};
-        let gamma_comm = tracker.track_mat_comm(Option::None, gamma_closure);
-        
-
+        for i in 0..gxs.len() {
+            let sum_claim_v = Self::verify_generate_subclaims(tracker, gxs[i].clone(), mgxs[i].clone(), gamma)?;
+            rhs_v += sum_claim_v;
+        } 
 
         // check that the values of claimed sums are equal
-        let lhs_v: E::ScalarField = proof.lhs_vs.iter().sum();
-        let rhs_v: E::ScalarField = proof.rhs_vs.iter().sum();
-
         if lhs_v != rhs_v {
             let mut err_msg = "BagMutltiTool Verify Error: LHS and RHS have different sums".to_string();
             err_msg.push_str(&format!(" LHS: {}, RHS: {}", lhs_v, rhs_v));
             return Err(PolyIOPErrors::InvalidVerifier(err_msg));
         }
 
-        // create the subclaims for each sumcheck and zerocheck
-        let mut lhs_sumcheck_subclaims = Vec::<TrackerSumcheckClaim<E::ScalarField>>::new();
-        let mut rhs_sumcheck_subclaims = Vec::<TrackerSumcheckClaim<E::ScalarField>>::new();
-        let mut fhat_zerocheck_subclaims = Vec::<TrackerZerocheckClaim<E::ScalarField>>::new();
-        let mut ghat_zerocheck_subclaims = Vec::<TrackerZerocheckClaim<E::ScalarField>>::new();
+        Ok(())
+    }
 
-        // println!("BagMutltiTool Verify: starting lhs subchecks");
-        for i in 0..proof.lhs_sumcheck_proofs.len() {
-            tracker.append_serializable_element(b"phat(x)", &proof.fhat_comms[i])?;
-            
-            let lhs_sumcheck_subclaim = SumCheckIOP::<E::ScalarField>::verify(
-                proof.lhs_vs[i],
-                &proof.lhs_sumcheck_proofs[i],
-                &f_sc_info[i],
-                &mut tracker.clone(),
-            )?;
-            lhs_sumcheck_subclaims.push(lhs_sumcheck_subclaim);
+    fn verify_generate_subclaims(
+        tracker: &mut VerifierTrackerRef<E, PCS>,
+        bag: BagComm<E, PCS>,
+        m: TrackedComm<E, PCS>,
+        gamma: E::ScalarField,
+    ) -> Result<(E::ScalarField), PolyIOPErrors> {
+        let p = bag.poly;
+        // get phat mat comm from proof and add it to the tracker
+        let phat_id: TrackerID = tracker.get_next_id();
+        let phat_mat_comm = tracker.get_prover_comm(phat_id)?;
+        let phat_closure = tracker.get_prover_closure(phat_id)?;
+        let phat = tracker.track_mat_comm(phat_mat_comm, phat_closure);
+        
+        // make the virtual comms as prover does
+        let sumcheck_challenge_comm = phat.mul(&m).mul(&bag.selector);
 
-            let fhat_zerocheck_subclaim = ZeroCheckIOP::<E::ScalarField>::verify(
-                &proof.fhat_zerocheck_proofs[i],
-                &f_zc_info[i],
-                &mut tracker.clone(),
-            )?;
-            fhat_zerocheck_subclaims.push(fhat_zerocheck_subclaim);
-        }
-        // println!("BagMutltiTool Verify: starting rhs subchecks");
-        for i in 0..proof.rhs_sumcheck_proofs.len() {
-            tracker.append_serializable_element(b"phat(x)", &proof.ghat_comms[i])?;
-            let rhs_sumcheck_subclaim = SumCheckIOP::<E::ScalarField>::verify(
-                proof.rhs_vs[i],
-                &proof.rhs_sumcheck_proofs[i],
-                &g_sc_info[i],
-                &mut tracker.clone(),
-            )?;
-            rhs_sumcheck_subclaims.push(rhs_sumcheck_subclaim);
+        let one_closure = |tracker_id: TrackerID, scalar: E::ScalarField| -> E::ScalarField {E::ScalarField::one()};
+        let one_comm = tracker.track_mat_comm(Option::None, one_closure);
+        let gamma_closure = |tracker_id: TrackerID, scalar: E::ScalarField| -> E::ScalarField {gamma};
+        let gamma_comm = tracker.track_mat_comm(Option::None, gamma_closure);
+        let phat_check_poly = p.sub(&gamma_comm).mul(&phat).sub(&one_comm);
+       
+        // add the delayed prover claims to the tracker
+        let sum_claim_v = tracker.get_prover_claimed_eval(sumcheck_challenge_comm.id)?;
+        tracker.add_sumcheck_claim(sumcheck_challenge_comm.id, sum_claim_v);
+        tracker.add_zerocheck_claim(phat_check_poly.id);
 
-            let ghat_zerocheck_subclaim = ZeroCheckIOP::<E::ScalarField>::verify(
-                &proof.ghat_zerocheck_proofs[i],
-                &g_zc_info[i],
-                &mut tracker.clone(),
-            )?;
-            ghat_zerocheck_subclaims.push(ghat_zerocheck_subclaim);
-        }
-
-        end_timer!(start);
-        Ok(BagMultiToolIOPSubClaim::<E::ScalarField>{
-            lhs_sumcheck_subclaims, 
-            rhs_sumcheck_subclaims,
-            fhat_zerocheck_subclaims,
-            ghat_zerocheck_subclaims,
-        })
+        return Ok((sum_claim_v))
     }
 }

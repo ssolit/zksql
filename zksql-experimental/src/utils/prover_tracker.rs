@@ -16,21 +16,21 @@ use subroutines::{pcs::PolynomialCommitmentScheme, PCSError};
 use transcript::{IOPTranscript, TranscriptError};
 
 use std::{
-    collections::HashMap,
-    ops::{
-        // Add,
-        Neg,
-    },
-    sync::Arc,
-    cell::RefCell,
-    rc::Rc,
-    borrow::Borrow,
-    panic,
+    borrow::Borrow, cell::RefCell, collections::HashMap, hash::Hash, ops::Neg, panic, rc::Rc, sync::Arc
 };
 
 use ark_serialize::CanonicalSerialize;
 
 use crate::utils::tracker_structs::{TrackerID, TrackerSumcheckClaim, TrackerZerocheckClaim};
+
+#[derive(Clone)]
+pub struct CompiledZKSQLProof<E: Pairing, PCS: PolynomialCommitmentScheme<E>> {
+    pub sum_check_claims: HashMap<TrackerID, E::ScalarField>,
+    pub comms: HashMap<TrackerID, Arc<PCS::Commitment>>,
+    pub comm_opening_vals: HashMap<TrackerID, E::ScalarField>,
+    pub comm_opening_points: HashMap<TrackerID, Vec<E::ScalarField>>,
+    pub comm_opening_proofs: HashMap<TrackerID, PCS::Proof>,
+}
 
 #[derive(Clone, Display)]
 pub struct ProverTracker<E: Pairing, PCS: PolynomialCommitmentScheme<E>>
@@ -324,18 +324,26 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
         self.zero_check_claims.push(TrackerZerocheckClaim::new(poly_id));
     }
 
-    // fn compile_proof(&mut self) -> CompiledProof {
-    //     // creates a finished proof based off the subclaims that have been recorded
-    //     // 1) uses a new challenge to aggregate the subclaims
-    //     // 2) generates a sumcheck proof and invokes PCS::open
-    //     // 3) takes all relevant stuff and returns a CompiledProof
+    pub fn compile_proof(&mut self) -> CompiledZKSQLProof<E, PCS> {
+        // creates a finished proof based off the subclaims that have been recorded
+        // 1) uses a new challenge to aggregate the subclaims
+        // 2) generates a sumcheck proof and invokes PCS::open
+        // 3) takes all relevant stuff and returns a CompiledProof
 
-    //     // CompiledProof {
-    //     //     pub commitments: HashMap<TrackerID, PCS::Commitment>,
-    //     //     pub evaluations: HashMap<(TrackerID, E::ScalarrField), E::ScalarField>,
-    //     //     ... other stuff like evaluation proof.
-    //     // }
-    // }
+        let sumcheck_val_map: HashMap<TrackerID, E::ScalarField> = HashMap::new();
+        for claim in self.sum_check_claims.iter() {
+            sumcheck_val_map.insert(claim.label.clone(), claim.claimed_sum);
+        }
+
+        CompiledZKSQLProof {
+            sum_check_claims: sumcheck_val_map,
+            comms: self.materialized_comms.clone(),
+            // TODO: make opening evals and proofs
+            comm_opening_vals: HashMap::new(),
+            comm_opening_points: HashMap::new(),
+            comm_opening_proofs: HashMap::new(),
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -406,6 +414,11 @@ impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTrackerRef<E, PCS> {
     ) {
         let tracker_ref_cell: &RefCell<ProverTracker<E, PCS>> = self.tracker_rc.borrow();
         tracker_ref_cell.borrow_mut().add_zerocheck_claim(poly);
+    }
+
+    pub fn compile_proof(&mut self) -> CompiledZKSQLProof<E, PCS> {
+        let tracker_ref_cell: &RefCell<ProverTracker<E, PCS>> = self.tracker_rc.borrow();
+        tracker_ref_cell.borrow_mut().compile_proof()
     }
 }
 
