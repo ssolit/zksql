@@ -204,8 +204,8 @@ where PCS: PolynomialCommitmentScheme<E>
         let gamma = tracker.get_and_append_challenge(b"gamma")?;
 
         // iterate over vector elements and generate subclaims:
-        let lhs_v: E::ScalarField = E::ScalarField::zero();
-        let rhs_v: E::ScalarField = E::ScalarField::zero();
+        let mut lhs_v: E::ScalarField = E::ScalarField::zero();
+        let mut rhs_v: E::ScalarField = E::ScalarField::zero();
         for i in 0..fxs.len() {
             let sum_claim_v = Self::verify_generate_subclaims(tracker, fxs[i].clone(), mfxs[i].clone(), gamma)?;
             lhs_v += sum_claim_v;
@@ -235,24 +235,25 @@ where PCS: PolynomialCommitmentScheme<E>
         let p = bag.poly;
         // get phat mat comm from proof and add it to the tracker
         let phat_id: TrackerID = tracker.get_next_id();
-        let phat_mat_comm = tracker.get_prover_comm(phat_id)?;
-        let phat_closure = tracker.get_prover_closure(phat_id)?;
-        let phat = tracker.track_mat_comm(phat_mat_comm, phat_closure);
+        let phat = tracker.transfer_prover_comm(phat_id);
         
         // make the virtual comms as prover does
         let sumcheck_challenge_comm = phat.mul(&m).mul(&bag.selector);
 
-        let one_closure = |tracker_id: TrackerID, scalar: E::ScalarField| -> E::ScalarField {E::ScalarField::one()};
-        let one_comm = tracker.track_mat_comm(Option::None, one_closure);
-        let gamma_closure = |tracker_id: TrackerID, scalar: E::ScalarField| -> E::ScalarField {gamma};
-        let gamma_comm = tracker.track_mat_comm(Option::None, gamma_closure);
+        // let one_closure = |_: E::ScalarField| -> E::ScalarField {E::ScalarField::one()};
+        // let one_comm = tracker.track_mat_comm(Option::None, one_closure);
+        // let gamma_clone = gamma.clone();
+        // let gamma_closure = |scalar: E::ScalarField| -> E::ScalarField {gamma_clone};
+        // let gamma_comm = tracker.track_mat_comm(Option::None, gamma_closure);
+        let one_comm = tracker.track_mat_comm(E::ScalarField::one());
+        let gamma_comm = tracker.track_mat_comm(gamma);
         let phat_check_poly = p.sub(&gamma_comm).mul(&phat).sub(&one_comm);
        
         // add the delayed prover claims to the tracker
-        let sum_claim_v = tracker.get_prover_claimed_eval(sumcheck_challenge_comm.id)?;
-        tracker.add_sumcheck_claim(sumcheck_challenge_comm.id, sum_claim_v);
+        let sum_claim_v = tracker.get_prover_claimed_eval(sumcheck_challenge_comm.id).unwrap();
+        tracker.add_sumcheck_claim(sumcheck_challenge_comm.id, sum_claim_v.clone());
         tracker.add_zerocheck_claim(phat_check_poly.id);
 
-        return Ok((sum_claim_v))
+        return Ok((sum_claim_v.clone()))
     }
 }

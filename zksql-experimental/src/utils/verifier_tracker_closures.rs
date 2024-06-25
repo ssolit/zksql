@@ -35,7 +35,7 @@ use crate::utils::prover_tracker::CompiledZKSQLProof;
 pub struct VerifierTracker<E: Pairing, PCS: PolynomialCommitmentScheme<E>>{
     pub transcript: IOPTranscript<E::ScalarField>,
     pub id_counter: usize,
-    pub materialized_openings: HashMap<TrackerID, E::ScalarField>, // map from id to Eval of commitment at proof.open_point
+    pub materialized_openings: HashMap<TrackerID, Box<dyn Fn(E::ScalarField) -> E::ScalarField>>, // map from id to succinct fn for evaluating commitments
     pub virtual_openings: HashMap<TrackerID, Vec<(E::ScalarField, Vec<TrackerID>)>>,
     pub sum_check_claims: Vec<TrackerSumcheckClaim<E::ScalarField>>,
     pub zero_check_claims: Vec<TrackerZerocheckClaim<E::ScalarField>>,
@@ -63,13 +63,14 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTracker<E, PCS> {
 
     pub fn track_mat_comm(
         &mut self, 
-        open_eval: E::ScalarField
-    ) -> TrackerID {
+        commitment: Option<Arc<PCS::Commitment>>, 
+        f: impl Fn(E::ScalarField) -> E::ScalarField + 'static) -> TrackerID {
         // Create the new TrackerID
         let id = self.gen_id();
 
         // Add the commitment to the materialized map
-        self.materialized_openings.insert(id.clone(), open_eval);
+        let boxed_fn = Box::new(f);
+        self.materialized_openings.insert(id.clone(), boxed_fn);
 
         // Return the new TrackerID
         id
@@ -88,7 +89,7 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTracker<E, PCS> {
         TrackerID(self.id_counter)
     }
 
-    pub fn get_mat_comm(&self, id: TrackerID) -> Option<&E::ScalarField> {
+    pub fn get_mat_comm<'a>(&'a self, id: TrackerID) -> Option<&Box<dyn Fn(E::ScalarField) -> E::ScalarField + 'a>> {
         self.materialized_openings.get(&id)
     }
 
@@ -287,17 +288,28 @@ impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTrackerRef<E, PCS>
 
     pub fn track_mat_comm(
         &mut self,
-        open_eval: E::ScalarField,
+        comm: Option<Arc<PCS::Commitment>>,
+        f: impl Fn(E::ScalarField) -> E::ScalarField + 'static,
     ) -> TrackedComm<E, PCS> {
         let tracker_ref_cell: &RefCell<VerifierTracker<E, PCS>> = self.tracker_rc.borrow();
-        let res_id = tracker_ref_cell.borrow_mut().track_mat_comm(open_eval);
+        let res_id = tracker_ref_cell.borrow_mut().track_mat_comm(comm, f);
         TrackedComm::new(res_id, self.tracker_rc.clone())
     }
 
-    pub fn get_mat_comm<'a>(&'a self, id: TrackerID) -> E::ScalarField {
+    pub fn get_mat_comm<'a>(&'a self, id: TrackerID) -> &Box<dyn Fn(<E as Pairing>::ScalarField) -> <E as Pairing>::ScalarField + 'a> {
         let tracker_ref_cell: &RefCell<VerifierTracker<E, PCS>> = self.tracker_rc.borrow();
-        tracker_ref_cell.borrow().get_mat_comm(id).unwrap().clone()
-    }
+        // tracker_ref_cell.borrow().get_mat_comm(id).unwrap().clone()
+        
+        let boxed_fn = tracker_ref_cell.borrow().get_mat_comm(id).unwrap().clone();
+        // let deref = *boxed_fn;
+        // Box::new(deref)
+        let thing = move || boxed_fn;
+
+    //     let thing = tracker_ref_cell.borrow().get_mat_comm(id);
+    //     let unwrap = thing.unwrap();
+    //     let deref = *unwrap;
+    //     return &deref;
+        }
 
     pub fn get_virt_comm(&self, id: TrackerID) -> Vec<(E::ScalarField, Vec<TrackerID>)> {
         let tracker_ref_cell: &RefCell<VerifierTracker<E, PCS>> = self.tracker_rc.borrow();
@@ -332,6 +344,11 @@ impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTrackerRef<E, PCS>
         tracker_ref_cell.borrow_mut().add_zerocheck_claim(poly_id);
     }
 
+    // pub fn get_prover_comm(&self, id: TrackerID) -> Option<&Arc<PCS::Commitment>> {
+    //     let tracker_ref_cell: &RefCell<VerifierTracker<E, PCS>> = self.tracker_rc.borrow();
+    //     tracker_ref_cell.borrow().get_prover_comm(id)
+    // }
+
     pub fn get_prover_claimed_eval(&self, id: TrackerID) -> Option<E::ScalarField> {
         let tracker_ref_cell: &RefCell<VerifierTracker<E, PCS>> = self.tracker_rc.borrow();
         let tracker = tracker_ref_cell.borrow();
@@ -339,22 +356,14 @@ impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTrackerRef<E, PCS>
         return Some(eval);
     }
 
-    pub fn transfer_prover_comm(&self, id: TrackerID) -> TrackedComm<E, PCS> {
-        let new_id: TrackerID;
-        let val: E::ScalarField;
-        let tracker_ref_cell: &RefCell<VerifierTracker<E, PCS>> = self.tracker_rc.borrow();
-        {
-            // Scope the immutable borrow
-            let tracker = tracker_ref_cell.borrow();
-            val = tracker.get_prover_claimed_eval(id).unwrap().clone();
-            // Immutable borrow ends here
-            
-        } 
-        let mut tracker = tracker_ref_cell.borrow_mut();
-        new_id = tracker.track_mat_comm(val.clone());
-    
-        TrackedComm::new(new_id, self.tracker_rc.clone())
-    }
+    // pub fn transfer_prover_comm(&self, id: TrackerID) -> TrackedComm<E, PCS> {
+    //     let tracker_ref_cell: &RefCell<VerifierTracker<E, PCS>> = self.tracker_rc.borrow();
+    //     let tracker = tracker_ref_cell.borrow();
+    //     let comm = tracker_ref_cell.borrow().get_prover_comm(id).unwrap();
+    //     let val = tracker.get_prover_claimed_eval(id).unwrap();
+    //     let new_id = tracker.track_mat_comm(Some(comm.clone()), |pt| val.clone());
+    //     TrackedComm::new(new_id, self.tracker_rc.clone())
+    // }
 }
 
 #[derive(Derivative)]

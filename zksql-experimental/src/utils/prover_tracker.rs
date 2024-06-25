@@ -16,7 +16,7 @@ use subroutines::{pcs::PolynomialCommitmentScheme, PCSError};
 use transcript::{IOPTranscript, TranscriptError};
 
 use std::{
-    borrow::Borrow, cell::RefCell, collections::HashMap, hash::Hash, ops::Neg, panic, rc::Rc, sync::Arc
+    borrow::Borrow, cell::RefCell, collections::HashMap, ops::Neg, panic, rc::Rc, sync::Arc
 };
 
 use ark_serialize::CanonicalSerialize;
@@ -330,7 +330,7 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
         // 2) generates a sumcheck proof and invokes PCS::open
         // 3) takes all relevant stuff and returns a CompiledProof
 
-        let sumcheck_val_map: HashMap<TrackerID, E::ScalarField> = HashMap::new();
+        let mut sumcheck_val_map: HashMap<TrackerID, E::ScalarField> = HashMap::new();
         for claim in self.sum_check_claims.iter() {
             sumcheck_val_map.insert(claim.label.clone(), claim.claimed_sum);
         }
