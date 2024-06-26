@@ -1,8 +1,15 @@
 use ark_ff::PrimeField;
 use std::marker::PhantomData;
+use std::fmt::Display;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct TrackerID(pub usize);
+
+impl Display for TrackerID {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct TrackerSumcheckClaim<F: PrimeField> {

@@ -23,7 +23,13 @@ use ark_serialize::CanonicalSerialize;
 
 use crate::utils::tracker_structs::{TrackerID, TrackerSumcheckClaim, TrackerZerocheckClaim};
 
-#[derive(Clone)]
+
+#[derive(Derivative)]
+#[derivative(
+    Clone(bound = "PCS: PolynomialCommitmentScheme<E>"),
+    Default(bound = "PCS: PolynomialCommitmentScheme<E>"),
+    Debug(bound = "PCS: PolynomialCommitmentScheme<E>"),
+)]
 pub struct CompiledZKSQLProof<E: Pairing, PCS: PolynomialCommitmentScheme<E>> {
     pub sum_check_claims: HashMap<TrackerID, E::ScalarField>,
     pub comms: HashMap<TrackerID, Arc<PCS::Commitment>>,
@@ -32,13 +38,17 @@ pub struct CompiledZKSQLProof<E: Pairing, PCS: PolynomialCommitmentScheme<E>> {
     pub comm_opening_proofs: HashMap<TrackerID, PCS::Proof>,
 }
 
-#[derive(Clone, Display)]
+
+#[derive(Derivative, Display)]
+#[derivative(
+    Clone(bound = "PCS: PolynomialCommitmentScheme<E>"),
+)]
 pub struct ProverTracker<E: Pairing, PCS: PolynomialCommitmentScheme<E>>
 // where PCS: PolynomialCommitmentScheme<E, Polynomial = DenseMultilinearExtension<E::ScalarField>>
  {
+    pcs_param: PCS::ProverParam,
     pub transcript: IOPTranscript<E::ScalarField>,
     pub id_counter: usize,
-    pcs_param: PCS::ProverParam,
     pub materialized_polys: HashMap<TrackerID, Arc<DenseMultilinearExtension<E::ScalarField>>>, // underlying materialized polynomials, keyed by label
     pub virtual_polys: HashMap<TrackerID, Vec<(E::ScalarField, Vec<TrackerID>)>>, // virtual polynomials, keyed by label. Invariant: values contain only material TrackerIDs
     pub materialized_comms: HashMap<TrackerID, Arc<PCS::Commitment>>,
@@ -49,9 +59,9 @@ pub struct ProverTracker<E: Pairing, PCS: PolynomialCommitmentScheme<E>>
 impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
     pub fn new(pcs_param: PCS::ProverParam) -> Self {
         Self {
+            pcs_param: pcs_param,
             transcript: IOPTranscript::<E::ScalarField>::new(b"Initializing Tracnscript"),
             id_counter: 0,
-            pcs_param: pcs_param,
             virtual_polys: HashMap::new(),
             materialized_polys: HashMap::new(),
             materialized_comms: HashMap::new(),
@@ -82,9 +92,12 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
         let polynomial = Arc::new(polynomial);
         self.materialized_polys.insert(poly_id.clone(), polynomial.clone());
 
-        // // commit to the polynomial and add to the commitment map
+        // commit to the polynomial and add to the commitment map
         let commitment = PCS::commit(self.pcs_param.clone(), &polynomial)?;
-        self.materialized_comms.insert(poly_id.clone(), Arc::new(commitment));
+        self.materialized_comms.insert(poly_id.clone(), Arc::new(commitment.clone()));
+
+        // add commitment to the transcript
+        self.transcript.append_serializable_element(b"comm", &commitment)?;
 
         // Return the new TrackerID
         Ok(poly_id)
@@ -331,22 +344,35 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
         // 3) takes all relevant stuff and returns a CompiledProof
 
         let mut sumcheck_val_map: HashMap<TrackerID, E::ScalarField> = HashMap::new();
+        let mut comm_opening_vals: HashMap<TrackerID, E::ScalarField> = HashMap::new();
+        let mut comm_opening_points: HashMap<TrackerID, Vec<E::ScalarField>> = HashMap::new();
+        let mut comm_opening_proofs: HashMap<TrackerID, PCS::Proof> = HashMap::new();
+
         for claim in self.sum_check_claims.iter() {
             sumcheck_val_map.insert(claim.label.clone(), claim.claimed_sum);
+        }
+
+        // TODO: actually make a sumcheck proof and get these value
+        // made a default value for now for testing
+        for (id, poly) in self.materialized_polys.iter() {
+            comm_opening_vals.insert(id.clone(), E::ScalarField::zero());
+            comm_opening_points.insert(id.clone(), vec![E::ScalarField::zero(); poly.num_vars()]);
         }
 
         CompiledZKSQLProof {
             sum_check_claims: sumcheck_val_map,
             comms: self.materialized_comms.clone(),
-            // TODO: make opening evals and proofs
-            comm_opening_vals: HashMap::new(),
-            comm_opening_points: HashMap::new(),
-            comm_opening_proofs: HashMap::new(),
+            comm_opening_vals,
+            comm_opening_points,
+            comm_opening_proofs,
         }
     }
 }
 
-#[derive(Clone)]
+#[derive(Derivative)]
+#[derivative(
+    Clone(bound = "PCS: PolynomialCommitmentScheme<E>"),
+)]
 pub struct ProverTrackerRef<E: Pairing, PCS: PolynomialCommitmentScheme<E>> {
     tracker_rc: Rc<RefCell<ProverTracker<E, PCS>>>,
 }
@@ -419,6 +445,13 @@ impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTrackerRef<E, PCS> {
     pub fn compile_proof(&mut self) -> CompiledZKSQLProof<E, PCS> {
         let tracker_ref_cell: &RefCell<ProverTracker<E, PCS>> = self.tracker_rc.borrow();
         tracker_ref_cell.borrow_mut().compile_proof()
+    }
+
+    // used for testing
+    pub fn clone_underlying_tracker(&self) -> ProverTracker<E, PCS> {
+        let tracker_ref_cell: &RefCell<ProverTracker<E, PCS>> = self.tracker_rc.borrow();
+        let tracker = tracker_ref_cell.borrow();
+        (*tracker).clone()
     }
 }
 

@@ -119,15 +119,15 @@ pub fn random_permutation_mles<F: PrimeField, R: RngCore>(
     num_vars: usize,
     num_chunks: usize,
     rng: &mut R,
-) -> Vec<Arc<DenseMultilinearExtension<F>>> {
+) -> Vec<DenseMultilinearExtension<F>> {
     let s_perm_vec = random_permutation(num_vars, num_chunks, rng);
     let mut res = vec![];
     let n = 1 << num_vars;
     for i in 0..num_chunks {
-        res.push(Arc::new(DenseMultilinearExtension::from_evaluations_vec(
+        res.push(DenseMultilinearExtension::from_evaluations_vec(
             num_vars,
             s_perm_vec[i * n..i * n + n].to_vec(),
-        )));
+        ));
     }
     res
 }
@@ -166,7 +166,7 @@ fn fix_one_variable_helper<F: Field>(data: &[F], nv: usize, point: &F) -> Vec<F>
     }
 
     #[cfg(feature = "parallel")]
-    res.par_iter_mut().enumerate().for_each(|(i, x)| {
+    res.par_iter_mut().enumerate().for_each(|(i, mut x)| {
         *x = data[i << 1] + (data[(i << 1) + 1] - data[i << 1]) * point;
     });
 
@@ -278,7 +278,7 @@ fn fix_last_variable_helper<F: Field>(data: &[F], nv: usize, point: &F) -> Vec<F
     }
 
     #[cfg(feature = "parallel")]
-    res.par_iter_mut().enumerate().for_each(|(i, x)| {
+    res.par_iter_mut().enumerate().for_each(|(i, mut x)| {
         *x = data[i] + (data[i + half_len] - data[i]) * point;
     });
 
