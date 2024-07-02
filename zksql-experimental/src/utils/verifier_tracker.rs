@@ -26,7 +26,7 @@ use std::{
     borrow::Borrow,
 };
 use transcript::{IOPTranscript, TranscriptError};
-
+use std::sync::Mutex;
 
 
 use crate::utils::tracker_structs::{TrackerID, TrackerSumcheckClaim, TrackerZerocheckClaim};
@@ -34,14 +34,14 @@ use crate::utils::prover_tracker::CompiledZKSQLProof;
 
 #[derive(Derivative, Display)]
 #[derivative(
-    // Clone(bound = "PCS: PolynomialCommitmentScheme<E>"),
+    Clone(bound = "PCS: PolynomialCommitmentScheme<E>"),
 )]
 pub struct VerifierTracker<'a, E: Pairing, PCS: PolynomialCommitmentScheme<E>> {
     pub pcs_params: PCS::VerifierParam,
     pub transcript: IOPTranscript<E::ScalarField>,
     pub id_counter: usize,
     pub materialized_comms: HashMap<TrackerID, Arc<PCS::Commitment>>, // map from id to Commitment
-    pub virtual_comms: Arc<HashMap<TrackerID, Box<dyn Fn(&[E::ScalarField]) -> Result<E::ScalarField, PCSError> + 'a>>>, // id -> eval_fn
+    pub virtual_comms: Arc<Mutex<HashMap<TrackerID, Box<dyn Fn(&[E::ScalarField]) -> Result<E::ScalarField, PCSError> + 'a>>>>, // id -> eval_fn
     pub query_map: Arc<HashMap<(TrackerID, Vec<E::ScalarField>), E::ScalarField>>, // (poly_id, point) -> eval
     pub sum_check_claims: Vec<TrackerSumcheckClaim<E::ScalarField>>,
     pub zero_check_claims: Vec<TrackerZerocheckClaim<E::ScalarField>>,
@@ -55,7 +55,7 @@ impl<'a, E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTracker<'a, E, 
             transcript: IOPTranscript::<E::ScalarField>::new(b"Initializing Tracnscript"),
             id_counter: 0,
             materialized_comms: HashMap::new(),
-            virtual_comms: Arc::new(HashMap::new()),
+            virtual_comms: Arc::new(Mutex::new(HashMap::new())),
             query_map: Arc::new(HashMap::new()),
             sum_check_claims: Vec::new(),
             zero_check_claims: Vec::new(),
@@ -80,9 +80,12 @@ impl<'a, E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTracker<'a, E, 
         // Create the new TrackerID
         let id = self.gen_id();
         
-        // created the virtual commitment for the interaction and decision phases
+        // place the mat comm in the map
+        self.materialized_comms.insert(id.clone(), comm);
+
+        // create the virtual commitment for the interaction and decision phases
         let query_map_clone = self.query_map.clone(); // need to clone so the new copy can be moved into the closure
-        self.virtual_comms.insert(
+        self.virtual_comms.lock().unwrap().insert(
             id.clone(), 
             Box::new(move |point: &[E::ScalarField]| {
                 Ok(query_map_clone.get(&(id.clone(), point.to_vec())).unwrap().clone())
@@ -97,42 +100,14 @@ impl<'a, E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTracker<'a, E, 
         self.proof = proof;
     }
 
-    // pub fn get_mat_comm(&self, id: TrackerID) -> Option<&E::ScalarField> {
-    //     self.materialized_openings.get(&id)
-    // }
+    pub fn get_mat_comm(&self, id: TrackerID) -> Option<&Arc<<PCS as PolynomialCommitmentScheme<E>>::Commitment>> {
+        self.materialized_comms.get(&id)
+    }
 
-    // pub fn get_virt_comm(&self, id: TrackerID) -> Option<&Box<dyn Fn(&[<E as Pairing>::ScalarField]) -> Result<<E as Pairing>::ScalarField, PCSError>>> {
-    //     self.virtual_comms.get(&id)
+    // pub fn get_virt_comm(&self, id: TrackerID) -> Option<&Box<dyn Fn(&[<E as Pairing>::ScalarField]) -> Result<<E as Pairing>::ScalarField, PCSError> + 'a>> {
+    //     self.virtual_comms.lock().unwrap().get(&id).clone()
     // }
     
-
-    // pub fn add_comms(
-    //     &mut self, 
-    //     c1_id: TrackerID, 
-    //     c2_id: TrackerID
-    // ) -> TrackerID {
-    //     let c1_virt = self.virtual_comms.get(&c1_id); // immutable borrow occurs here
-    //     let c2_virt =  self.virtual_comms.get(&c2_id);
-
-    //     if c1_virt.is_none() {
-    //         panic!("Unknown c1 TrackerID {:?}", c1_id);
-    //     } 
-    //     if c2_virt.is_none() {
-    //         panic!("Unknown c2 TrackerID {:?}", c2_id);
-    //     }
-
-    //     let c1_eval_fn = c1_virt.unwrap();
-    //     let c2_eval_fn = c2_virt.unwrap();
-    //     let new_eval_fn = Box::new(move |point: &[E::ScalarField]| {
-    //         let func = c1_eval_fn(point)? + c2_eval_fn(point)?;
-    //         Ok(func)
-    //     });
-
-    //     let comm_id = self.gen_id(); // mutable borrow occurs here
-    //     self.virtual_comms.insert(comm_id.clone(), new_eval_fn);
-    //     comm_id
-    // }
-
     pub fn add_comms(
         &'a mut self, 
         c1_id: TrackerID, 
@@ -141,27 +116,19 @@ impl<'a, E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTracker<'a, E, 
         // Create the new TrackerID
         let id = self.gen_id();
         
-        // Create the new evaluation function using the retrieved references
-        let c1_eval_box: &Box<dyn Fn(&[<E as Pairing>::ScalarField]) -> Result<<E as Pairing>::ScalarField, PCSError> + 'a> = self.virtual_comms.get(&c1_id).unwrap();
-        // let c2_eval_box: &Box<dyn Fn(&[<E as Pairing>::ScalarField]) -> Result<<E as Pairing>::ScalarField, PCSError> + 'a> = self.virtual_comms.get(&c2_id).unwrap();
-
-        
-        // let new_eval_fn: Box<dyn Fn(&[<E as Pairing>::ScalarField]) -> Result<<E as Pairing>::ScalarField, PCSError>> = Box::new(
-        //     move |point: &[E::ScalarField]| {
-        //         let c1_eval: <E as Pairing>::ScalarField = c1_eval_box(point)?;
-        //         let c2_eval: <E as Pairing>::ScalarField = self.virtual_comms.get(&c2_id).unwrap().clone()(point)?;
-        //         let new_eval = c1_eval + c2_eval;
-        //         Ok(new_eval)
-        //     }
-        // );
-
+        // Create the new evaluation function using the retrieved references and 
         // insert the new evaluation function into the virtual comms map
-        self.virtual_comms.insert(
+        let virtual_comms_clone = self.virtual_comms.clone();
+        self.virtual_comms.lock().unwrap().insert(
             id.clone(), 
             Box::new(
                 move |point: &[E::ScalarField]| {
+                    let virtual_comms = virtual_comms_clone.lock().unwrap();
+                    let c1_eval_box = virtual_comms.get(&c1_id).unwrap();
                     let c1_eval: <E as Pairing>::ScalarField = c1_eval_box(point)?;
-                    let new_eval: <E as Pairing>::ScalarField = c1_eval.clone();
+                    let c2_eval_box = virtual_comms.get(&c2_id).unwrap();
+                    let c2_eval: <E as Pairing>::ScalarField = c2_eval_box(point)?;
+                    let new_eval: <E as Pairing>::ScalarField = c1_eval + c2_eval;
                     Ok(new_eval)
                 }
             ),
