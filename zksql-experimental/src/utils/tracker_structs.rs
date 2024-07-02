@@ -4,6 +4,11 @@ use std::fmt::Display;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct TrackerID(pub usize);
+impl TrackerID {
+    pub fn to_int(self) -> usize {
+        self.0
+    }
+}
 
 impl Display for TrackerID {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
