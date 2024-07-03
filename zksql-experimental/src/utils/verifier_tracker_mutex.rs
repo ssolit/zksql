@@ -43,8 +43,8 @@ pub struct VerifierTracker<'a, E: Pairing, PCS: PolynomialCommitmentScheme<E>> {
     pub transcript: IOPTranscript<E::ScalarField>,
     pub id_counter: usize,
     pub materialized_comms: HashMap<TrackerID, Arc<PCS::Commitment>>, // map from id to Commitment
-    pub virtual_comms: Rc<RefCell<HashMap<TrackerID, Box<dyn Fn(&[E::ScalarField]) -> Result<E::ScalarField, PCSError> + 'a>>>>, // id -> eval_fn
-    pub query_map: Rc<RefCell<HashMap<(TrackerID, Vec<E::ScalarField>), E::ScalarField>>>, // (poly_id, point) -> eval
+    pub virtual_comms: Arc<Mutex<HashMap<TrackerID, Box<dyn Fn(&[E::ScalarField]) -> Result<E::ScalarField, PCSError> + 'a>>>>, // id -> eval_fn
+    pub query_map: Arc<HashMap<(TrackerID, Vec<E::ScalarField>), E::ScalarField>>, // (poly_id, point) -> eval
     pub sum_check_claims: Vec<TrackerSumcheckClaim<E::ScalarField>>,
     pub zero_check_claims: Vec<TrackerZerocheckClaim<E::ScalarField>>,
     pub proof: CompiledZKSQLProof<E, PCS>,
@@ -57,8 +57,8 @@ impl<'a, E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTracker<'a, E, 
             transcript: IOPTranscript::<E::ScalarField>::new(b"Initializing Tracnscript"),
             id_counter: 0,
             materialized_comms: HashMap::new(),
-            virtual_comms: Rc::new(RefCell::new(HashMap::new())),
-            query_map: Rc::new(RefCell::new(HashMap::new())),
+            virtual_comms: Arc::new(Mutex::new(HashMap::new())),
+            query_map: Arc::new(HashMap::new()),
             sum_check_claims: Vec::new(),
             zero_check_claims: Vec::new(),
             proof,
@@ -81,12 +81,10 @@ impl<'a, E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTracker<'a, E, 
         
         // create the virtual commitment for the interaction and decision phases
         let query_map_clone = self.query_map.clone(); // need to clone so the new copy can be moved into the closure
-        let virtual_comms_ref_cell: &RefCell<HashMap<TrackerID, Box<dyn Fn(&[E::ScalarField]) -> Result<E::ScalarField, PCSError> + 'a>>> = self.virtual_comms.borrow();
-        virtual_comms_ref_cell.borrow_mut().insert(
+        self.virtual_comms.lock().unwrap().insert(
             id.clone(), 
             Box::new(move |point: &[E::ScalarField]| {
-                let query_map_ref_cell: &RefCell<HashMap<(TrackerID, Vec<E::ScalarField>), E::ScalarField>> = query_map_clone.borrow();
-                Ok(query_map_ref_cell.borrow().get(&(id.clone(), point.to_vec())).unwrap().clone())
+                Ok(query_map_clone.get(&(id.clone(), point.to_vec())).unwrap().clone())
             })
         );
 
@@ -103,8 +101,7 @@ impl<'a, E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTracker<'a, E, 
         eval_fn: Box<dyn Fn(&[<E as Pairing>::ScalarField]) -> Result<<E as Pairing>::ScalarField, PCSError> + 'a>,
     ) -> TrackerID {
         let id = self.gen_id();
-        let virtual_comms_ref_cell: &RefCell<HashMap<TrackerID, Box<dyn Fn(&[E::ScalarField]) -> Result<E::ScalarField, PCSError> + 'a>>> = self.virtual_comms.borrow();
-        virtual_comms_ref_cell.borrow_mut().insert(
+        self.virtual_comms.lock().unwrap().insert(
             id.clone(), 
             eval_fn,
         );
@@ -129,14 +126,12 @@ impl<'a, E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTracker<'a, E, 
         
         // Create the new evaluation function using the retrieved references and 
         // insert the new evaluation function into the virtual comms map
-        let virtual_comms_clone = self.virtual_comms.clone(); // need to clone so the new copy can be moved into the closure
-        let virtual_comms_ref_cell: &RefCell<HashMap<TrackerID, Box<dyn Fn(&[E::ScalarField]) -> Result<E::ScalarField, PCSError> + 'a>>> = self.virtual_comms.borrow();
-        virtual_comms_ref_cell.borrow_mut().insert(
+        let virtual_comms_clone = self.virtual_comms.clone();
+        self.virtual_comms.lock().unwrap().insert(
             id.clone(), 
             Box::new(
                 move |point: &[E::ScalarField]| {
-                    let virtual_comms_ref_cell: &RefCell<HashMap<TrackerID, Box<dyn Fn(&[E::ScalarField]) -> Result<E::ScalarField, PCSError> + 'a>>> = virtual_comms_clone.borrow();
-                    let virtual_comms = virtual_comms_ref_cell.borrow();
+                    let virtual_comms = virtual_comms_clone.lock().unwrap();
                     let c1_eval_box = virtual_comms.get(&c1_id).unwrap();
                     let c1_eval: <E as Pairing>::ScalarField = c1_eval_box(point)?;
                     let c2_eval_box = virtual_comms.get(&c2_id).unwrap();
@@ -155,24 +150,18 @@ impl<'a, E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTracker<'a, E, 
         c1_id: TrackerID, 
         c2_id: TrackerID
     ) -> TrackerID {
-        // Create the new TrackerID
         let id = self.gen_id();
-        
-        // Create the new evaluation function using the retrieved references and 
-        // insert the new evaluation function into the virtual comms map
-        let virtual_comms_clone = self.virtual_comms.clone(); // need to clone so the new copy can be moved into the closure
-        let virtual_comms_ref_cell: &RefCell<HashMap<TrackerID, Box<dyn Fn(&[E::ScalarField]) -> Result<E::ScalarField, PCSError> + 'a>>> = self.virtual_comms.borrow();
-        virtual_comms_ref_cell.borrow_mut().insert(
+        let virtual_comms_clone = self.virtual_comms.clone();
+        self.virtual_comms.lock().unwrap().insert(
             id.clone(), 
             Box::new(
                 move |point: &[E::ScalarField]| {
-                    let virtual_comms_ref_cell: &RefCell<HashMap<TrackerID, Box<dyn Fn(&[E::ScalarField]) -> Result<E::ScalarField, PCSError> + 'a>>> = virtual_comms_clone.borrow();
-                    let virtual_comms = virtual_comms_ref_cell.borrow();
+                    let virtual_comms = virtual_comms_clone.lock().unwrap();
                     let c1_eval_box = virtual_comms.get(&c1_id).unwrap();
                     let c1_eval: <E as Pairing>::ScalarField = c1_eval_box(point)?;
                     let c2_eval_box = virtual_comms.get(&c2_id).unwrap();
                     let c2_eval: <E as Pairing>::ScalarField = c2_eval_box(point)?;
-                    let new_eval: <E as Pairing>::ScalarField = c1_eval - c2_eval; // sub the scalars
+                    let new_eval: <E as Pairing>::ScalarField = c1_eval - c2_eval; // subtract the scalars
                     Ok(new_eval)
                 }
             ),
@@ -186,24 +175,18 @@ impl<'a, E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTracker<'a, E, 
         c1_id: TrackerID, 
         c2_id: TrackerID
     ) -> TrackerID {
-        // Create the new TrackerID
         let id = self.gen_id();
-        
-        // Create the new evaluation function using the retrieved references and 
-        // insert the new evaluation function into the virtual comms map
-        let virtual_comms_clone = self.virtual_comms.clone(); // need to clone so the new copy can be moved into the closure
-        let virtual_comms_ref_cell: &RefCell<HashMap<TrackerID, Box<dyn Fn(&[E::ScalarField]) -> Result<E::ScalarField, PCSError> + 'a>>> = self.virtual_comms.borrow();
-        virtual_comms_ref_cell.borrow_mut().insert(
+        let virtual_comms_clone = self.virtual_comms.clone();
+        self.virtual_comms.lock().unwrap().insert(
             id.clone(), 
             Box::new(
                 move |point: &[E::ScalarField]| {
-                    let virtual_comms_ref_cell: &RefCell<HashMap<TrackerID, Box<dyn Fn(&[E::ScalarField]) -> Result<E::ScalarField, PCSError> + 'a>>> = virtual_comms_clone.borrow();
-                    let virtual_comms = virtual_comms_ref_cell.borrow();
+                    let virtual_comms = virtual_comms_clone.lock().unwrap();
                     let c1_eval_box = virtual_comms.get(&c1_id).unwrap();
                     let c1_eval: <E as Pairing>::ScalarField = c1_eval_box(point)?;
                     let c2_eval_box = virtual_comms.get(&c2_id).unwrap();
                     let c2_eval: <E as Pairing>::ScalarField = c2_eval_box(point)?;
-                    let new_eval: <E as Pairing>::ScalarField = c1_eval * c2_eval; // mul the scalars
+                    let new_eval: <E as Pairing>::ScalarField = c1_eval * c2_eval; // multiply the scalars
                     Ok(new_eval)
                 }
             ),
@@ -217,8 +200,7 @@ impl<'a, E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTracker<'a, E, 
         comm_id: TrackerID, 
         point: &[E::ScalarField],
     ) -> Result<E::ScalarField, PCSError> {
-        let virtual_comms_ref_cell: &RefCell<HashMap<TrackerID, Box<dyn Fn(&[E::ScalarField]) -> Result<E::ScalarField, PCSError> + 'a>>> = self.virtual_comms.borrow();
-        let virtual_comms = virtual_comms_ref_cell.borrow();
+        let virtual_comms = self.virtual_comms.lock().unwrap();
         let comm_box = virtual_comms.get(&comm_id).unwrap();
         let eval = comm_box(point)?;
         Ok(eval)
