@@ -85,8 +85,13 @@ impl<'a, E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTracker<'a, E, 
         virtual_comms_ref_cell.borrow_mut().insert(
             id.clone(), 
             Box::new(move |point: &[E::ScalarField]| {
+                println!("looking up mat comm (id: {:?}, point: {:?})", id.clone(), point.clone());
                 let query_map_ref_cell: &RefCell<HashMap<(TrackerID, Vec<E::ScalarField>), E::ScalarField>> = query_map_clone.borrow();
-                Ok(query_map_ref_cell.borrow().get(&(id.clone(), point.to_vec())).unwrap().clone())
+                let query_map = query_map_ref_cell.borrow();
+                println!("query map: {:?}", query_map);
+                let query_res = query_map.get(&(id.clone(), point.to_vec())).unwrap();
+                println!("query: {:?}", query_res);
+                Ok(query_res.clone())
             })
         );
 
@@ -135,12 +140,16 @@ impl<'a, E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTracker<'a, E, 
             id.clone(), 
             Box::new(
                 move |point: &[E::ScalarField]| {
+                    println!("in the add comms closure");
                     let virtual_comms_ref_cell: &RefCell<HashMap<TrackerID, Box<dyn Fn(&[E::ScalarField]) -> Result<E::ScalarField, PCSError> + 'a>>> = virtual_comms_clone.borrow();
                     let virtual_comms = virtual_comms_ref_cell.borrow();
-                    let c1_eval_box = virtual_comms.get(&c1_id).unwrap();
+                    println!("got virtual comms");
+                    let c1_eval_box: &Box<dyn Fn(&[<E as Pairing>::ScalarField]) -> Result<<E as Pairing>::ScalarField, PCSError>> = virtual_comms.get(&c1_id).unwrap();
                     let c1_eval: <E as Pairing>::ScalarField = c1_eval_box(point)?;
+                    println!("c1_eval: {:?}", c1_eval);
                     let c2_eval_box = virtual_comms.get(&c2_id).unwrap();
                     let c2_eval: <E as Pairing>::ScalarField = c2_eval_box(point)?;
+                    println!("c2_eval: {:?}", c2_eval);
                     let new_eval: <E as Pairing>::ScalarField = c1_eval + c2_eval; // add the scalars
                     Ok(new_eval)
                 }
@@ -256,6 +265,17 @@ impl<'a, E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTracker<'a, E, 
         self.proof.sum_check_claims.get(&id)
     }
 
+    pub fn transfer_proof_poly_evals(&mut self) {
+        let query_map_ref_cell: &RefCell<HashMap<(TrackerID, Vec<E::ScalarField>), E::ScalarField>> = self.query_map.borrow();
+        let mut query_map = query_map_ref_cell.borrow_mut();
+        for (key, value) in &self.proof.polynomial_evals {
+            query_map.insert(key.clone(), value.clone());
+        }
+        // println!("transferred proof poly evals");
+        // println!("query map: {:?}", query_map);
+        // println!("query mapp address: {:?}", &query_map);
+    }
+
     
 
 }
@@ -352,6 +372,12 @@ impl <'a, E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTrackerRef<'a,
         let tracker = tracker_ref_cell.borrow();
         let sum = tracker.get_prover_claimed_sum(id).unwrap().clone();
         return sum;
+    }
+
+    pub fn transfer_proof_poly_evals(&mut self) {
+        let tracker_ref_cell: &RefCell<VerifierTracker<'a, E, PCS>> = self.tracker_rc.borrow();
+        let mut tracker = tracker_ref_cell.borrow_mut();
+        tracker.transfer_proof_poly_evals();
     }
 
     // pub fn transfer_prover_comm(&mut self, id: TrackerID) -> TrackedComm<E, PCS> {
@@ -486,7 +512,7 @@ fn test_eval_comm() -> Result<(), PCSError> {
     proof.polynomial_evals.insert((TrackerID(1), point.clone()), eval2.clone());
     
 
-    // make virtual comms
+    // simulate interaction phase
     // [(p(x) + gamma) * phat(x)  - 1]
     println!("making virtual comms");
     let mut tracker = VerifierTrackerRef::new_from_tracker(VerifierTracker::new(pcs_verifier_param, proof));
@@ -503,7 +529,9 @@ fn test_eval_comm() -> Result<(), PCSError> {
     res_comm = res_comm.mul(&comm2);
     let res_comm = res_comm.sub(&one_comm);
 
-    // println!("got here");
+    // simulate decision phase
+    println!("evaluating virtual comm");
+    tracker.transfer_proof_poly_evals();
     let res_eval = res_comm.eval_virtual_comm(&point)?;
     let expected_eval = (eval1 + gamma) * eval2 - Fr::one();
     assert_eq!(expected_eval, res_eval);
