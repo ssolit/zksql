@@ -40,7 +40,7 @@ pub struct CompiledZKSQLProof<E: Pairing, PCS: PolynomialCommitmentScheme<E>> {
     pub comms: HashMap<TrackerID, Arc<PCS::Commitment>>,
     pub polynomial_evals: HashMap<(TrackerID, Vec<E::ScalarField>), E::ScalarField>, // (id, point) -> eval, // id -> p(comm_opening_point) 
     pub opening_point: Vec<E::ScalarField>,
-    pub opening_proof: PCS::Proof,
+    pub opening_proof: Vec<PCS::Proof>,
 }
 
 
@@ -403,7 +403,7 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
             comms: self.materialized_comms.clone(),
             polynomial_evals: placeholder_poly_evals,
             opening_point: placeholder_opening_point,
-            opening_proof: placeholder_opening_proof,
+            opening_proof: vec![placeholder_opening_proof],
         }
     }
 }
