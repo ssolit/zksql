@@ -56,52 +56,50 @@ mod test {
         test_bag_multitool_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&mut prover_tracker, &mut verifier_tracker, &[f.clone()], &[f_sel.clone()], &[mf.clone()], &[g.clone()], &[g_sel.clone()], &[mg.clone()])?;
         println!("Good path 1 passed");
 
-        // // // Good Path 2: selector includes zeros
-        // let f2_evals = f_evals.clone();
-        // let mut f2_sel_evals = vec![Fr::one(); f_evals.len()];
-        // f2_sel_evals[permute_vec[0]] = Fr::zero();
-        // let g2_evals = g_evals.clone();
-        // let mut g2_sel_evals = vec![Fr::one(); g_evals.len()];
-        // g2_sel_evals[0] = Fr::zero();
+        // // Good Path 2: selector includes zeros
+        let f2_evals = f_evals.clone();
+        let mut f2_sel_evals = vec![Fr::one(); f_evals.len()];
+        f2_sel_evals[permute_vec[0]] = Fr::zero();
+        let g2_evals = g_evals.clone();
+        let mut g2_sel_evals = vec![Fr::one(); g_evals.len()];
+        g2_sel_evals[0] = Fr::zero();
 
-        // let f2 = DenseMultilinearExtension::from_evaluations_vec(nv, f2_evals.clone());
-        // let f2_sel =DenseMultilinearExtension::from_evaluations_vec(nv, f2_sel_evals.clone());
-        // let g2 =DenseMultilinearExtension::from_evaluations_vec(nv, g2_evals.clone());
-        // let g2_sel = DenseMultilinearExtension::from_evaluations_vec(nv, g2_sel_evals.clone());
-        // test_bag_multitool_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&mut prover_tracker, &mut verifier_tracker, &[f2.clone()], &[f2_sel.clone()], &[mf.clone()],&[g2.clone()], &[g2_sel.clone()], &[mg.clone()])?;
-        // println!("Good path 2 passed");
+        let f2 = DenseMultilinearExtension::from_evaluations_vec(nv, f2_evals.clone());
+        let f2_sel =DenseMultilinearExtension::from_evaluations_vec(nv, f2_sel_evals.clone());
+        let g2 =DenseMultilinearExtension::from_evaluations_vec(nv, g2_evals.clone());
+        let g2_sel = DenseMultilinearExtension::from_evaluations_vec(nv, g2_sel_evals.clone());
+        test_bag_multitool_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&mut prover_tracker, &mut verifier_tracker, &[f2.clone()], &[f2_sel.clone()], &[mf.clone()],&[g2.clone()], &[g2_sel.clone()], &[mg.clone()])?;
+        println!("Good path 2 passed");
 
 
-        // // Good Path 3: f is split into two polynomials
-        // let half_one_poly = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv-1, vec![Fr::one(); f_evals.len()/2]));
-        // let f3a_evals = f_evals.clone()[..f_evals.len()/2].to_vec();
-        // let f3b_evals = f_evals.clone()[f_evals.len()/2..].to_vec();
-        // let mf3a_evals = mf_evals.clone()[..mf_evals.len()/2].to_vec();
-        // let mf3b_evals = mf_evals.clone()[mf_evals.len()/2..].to_vec();
-        // let f3a = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv-1, f3a_evals.clone()));
-        // let mf3a = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv-1, mf3a_evals.clone()));
-        // let f3b = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv-1, f3b_evals.clone()));
-        // let mf3b = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv-1, mf3b_evals.clone()));
-        // let f3a_bag = Bag::new(f3a.clone(), half_one_poly.clone());
-        // let f3b_bag = Bag::new(f3b.clone(), half_one_poly.clone());
-        // test_bag_multitool_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&pcs_param, &[f_bag.clone(), f3a_bag, f3b_bag], &[g_bag.clone(), g_bag.clone()], &[mf.clone(), mf3a.clone(), mf3b.clone(), ], &[mg.clone(), mg.clone()], &mut transcript)?;
-        // println!("good path 3 passed");
+        // Good Path 3: f is split into two polynomials
+        let half_one_poly = DenseMultilinearExtension::from_evaluations_vec(nv-1, vec![Fr::one(); f_evals.len()/2]);
+        let f3a_evals = f_evals.clone()[..f_evals.len()/2].to_vec();
+        let f3b_evals = f_evals.clone()[f_evals.len()/2..].to_vec();
+        let mf3a_evals = mf_evals.clone()[..mf_evals.len()/2].to_vec();
+        let mf3b_evals = mf_evals.clone()[mf_evals.len()/2..].to_vec();
+        let f3a = DenseMultilinearExtension::from_evaluations_vec(nv-1, f3a_evals.clone());
+        let mf3a = DenseMultilinearExtension::from_evaluations_vec(nv-1, mf3a_evals.clone());
+        let f3b = DenseMultilinearExtension::from_evaluations_vec(nv-1, f3b_evals.clone());
+        let mf3b = DenseMultilinearExtension::from_evaluations_vec(nv-1, mf3b_evals.clone());
+        test_bag_multitool_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&mut prover_tracker, &mut verifier_tracker, &[f3a, f3b], &[half_one_poly.clone(), half_one_poly.clone()], &[mf3a.clone(), mf3b.clone()], &[g.clone()], &[g_sel.clone()], &[mg.clone()])?;
+        println!("good path 3 passed");
 
-        // // good paths passed. Now check bad paths
-        // let h = arithmetic::random_permutation_mles(nv, 1, &mut rng)[0].clone();
-        // let h_bag = Bag::new(h.clone(), one_poly.clone());
-        // let mh = arithmetic::random_permutation_mles(nv, 1, &mut rng)[0].clone();
+        // good paths passed. Now check bad paths
+        let h = arithmetic::random_permutation_mles(nv, 1, &mut rng)[0].clone();
+        let h_sel = one_mle.clone();
+        let mh = arithmetic::random_permutation_mles(nv, 1, &mut rng)[0].clone();
 
-        // // incorrect multiplicities
-        // let bad_result1 = test_bag_multitool_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&pcs_param, &[f_bag.clone()], &[h_bag], &[mf.clone()], &[mf.clone()], &mut transcript);
-        // assert!(bad_result1.is_err());
-        // // incorrect polynomials
-        // let bad_result2 = test_bag_multitool_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&pcs_param, &[f_bag.clone()], &[f_bag.clone()], &[mf.clone()], &[mh], &mut transcript);
-        // assert!(bad_result2.is_err());
-        // // incorrect selectors
-        // let bad_result3 = test_bag_multitool_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&pcs_param, &[f_bag.clone()], &[g2_bag.clone()], &[mf.clone()], &[mg.clone()], &mut transcript);
-        // assert!(bad_result3.is_err());
-        // println!("bad paths passed");
+        // incorrect multiplicities
+        let bad_result1 = test_bag_multitool_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&mut prover_tracker, &mut verifier_tracker, &[f.clone()], &[f_sel.clone()], &[mf.clone()],&[h], &[h_sel],  &[mf.clone()]);
+        assert!(bad_result1.is_err());
+        // incorrect polynomials
+        let bad_result2 = test_bag_multitool_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&mut prover_tracker, &mut verifier_tracker, &[f.clone()], &[f_sel.clone()], &[mf.clone()], &[f.clone()], &[f_sel.clone()],&[mh]);
+        assert!(bad_result2.is_err());
+        // incorrect selectors
+        let bad_result3 = test_bag_multitool_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&mut prover_tracker, &mut verifier_tracker, &[f.clone()], &[f_sel.clone()], &[mf.clone()], &[g2.clone()], &[g2_sel.clone()],  &[mg.clone()]);
+        assert!(bad_result3.is_err());
+        println!("bad paths passed");
 
         // // exit successfully 
         Ok(())
@@ -140,7 +138,6 @@ mod test {
             .collect();
         let g_bags: &[Bag<E, PCS>] = &g_bags_vec;
 
-        println!("test_bag_multitool_helper calling prove");
         BagMultiToolIOP::<E, PCS>::prove(
             prover_tracker,
             f_bags,
@@ -159,7 +156,6 @@ mod test {
         let g_comms_vec: Vec<TrackedComm<E, PCS>> = g_polys_vec.iter().map(|p| verifier_tracker.transfer_prover_comm(p.id)).collect::<Vec<TrackedComm<E, PCS>>>();
         let g_sel_comms_vec: Vec<TrackedComm<E, PCS>> = g_sel_polys_vec.iter().map(|p| verifier_tracker.transfer_prover_comm(p.id)).collect::<Vec<TrackedComm<E, PCS>>>();
         let mg_comms_vec: Vec<TrackedComm<E, PCS>> = mg_polys_vec.iter().map(|p| verifier_tracker.transfer_prover_comm(p.id)).collect::<Vec<TrackedComm<E, PCS>>>();
-        println!("finished transfering comms");
 
         let f_bags_vec: Vec<BagComm<E, PCS>> = f_comms_vec.iter()
             .zip(f_sel_comms_vec.iter())

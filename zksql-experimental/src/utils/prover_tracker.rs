@@ -103,7 +103,6 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
         self.transcript.append_serializable_element(b"comm", &commitment)?;
 
         // Return the new TrackerID
-        println!("prover tracking mat poly {:?}", poly_id);
         Ok(poly_id)
     }
 

@@ -171,9 +171,7 @@ where PCS: PolynomialCommitmentScheme<E>
         let one_const_poly = tracker.track_mat_poly(one_const_mle)?;
         let gamma_const_mle = DenseMultilinearExtension::from_evaluations_vec(nv, vec![gamma.clone(); 2_usize.pow(nv as u32)]);
         let gamma_const_poly = tracker.track_mat_poly(gamma_const_mle)?;
-        println!("gamma_const_poly {:?}", gamma_const_poly.id);
         let phat_check_poly = p.sub(&gamma_const_poly).mul(&phat).sub(&one_const_poly);
-        println!("phat_check_poly {:?}", phat_check_poly.id);
        
         
         // add the delayed prover claims to the tracker
@@ -211,7 +209,6 @@ where PCS: PolynomialCommitmentScheme<E>
 
         // create challenges and commitments in same fashion as prover
         // assumption is that proof inputs are already added to the tracker 
-        println!("In bagmultitool verifying");
         let gamma = tracker.get_and_append_challenge(b"gamma")?;
 
         // iterate over vector elements and generate subclaims:
