@@ -23,7 +23,7 @@ where PCS: PolynomialCommitmentScheme<E> {
         tracker: &mut ProverTrackerRef<E, PCS>,
         fx: &Bag<E, PCS>,
         gx: &Bag<E, PCS>,
-    ) -> Result<(),PolyIOPErrors> {
+    ) -> Result<(), PolyIOPErrors> {
         let start = start_timer!(|| "BagEqCheck prove");
         // check input shape is correct
         if fx.num_vars() != gx.num_vars() {
