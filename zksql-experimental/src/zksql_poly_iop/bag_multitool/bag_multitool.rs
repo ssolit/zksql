@@ -60,12 +60,12 @@
 //     Clone(bound = "PCS: PolynomialCommitmentScheme<E>"),
 //     PartialEq(bound = "PCS: PolynomialCommitmentScheme<E>"),
 // )]
-// pub struct BagComm<'a, E: Pairing, PCS: PolynomialCommitmentScheme<E>> {
-//     pub poly: TrackedComm<'a, E, PCS>,
-//     pub selector: TrackedComm<'a, E, PCS>,
+// pub struct BagComm<E: Pairing, PCS: PolynomialCommitmentScheme<E>> {
+//     pub poly: TrackedComm<E, PCS>,
+//     pub selector: TrackedComm<E, PCS>,
 // }
-// impl <'a, E: Pairing, PCS: PolynomialCommitmentScheme<E>> BagComm<'a, E, PCS> {
-//     pub fn new(poly: TrackedComm<'a, E, PCS>, selector: TrackedComm<'a, E, PCS>) -> Self {
+// impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> BagComm<E, PCS> {
+//     pub fn new(poly: TrackedComm<E, PCS>, selector: TrackedComm<E, PCS>) -> Self {
 //         Self {
 //             poly,
 //             selector,

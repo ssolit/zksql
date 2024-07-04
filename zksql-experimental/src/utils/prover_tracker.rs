@@ -32,7 +32,7 @@ use arithmetic::VirtualPolynomial;
 #[derive(Derivative)]
 #[derivative(
     Clone(bound = "PCS: PolynomialCommitmentScheme<E>"),
-    // Default(bound = "PCS: PolynomialCommitmentScheme<E>"), // can't use becasue of PCS
+    Default(bound = "PCS: PolynomialCommitmentScheme<E>"),
     Debug(bound = "PCS: PolynomialCommitmentScheme<E>"),
 )]
 pub struct CompiledZKSQLProof<E: Pairing, PCS: PolynomialCommitmentScheme<E>> {
