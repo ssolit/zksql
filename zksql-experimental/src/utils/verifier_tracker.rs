@@ -22,6 +22,7 @@ use std::{
     rc::Rc,
     borrow::Borrow,
 };
+use std::ops::Neg;
 use transcript::{IOPTranscript, TranscriptError};
 
 
@@ -45,7 +46,7 @@ pub struct VerifierTracker<E: Pairing, PCS: PolynomialCommitmentScheme<E>> {
 }
 
 impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTracker<E, PCS> {
-    pub fn new(pcs_params: PCS::VerifierParam, proof: CompiledZKSQLProof<E, PCS>) -> Self {
+    pub fn new(pcs_params: PCS::VerifierParam) -> Self {
         Self {
             pcs_params,
             transcript: IOPTranscript::<E::ScalarField>::new(b"Initializing Tracnscript"),
@@ -55,7 +56,7 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTracker<E, PCS> {
             query_map: Rc::new(RefCell::new(HashMap::new())),
             sum_check_claims: Vec::new(),
             zero_check_claims: Vec::new(),
-            proof,
+            proof: CompiledZKSQLProof::default(),
         }
     }
 
@@ -146,31 +147,30 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTracker<E, PCS> {
         id
     }
 
+    // First create a virtual comm for the negation of c2, then add c1 and the virtual comm
+    // Creates two new virtual comms total, matching the process done by prover_tracker
     pub fn sub_comms(
         &mut self, 
         c1_id: TrackerID, 
         c2_id: TrackerID
     ) -> TrackerID {
-        let id = self.gen_id();
+        let neg_c2_id = self.gen_id();
         let virtual_comms_clone = self.virtual_comms.clone(); // need to clone so the new copy can be moved into the closure
         let virtual_comms_ref_cell: &RefCell<HashMap<TrackerID, Box<dyn Fn(&[E::ScalarField]) -> Result<E::ScalarField, PolyIOPErrors>>>> = self.virtual_comms.borrow();
         virtual_comms_ref_cell.borrow_mut().insert(
-            id.clone(), 
+            neg_c2_id.clone(), 
             Box::new(
                 move |point: &[E::ScalarField]| {
                     let virtual_comms_ref_cell: &RefCell<HashMap<TrackerID, Box<dyn Fn(&[E::ScalarField]) -> Result<E::ScalarField, PolyIOPErrors>>>> = virtual_comms_clone.borrow();
                     let virtual_comms = virtual_comms_ref_cell.borrow();
-                    let c1_eval_box = virtual_comms.get(&c1_id).unwrap();
-                    let c1_eval: <E as Pairing>::ScalarField = c1_eval_box(point)?;
                     let c2_eval_box = virtual_comms.get(&c2_id).unwrap();
                     let c2_eval: <E as Pairing>::ScalarField = c2_eval_box(point)?;
-                    let new_eval: <E as Pairing>::ScalarField = c1_eval - c2_eval; // sub the scalars
-                    Ok(new_eval)
+                    Ok(c2_eval.neg())
                 }
             ),
         );
-                
-        id
+
+        self.add_comms(neg_c2_id.clone(), c1_id.clone())
     }
 
     fn mul_comms(
@@ -344,7 +344,7 @@ impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTrackerRef<E, PCS>
         tracker.transfer_proof_poly_evals();
     }
 
-    pub fn transfer_prover_comm(&mut self,  id: TrackerID) -> Result<TrackedComm<E, PCS>, PolyIOPErrors> {
+    pub fn transfer_prover_comm(&mut self,  id: TrackerID) -> TrackedComm<E, PCS> {
         let new_id: TrackerID;
         let comm: Arc<PCS::Commitment>;
         let tracker_ref_cell: &RefCell<VerifierTracker<E, PCS>> = self.tracker_rc.borrow();
@@ -362,14 +362,14 @@ impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTrackerRef<E, PCS>
             }
         } 
         let mut tracker = tracker_ref_cell.borrow_mut();
-        new_id = tracker.track_mat_comm(comm)?;
+        new_id = tracker.track_mat_comm(comm).unwrap();
 
         #[cfg(debug_assertions)] {
             assert_eq!(id, new_id, "VerifierTracker Error: attempted to transfer prover comm, but ids don't match: {}, {}", id, new_id);
         }
 
         let new_comm: TrackedComm<E, PCS> = TrackedComm::new(new_id, self.tracker_rc.clone());
-        Ok(new_comm)
+        new_comm
     }
 
     // used for testing
@@ -479,7 +479,7 @@ fn test_eval_comm() -> Result<(), PolyIOPErrors> {
     // simulate interaction phase
     // [(p(x) + gamma) * phat(x)  - 1]
     println!("making virtual comms");
-    let mut tracker = VerifierTrackerRef::new_from_tracker(VerifierTracker::new(pcs_verifier_param, proof));
+    let mut tracker: VerifierTrackerRef<Bls12_381, MultilinearKzgPCS<Bls12_381>> = VerifierTrackerRef::new_from_tracker(VerifierTracker::new(pcs_verifier_param));
     let comm1 = tracker.track_mat_comm(MultilinearKzgPCS::<Bls12_381>::commit(&pcs_prover_param, &poly1.clone())?)?;
     let comm2 = tracker.track_mat_comm(MultilinearKzgPCS::<Bls12_381>::commit(&pcs_prover_param, &poly2.clone())?)?;
     let one_comm = tracker.track_virtual_comm(Box::new(|_: &[Fr]| -> Result<Fr, PolyIOPErrors> {

@@ -103,6 +103,7 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
         self.transcript.append_serializable_element(b"comm", &commitment)?;
 
         // Return the new TrackerID
+        println!("prover tracking mat poly {:?}", poly_id);
         Ok(poly_id)
     }
 
@@ -347,24 +348,24 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
         // 3) create a batch opening proofs for the sumcheck point
         // 4) takes all relevant stuff and returns a CompiledProof
 
-        // 1) aggregate the subclaims into a single MLE
+        // // 1) aggregate the subclaims into a single MLE
         let nv = self.materialized_polys.iter().map(|(id, p)| p.num_vars()).max().unwrap();
-        let mut agg_mle = DenseMultilinearExtension::<E::ScalarField>::from_evaluations_vec(nv, vec![E::ScalarField::zero(); 2_usize.pow(nv as u32)]);
-        let mut agg_sum = E::ScalarField::zero();
-        let sumcheck_claims = self.sum_check_claims.clone();
-        for claim in sumcheck_claims.iter() {
-            let challenge = self.get_and_append_challenge(b"sumcheck challenge").unwrap();
-            let claim_poly_id = claim.label.clone();
-            let claim_mat_poly = self.materialized_polys.get(&claim_poly_id).unwrap();
-            let poly_times_challenge_evals = claim_mat_poly.evaluations.iter().map(|x| *x * challenge).collect::<Vec<_>>();
-            let poly_times_challenge = DenseMultilinearExtension::<E::ScalarField>::from_evaluations_vec(claim_mat_poly.num_vars(), poly_times_challenge_evals);
-            agg_mle += poly_times_challenge;
-            agg_sum += claim.claimed_sum * challenge;
-        };
+        // let mut agg_mle = DenseMultilinearExtension::<E::ScalarField>::from_evaluations_vec(nv, vec![E::ScalarField::zero(); 2_usize.pow(nv as u32)]);
+        // let mut agg_sum = E::ScalarField::zero();
+        // let sumcheck_claims = self.sum_check_claims.clone();
+        // for claim in sumcheck_claims.iter() {
+        //     let challenge = self.get_and_append_challenge(b"sumcheck challenge").unwrap();
+        //     let claim_poly_id = claim.label.clone();
+        //     let claim_mat_poly = self.materialized_polys.get(&claim_poly_id).unwrap();
+        //     let poly_times_challenge_evals = claim_mat_poly.evaluations.iter().map(|x| *x * challenge).collect::<Vec<_>>();
+        //     let poly_times_challenge = DenseMultilinearExtension::<E::ScalarField>::from_evaluations_vec(claim_mat_poly.num_vars(), poly_times_challenge_evals);
+        //     agg_mle += poly_times_challenge;
+        //     agg_sum += claim.claimed_sum * challenge;
+        // };
 
-        // 2) generate a sumcheck proof
-        let agg_mle = VirtualPolynomial::new_from_mle(&Arc::new(agg_mle), agg_sum);
-        let sumcheck_proof: IOPProof<E::ScalarField> = <PolyIOP<E::ScalarField> as SumCheck<E::ScalarField>>::prove(&agg_mle, &mut self.transcript).unwrap();
+        // // 2) generate a sumcheck proof
+        // let agg_mle = VirtualPolynomial::new_from_mle(&Arc::new(agg_mle), agg_sum);
+        // let sumcheck_proof: IOPProof<E::ScalarField> = <PolyIOP<E::ScalarField> as SumCheck<E::ScalarField>>::prove(&agg_mle, &mut self.transcript).unwrap();
         
         // 3) create a batch opening proofs for the sumcheck point
         // let eval_pt = sumcheck_proof.point.clone();
