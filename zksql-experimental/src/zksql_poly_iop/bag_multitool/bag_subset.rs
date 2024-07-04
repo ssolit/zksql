@@ -18,10 +18,6 @@ pub struct BagSubsetIOP<E: Pairing, PCS: PolynomialCommitmentScheme<E>>(PhantomD
 
 impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> BagSubsetIOP<E, PCS> 
 where PCS: PolynomialCommitmentScheme<E> {
-    pub fn init_transcript() -> IOPTranscript<E::ScalarField> {
-        IOPTranscript::<E::ScalarField>::new(b"Initializing BagSubsetCheck transcript")
-    }
-
     pub fn prove(
         tracker: &mut ProverTrackerRef<E, PCS>,
         fx: &Bag<E, PCS>,

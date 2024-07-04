@@ -3,6 +3,7 @@ use ark_ff::PrimeField;
 use ark_poly::DenseMultilinearExtension;
 use ark_std::{end_timer, One, start_timer};
 use std::marker::PhantomData;
+
 use subroutines::{
     pcs::PolynomialCommitmentScheme
 };
@@ -12,18 +13,12 @@ use crate::utils::{
     verifier_tracker::{TrackedComm, VerifierTrackerRef},
     errors::PolyIOPErrors,
 };
-use transcript::IOPTranscript;
-
 use super::bag_multitool::{Bag, BagComm, BagMultiToolIOP};
 
 pub struct BagEqIOP<E: Pairing, PCS: PolynomialCommitmentScheme<E>>(PhantomData<E>, PhantomData<PCS>);
 
 impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> BagEqIOP<E, PCS> 
 where PCS: PolynomialCommitmentScheme<E> {
-    pub fn init_transcript() -> IOPTranscript<E::ScalarField> {
-        IOPTranscript::<E::ScalarField>::new(b"Initializing BagEqCheck transcript")
-    }
-
     pub fn prove(
         tracker: &mut ProverTrackerRef<E, PCS>,
         fx: &Bag<E, PCS>,
