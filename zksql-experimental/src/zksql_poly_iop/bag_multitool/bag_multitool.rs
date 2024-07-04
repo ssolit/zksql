@@ -1,22 +1,15 @@
 // use arithmetic::{VPAuxInfo, VirtualPolynomial};
 use ark_ec::pairing::Pairing;
-use ark_ff::{Field, PrimeField};
 use ark_poly::DenseMultilinearExtension;
-use ark_std::{end_timer, One, start_timer, Zero};
+use ark_std::{One, Zero};
 use derivative::Derivative;
-use std::{fmt::{Debug}, marker::PhantomData, ops::Neg, sync::Arc};
-use subroutines::{
-    pcs::PolynomialCommitmentScheme,
-    poly_iop::{
-        // prelude::{SumCheckIOP, SumCheckIOPSubClaim, ZeroCheckIOP, ZeroCheckIOPSubClaim},
-    },
-    IOPProof,
-};
+use std::{marker::PhantomData, sync::Arc};
+use subroutines::pcs::PolynomialCommitmentScheme;
 
 use crate::utils::{
-    prover_tracker::{ProverTracker, ProverTrackerRef, TrackedPoly}, 
-    tracker_structs::{TrackerID, TrackerSumcheckClaim, TrackerZerocheckClaim}, 
-    verifier_tracker::{TrackedComm, VerifierTracker, VerifierTrackerRef},
+    prover_tracker::{ProverTrackerRef, TrackedPoly}, 
+    tracker_structs::TrackerID, 
+    verifier_tracker::{TrackedComm, VerifierTrackerRef},
     errors::PolyIOPErrors,
 };
 
@@ -251,7 +244,7 @@ where PCS: PolynomialCommitmentScheme<E>
         let one_closure = |_: &[E::ScalarField]| -> Result<<E as Pairing>::ScalarField, PolyIOPErrors> {Ok(E::ScalarField::one())};
         let one_comm = tracker.track_virtual_comm(Box::new(one_closure));
         let gamma_clone = gamma.clone();
-        let gamma_closure = move |_: &[E::ScalarField]| -> Result<<E as Pairing>::ScalarField, PolyIOPErrors> {Ok(gamma_clone)};;
+        let gamma_closure = move |_: &[E::ScalarField]| -> Result<<E as Pairing>::ScalarField, PolyIOPErrors> {Ok(gamma_clone)};
         let gamma_comm = tracker.track_virtual_comm(Box::new(gamma_closure));
         let phat_check_poly = p.sub(&gamma_comm).mul(&phat).sub(&one_comm);
        

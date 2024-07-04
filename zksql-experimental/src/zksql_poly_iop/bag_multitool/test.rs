@@ -3,12 +3,10 @@ mod test {
     use ark_ec::pairing::Pairing;
     use ark_poly::DenseMultilinearExtension;
     use ark_std::{Zero, One};
-    use std::{sync::Arc, vec};
     use subroutines::{
-        pcs::{self, PolynomialCommitmentScheme},
+        pcs::PolynomialCommitmentScheme,
         MultilinearKzgPCS
     };
-    use transcript::IOPTranscript;
 
     use ark_bls12_381::{Bls12_381, Fr};
     use ark_std::test_rng;
@@ -16,11 +14,14 @@ mod test {
 
     use crate::{
         utils::{
-            prover_tracker::{self, CompiledZKSQLProof, ProverTracker, ProverTrackerRef, TrackedPoly},
-            verifier_tracker::{self, TrackedComm, VerifierTracker, VerifierTrackerRef},
+            prover_tracker::{ProverTracker, ProverTrackerRef, TrackedPoly},
+            verifier_tracker::{TrackedComm, VerifierTracker, VerifierTrackerRef},
             errors::PolyIOPErrors,
         }, 
-        zksql_poly_iop::bag_multitool::bag_multitool::{ArcMLE, Bag, BagComm, BagMultiToolIOP}
+        zksql_poly_iop::bag_multitool::{
+            bag_multitool::{Bag, BagComm, BagMultiToolIOP},
+            bag_eq::BagEqIOP,
+        },
     };
 
     // Sets up randomized inputs for testing BagMultiToolCheck
@@ -45,7 +46,7 @@ mod test {
         let g = DenseMultilinearExtension::from_evaluations_vec(nv, g_evals.clone());
         let mg = DenseMultilinearExtension::from_evaluations_vec(nv, mg_evals.clone());
 
-        // Create Trackers and add polys to them
+        // Create Trackers
         let mut prover_tracker: ProverTrackerRef<Bls12_381, MultilinearKzgPCS<Bls12_381>> = ProverTrackerRef::new_from_tracker(ProverTracker::new(pcs_prover_param));
         let mut verifier_tracker: VerifierTrackerRef<Bls12_381, MultilinearKzgPCS<Bls12_381>> = VerifierTrackerRef::new_from_tracker(VerifierTracker::new(pcs_verifier_param));
 
@@ -180,126 +181,146 @@ mod test {
         Ok(())
     }
 
-//     // Sets up randomized inputs for testing BagEqCheck
-//     fn test_bageq() -> Result<(), PolyIOPErrors> {
-//         // testing params
-//         let nv = 8;
-//         let mut rng = test_rng();
+    // Sets up randomized inputs for testing BagEqCheck
+    fn test_bageq() -> Result<(), PolyIOPErrors> {
+        // testing params
+        let nv = 8;
+        let mut rng = test_rng();
 
-//         // PCS params
-//         let srs = MultilinearKzgPCS::<Bls12_381>::gen_srs_for_testing(&mut rng, nv)?;
-//         let (pcs_param, _) = MultilinearKzgPCS::<Bls12_381>::trim(&srs, None, Some(nv))?;
+        // PCS params
+        let srs = MultilinearKzgPCS::<Bls12_381>::gen_srs_for_testing(&mut rng, nv)?;
+        let (pcs_prover_param, pcs_verifier_param) = MultilinearKzgPCS::<Bls12_381>::trim(&srs, None, Some(nv))?;
 
-//         // randomly init f, mf, and a permutation vec, and build g, mg based off of it
-//         let f = arithmetic::random_permutation_mles(nv, 1, &mut rng)[0].clone();
-//         let g = arithmetic::random_permutation_mles(nv, 1, &mut rng)[0].clone();
-//         let one_poly = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, vec![Fr::one(); 2_usize.pow(nv as u32)]));
-//         let f_bag = Bag::new(f, one_poly.clone());
-//         let g_bag = Bag::new(g, one_poly.clone());
+        // randomly init f, mf, and a permutation vec, and build g, mg based off of it
+        let f = arithmetic::random_permutation_mles(nv, 1, &mut rng)[0].clone();
+        let g = arithmetic::random_permutation_mles(nv, 1, &mut rng)[0].clone();
+        let one_poly = DenseMultilinearExtension::from_evaluations_vec(nv, vec![Fr::one(); 2_usize.pow(nv as u32)]);
+        let f_sel = one_poly.clone();
+        let g_sel = one_poly.clone();
         
-//         // initialize transcript 
-//         let mut transcript = BagEqIOP::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>::init_transcript();
-//         transcript.append_message(b"testing", b"initializing transcript for testing")?;
+         // Create Trackers
+         let mut prover_tracker: ProverTrackerRef<Bls12_381, MultilinearKzgPCS<Bls12_381>> = ProverTrackerRef::new_from_tracker(ProverTracker::new(pcs_prover_param));
+         let mut verifier_tracker: VerifierTrackerRef<Bls12_381, MultilinearKzgPCS<Bls12_381>> = VerifierTrackerRef::new_from_tracker(VerifierTracker::new(pcs_verifier_param));
+ 
+        // Good Path 
+        test_bageq_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&mut prover_tracker, &mut verifier_tracker, &f.clone(), &f_sel.clone(),  &g.clone(), &g_sel.clone())?;
+        println!("Good path passed");
 
-//         // call the helper to run the proofand verify now that everything is set up 
-//         test_bageq_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&pcs_param, &f_bag.clone(), &g_bag.clone(), &mut transcript)?;
-//         println!("Good path passed");
+        // Bad path
+        let mut h_evals = f.evaluations.clone();
+        h_evals[0] = h_evals[0] + Fr::one();
+        let h = DenseMultilinearExtension::from_evaluations_vec(f.num_vars, h_evals);
+        let h_sel = one_poly.clone();
 
-//         // Bad path
-//         let mut h_evals = f_bag.poly.evaluations.clone();
-//         h_evals[0] = h_evals[0] + Fr::one();
-//         let h_poly = DenseMultilinearExtension::from_evaluations_vec(f_bag.num_vars, h_evals);
-//         let h = Arc::new(h_poly);
-//         let h_bag = Bag::new(h, one_poly.clone());
+        let bad_result1 = test_bageq_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&mut prover_tracker, &mut verifier_tracker, &f.clone(), &f_sel.clone(), &h.clone(), &h_sel.clone());
+        assert!(bad_result1.is_err());
+        println!("Bad path passed");
 
-//         let bad_result1 = test_bageq_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&pcs_param, &f_bag.clone(), &h_bag, &mut transcript);
-//         assert!(bad_result1.is_err());
-//         println!("Bad path passed");
+        // exit successfully 
+        Ok(())
+    }
 
-//         // exit successfully 
-//         Ok(())
-//     }
+     // Given inputs, calls and verifies BagEqCheck
+    fn test_bageq_helper<E, PCS>(
+        prover_tracker: &mut ProverTrackerRef<E, PCS>,
+        verifier_tracker: &mut VerifierTrackerRef<E, PCS>,
+        f: &DenseMultilinearExtension<E::ScalarField>,
+        f_sel: &DenseMultilinearExtension<E::ScalarField>,
+        g: &DenseMultilinearExtension<E::ScalarField>,
+        g_sel: &DenseMultilinearExtension<E::ScalarField>,
+    ) -> Result<(), PolyIOPErrors>
+    where
+    E: Pairing,
+    PCS: PolynomialCommitmentScheme<E>,
+    {
+       // Set up prover_tracker and prove
+       let f_bag = Bag::new(prover_tracker.track_mat_poly(f.clone())?, prover_tracker.track_mat_poly(f_sel.clone())?);
+       let g_bag = Bag::new(prover_tracker.track_mat_poly(g.clone())?, prover_tracker.track_mat_poly(g_sel.clone())?);
 
-//      // Given inputs, calls and verifies BagEqCheck
-//     fn test_bageq_helper<E, PCS>(
-//         pcs_param: &PCS::ProverParam,
-//         fx: &Bag<E>,
-//         gx: &Bag<E>,
-//         transcript: &mut IOPTranscript<E::ScalarField>,
-//     ) -> Result<(), PolyIOPErrors>
-//     where
-//         E: Pairing,
-//         PCS: PolynomialCommitmentScheme<
-//             E,
-//             Polynomial = Arc<DenseMultilinearExtension<E::ScalarField>>,
-//         >,
-//     {
-//         let (proof,) = BagEqIOP::<E, PCS>::prove(pcs_param, fx, gx, &mut transcript.clone())?;
-//         let (f_sc_info, f_zc_info, g_sc_info, g_zc_info) = BagEqIOP::<E, PCS>::verification_info(pcs_param, fx, gx, &mut transcript.clone());
-//         BagEqIOP::verify(pcs_param,&proof, &f_sc_info, &f_zc_info, &g_sc_info, &g_zc_info, &mut transcript.clone())?;
-//         Ok(())
-//     }
 
-//     // Sets up randomized inputs for testing BagSubsetIOP
-//     fn test_bagsubset() -> Result<(), PolyIOPErrors> {
-//         // testing params
-//         let nv = 8;
-//         let mut rng = test_rng();
+       BagEqIOP::<E, PCS>::prove(
+           prover_tracker,
+           &f_bag,
+           &g_bag,
+       )?;
+       let proof = prover_tracker.compile_proof();
+      
+       // set up verifier tracker and create subclaims
+       verifier_tracker.set_compiled_proof(proof);
+       let f_bag_comm = BagComm::new(verifier_tracker.transfer_prover_comm(f_bag.poly.id), verifier_tracker.transfer_prover_comm(f_bag.selector.id));
+       let g_bag_comm = BagComm::new(verifier_tracker.transfer_prover_comm(g_bag.poly.id), verifier_tracker.transfer_prover_comm(g_bag.selector.id));
+       BagEqIOP::<E, PCS>::verify(verifier_tracker, &f_bag_comm, &g_bag_comm)?;
 
-//         // PCS params
-//         let srs = MultilinearKzgPCS::<Bls12_381>::gen_srs_for_testing(&mut rng, nv)?;
-//         let (pcs_param, _) = MultilinearKzgPCS::<Bls12_381>::trim(&srs, None, Some(nv))?;
+       // check that the ProverTracker and VerifierTracker are in the same state
+       let p_tracker = prover_tracker.clone_underlying_tracker();
+       let v_tracker = verifier_tracker.clone_underlying_tracker();
+       assert_eq!(p_tracker.id_counter, v_tracker.id_counter);
+       assert_eq!(p_tracker.sum_check_claims, v_tracker.sum_check_claims);
+       assert_eq!(p_tracker.zero_check_claims, v_tracker.zero_check_claims);
+       // assert_eq!(p_tracker.transcript, v_tracker.transcript);
+       Ok(())
+    }
 
-//         // randomly init g, build f and mg off of it. Test sets it to something like
-//         // g = [a, b, c, d, ...], f = [a, a, 0, d], mg = [2, 0, 0, 1, ...]
-//         let g = arithmetic::random_permutation_mles(nv, 1, &mut rng)[0].clone();
-//         let g_sel_evals = vec![Fr::one(); 2_usize.pow(nv as u32)];
-//         let g_sel = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, g_sel_evals.clone()));
-//         let g_bag = Bag::new(g, g_sel);
+    // // Sets up randomized inputs for testing BagSubsetIOP
+    // fn test_bagsubset() -> Result<(), PolyIOPErrors> {
+    //     // testing params
+    //     let nv = 8;
+    //     let mut rng = test_rng();
+
+    //     // PCS params
+    //     let srs = MultilinearKzgPCS::<Bls12_381>::gen_srs_for_testing(&mut rng, nv)?;
+    //     let (pcs_param, _) = MultilinearKzgPCS::<Bls12_381>::trim(&srs, None, Some(nv))?;
+
+    //     // randomly init g, build f and mg off of it. Test sets it to something like
+    //     // g = [a, b, c, d, ...], f = [a, a, 0, d], mg = [2, 0, 0, 1, ...]
+    //     let g = arithmetic::random_permutation_mles(nv, 1, &mut rng)[0].clone();
+    //     let g_sel_evals = vec![Fr::one(); 2_usize.pow(nv as u32)];
+    //     let g_sel = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, g_sel_evals.clone()));
+    //     let g_bag = Bag::new(g, g_sel);
         
-//         let mut f_evals = g_bag.poly.evaluations.clone();
-//         f_evals[1] = f_evals[0];
-//         let mut f_sel_evals = vec![Fr::one(); f_evals.len()];
-//         f_sel_evals[2] = Fr::zero();
-//         let f = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, f_evals.clone()));
-//         let f_sel = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, f_sel_evals.clone()));
-//         let f_bag = Bag::new(f, f_sel);
+    //     let mut f_evals = g_bag.poly.evaluations.clone();
+    //     f_evals[1] = f_evals[0];
+    //     let mut f_sel_evals = vec![Fr::one(); f_evals.len()];
+    //     f_sel_evals[2] = Fr::zero();
+    //     let f = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, f_evals.clone()));
+    //     let f_sel = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, f_sel_evals.clone()));
+    //     let f_bag = Bag::new(f, f_sel);
         
-//         let mut mg_evals = vec![Fr::one(); 2_usize.pow(nv as u32)];
-//         mg_evals[0] = Fr::from(2u64);
-//         mg_evals[1] = Fr::zero();
-//         mg_evals[2] = Fr::zero();
-//         let mg = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, mg_evals.clone()));
+    //     let mut mg_evals = vec![Fr::one(); 2_usize.pow(nv as u32)];
+    //     mg_evals[0] = Fr::from(2u64);
+    //     mg_evals[1] = Fr::zero();
+    //     mg_evals[2] = Fr::zero();
+    //     let mg = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, mg_evals.clone()));
 
-//         // initialize transcript 
-//         let mut transcript = BagEqIOP::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>::init_transcript();
-//         transcript.append_message(b"testing", b"initializing transcript for testing")?;
+    //     // initialize transcript 
+    //     let mut transcript = BagEqIOP::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>::init_transcript();
+    //     transcript.append_message(b"testing", b"initializing transcript for testing")?;
 
-//         // Good path 1: described above
-//         test_bagsubset_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&pcs_param, &f_bag.clone(), &g_bag.clone(), &mg.clone(), &mut transcript)?;
-//         println!("test_bagsubset_helper good path 1 passed");
+    //     // Good path 1: described above
+    //     test_bagsubset_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&pcs_param, &f_bag.clone(), &g_bag.clone(), &mg.clone(), &mut transcript)?;
+    //     println!("test_bagsubset_helper good path 1 passed");
 
-//         // Good path 2: f and g are different sized
-//         let f_small_evals = [g_bag.poly.evaluations[0], g_bag.poly.evaluations[1]].to_vec();
-//         let f_small = Arc::new(DenseMultilinearExtension::from_evaluations_vec(1, f_small_evals.clone()));
-//         let f_small_sel = Arc::new(DenseMultilinearExtension::from_evaluations_vec(1, vec![Fr::one(); 2_usize.pow(1 as u32)]));
-//         let f_small_bag = Bag::new(f_small.clone(), f_small_sel);
-//         let mut mg_small_evals = vec![Fr::zero(); mg_evals.len()];
-//         mg_small_evals[0] = Fr::one();
-//         mg_small_evals[1] = Fr::one();
-//         let mg_small = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, mg_small_evals.clone()));
-//         test_bagsubset_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&pcs_param, &f_small_bag.clone(), &g_bag.clone(), &mg_small.clone(), &mut transcript)?;
-//         println!("test_bagsubset_helper good path 2 passed");
+    //     // Good path 2: f and g are different sized
+    //     let f_small_evals = [g_bag.poly.evaluations[0], g_bag.poly.evaluations[1]].to_vec();
+    //     let f_small = Arc::new(DenseMultilinearExtension::from_evaluations_vec(1, f_small_evals.clone()));
+    //     let f_small_sel = Arc::new(DenseMultilinearExtension::from_evaluations_vec(1, vec![Fr::one(); 2_usize.pow(1 as u32)]));
+    //     let f_small_bag = Bag::new(f_small.clone(), f_small_sel);
+    //     let mut mg_small_evals = vec![Fr::zero(); mg_evals.len()];
+    //     mg_small_evals[0] = Fr::one();
+    //     mg_small_evals[1] = Fr::one();
+    //     let mg_small = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, mg_small_evals.clone()));
+    //     test_bagsubset_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&pcs_param, &f_small_bag.clone(), &g_bag.clone(), &mg_small.clone(), &mut transcript)?;
+    //     println!("test_bagsubset_helper good path 2 passed");
 
-//         // bad path
-//         mg_evals[0] = Fr::one();
-//         let bad_mg = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, mg_evals.clone()));
-//         let bad_result1 = test_bagsubset_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&pcs_param, &f_bag.clone(), &g_bag.clone(), &bad_mg.clone(), &mut transcript);
-//         assert!(bad_result1.is_err());
+    //     // bad path
+    //     mg_evals[0] = Fr::one();
+    //     let bad_mg = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, mg_evals.clone()));
+    //     let bad_result1 = test_bagsubset_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&pcs_param, &f_bag.clone(), &g_bag.clone(), &bad_mg.clone(), &mut transcript);
+    //     assert!(bad_result1.is_err());
 
-//         // exit successfully 
-//         Ok(())
-//     }
+    //     // exit successfully 
+    //     Ok(())
+    // }
 
 //      // Given inputs, calls and verifies BagSubsetIOP
 //     fn test_bagsubset_helper<E, PCS>(
@@ -508,11 +529,11 @@ mod test {
         res.unwrap();
     }
 
-//     #[test]
-//     fn bageq_test() {
-//         let res = test_bageq();
-//         res.unwrap();
-//     }
+    #[test]
+    fn bageq_test() {
+        let res = test_bageq();
+        res.unwrap();
+    }
 
 //     #[test]
 //     fn bagsubset_test() {
