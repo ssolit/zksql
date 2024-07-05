@@ -2,11 +2,11 @@
 use ark_ec::pairing::Pairing;
 use ark_poly::DenseMultilinearExtension;
 use ark_std::{One, Zero};
-use derivative::Derivative;
-use std::{marker::PhantomData, sync::Arc};
+use std::marker::PhantomData;
 use subroutines::pcs::PolynomialCommitmentScheme;
 
 use crate::utils::{
+    bag::{Bag, BagComm},
     prover_tracker::{ProverTrackerRef, TrackedPoly}, 
     tracker_structs::TrackerID, 
     verifier_tracker::{TrackedComm, VerifierTrackerRef},
@@ -14,64 +14,10 @@ use crate::utils::{
 };
 
 
-pub type ArcMLE<E> = Arc<DenseMultilinearExtension<<E as Pairing>::ScalarField>>;
-
-#[derive(Derivative)]
-#[derivative(
-    Clone(bound = "PCS: PolynomialCommitmentScheme<E>"),
-    PartialEq(bound = "PCS: PolynomialCommitmentScheme<E>"),
-)]
-pub struct Bag<E: Pairing, PCS: PolynomialCommitmentScheme<E>> {
-    pub poly: TrackedPoly<E, PCS>,
-    pub selector: TrackedPoly<E, PCS>,
-}
-
-impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> Bag<E, PCS> {
-    pub fn new(poly: TrackedPoly<E, PCS>, selector: TrackedPoly<E, PCS>) -> Self {
-        #[cfg(debug_assertions)]
-        {
-            assert_eq!(poly.num_vars, selector.num_vars);
-            assert!(poly.same_tracker(&selector));
-        }
-        Self {
-            poly,
-            selector,
-        }
-    }
-
-    pub fn num_vars(&self) -> usize {
-        self.poly.num_vars()
-    }
-
-    pub fn tracker_ref(&self) -> ProverTrackerRef<E, PCS> {
-        ProverTrackerRef::new(self.poly.tracker.clone())
-    }
-}
-
-#[derive(Derivative)]
-#[derivative(
-    Clone(bound = "PCS: PolynomialCommitmentScheme<E>"),
-    PartialEq(bound = "PCS: PolynomialCommitmentScheme<E>"),
-)]
-pub struct BagComm<E: Pairing, PCS: PolynomialCommitmentScheme<E>> {
-    pub poly: TrackedComm<E, PCS>,
-    pub selector: TrackedComm<E, PCS>,
-}
-impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> BagComm<E, PCS> {
-    pub fn new(poly: TrackedComm<E, PCS>, selector: TrackedComm<E, PCS>) -> Self {
-        Self {
-            poly,
-            selector,
-        }
-    }
-}
-
-
 pub struct BagMultiToolIOP<E: Pairing, PCS: PolynomialCommitmentScheme<E>>(PhantomData<E>, PhantomData<PCS>);
 impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> BagMultiToolIOP<E, PCS> 
 where PCS: PolynomialCommitmentScheme<E>
 {
-
     pub fn prove(
         tracker: &mut ProverTrackerRef<E, PCS>,
         fxs: &[Bag<E, PCS>],

@@ -1,18 +1,16 @@
-use arithmetic::VPAuxInfo;
 use ark_ec::pairing::Pairing;
-use ark_ff::PrimeField;
 use ark_poly::DenseMultilinearExtension;
 use ark_std::{end_timer, One, start_timer};
-use std::{fmt::Debug, marker::PhantomData, sync::Arc};
-use subroutines::{
-    pcs::PolynomialCommitmentScheme
-};
+use std::marker::PhantomData;
+use subroutines::pcs::PolynomialCommitmentScheme;
 use crate::utils::{
-    errors::PolyIOPErrors, prover_tracker::{self, ProverTrackerRef, TrackedPoly}, tracker_structs::TrackerID, verifier_tracker::{TrackedComm, VerifierTrackerRef}
+    bag::{Bag, BagComm},
+    errors::PolyIOPErrors, 
+    prover_tracker::{ProverTrackerRef, TrackedPoly}, 
+    verifier_tracker::{TrackedComm, VerifierTrackerRef}
 };
-use transcript::IOPTranscript;
 
-use super::bag_multitool::{Bag, BagComm, BagMultiToolIOP};
+use super::bag_multitool::BagMultiToolIOP;
 
 pub struct BagSubsetIOP<E: Pairing, PCS: PolynomialCommitmentScheme<E>>(PhantomData<E>, PhantomData<PCS>);
 

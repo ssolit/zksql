@@ -14,12 +14,13 @@ mod test {
 
     use crate::{
         utils::{
+            bag::{Bag, BagComm},
             prover_tracker::{ProverTracker, ProverTrackerRef, TrackedPoly},
             verifier_tracker::{TrackedComm, VerifierTracker, VerifierTrackerRef},
             errors::PolyIOPErrors,
         }, 
         zksql_poly_iop::bag_multitool::{
-            bag_multitool::{Bag, BagComm, BagMultiToolIOP},
+            bag_multitool::BagMultiToolIOP,
             bag_eq::BagEqIOP,
             bag_subset::BagSubsetIOP,
             bag_sum::BagSumIOP,

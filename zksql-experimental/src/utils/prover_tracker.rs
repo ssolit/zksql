@@ -26,7 +26,6 @@ use crate::utils::tracker_structs::{TrackerID, TrackerSumcheckClaim, TrackerZero
 
 use subroutines::poly_iop::sum_check::{SumCheck, SumCheckSubClaim};
 use subroutines::{PolyIOP, IOPProof};
-use arithmetic::VirtualPolynomial;
 
 
 #[derive(Derivative)]
