@@ -8,17 +8,24 @@
 //     use std::collections::HashSet;
 //     use subroutines::{
 //         pcs::PolynomialCommitmentScheme,
-//         poly_iop::errors::PolyIOPErrors,
 //         MultilinearKzgPCS
 //     };
-//     use transcript::IOPTranscript;
 
 //     use ark_bls12_381::{Bls12_381, Fr};
 //     use ark_std::test_rng;
 //     use ark_std::{One, Zero, rand::Rng};
 
-//     use crate::zksql_poly_iop::bag_sort::bag_sort::{BagStrictSortIOP};
-//     use crate::zksql_poly_iop::bag_multitool::bag_multitool::Bag;
+//     use crate::{
+//         utils::{
+//             prover_tracker::{ProverTracker, ProverTrackerRef, TrackedPoly},
+//             verifier_tracker::{TrackedComm, VerifierTracker, VerifierTrackerRef},
+//             errors::PolyIOPErrors,
+//         }, 
+//         zksql_poly_iop::{
+//             bag_sort::bag_sort::{BagStrictSortIOP},
+//             bag_multitool::bag_multitool::Bag,
+//         },
+//     };
 
 
 //     fn test_bag_strict_sort() -> Result<(), PolyIOPErrors> {
@@ -132,23 +139,45 @@
 //     }
 
 //     fn test_bag_strict_sort_helper<E: Pairing, PCS>(
-//         pcs_param: &PCS::ProverParam,
-//         sorted_bag: &Bag<E>,
-//         range_poly: &Arc<DenseMultilinearExtension<E::ScalarField>>,
-//         m_range: &Arc<DenseMultilinearExtension<E::ScalarField>>,
-//         transcript: &mut IOPTranscript<E::ScalarField>,
+//         prover_tracker: &mut ProverTrackerRef<E, PCS>,
+//         verifier_tracker: &mut VerifierTrackerRef<E, PCS>,
+//         sorted_bag_poly: &DenseMultilinearExtension<E::ScalarField>,
+//         sorted_bag_sel: &DenseMultilinearExtension<E::ScalarField>,
+//         range_mle: &DenseMultilinearExtension<E::ScalarField>,
+//         m_range: &DenseMultilinearExtension<E::ScalarField>,
 //     ) -> Result<(), PolyIOPErrors>
 //     where
-//         E: Pairing,
-//         PCS: PolynomialCommitmentScheme<
-//             E,
-//             Polynomial = Arc<DenseMultilinearExtension<E::ScalarField>>,
-//         >,
+//     E: Pairing,
+//     PCS: PolynomialCommitmentScheme<E>,
 //     {
-//         let (proof,) = BagStrictSortIOP::<E, PCS>::prove(pcs_param, sorted_bag, range_poly, m_range, &mut transcript.clone())?;
-//         let aux_info_vec = BagStrictSortIOP::<E, PCS>::verification_info(pcs_param, sorted_bag, &range_poly, &m_range, &mut transcript.clone());
-//         BagStrictSortIOP::<E, PCS>::verify(pcs_param, &proof, &aux_info_vec, &mut transcript.clone())?;
-//         Ok(())
+//        // Set up prover_tracker and prove
+//        let sorted_bag = Bag::new(prover_tracker.track_mat_poly(sorted_bag_poly.clone())?, prover_tracker.track_mat_poly(sorted_bag_sel.clone())?);
+//        let range_poly = prover_tracker.track_mat_poly(range_mle.clone())?;
+//        let m_range = prover_tracker.track_mat_poly(m_range.clone())?;
+
+
+//        BagStrictSortIOP::<E, PCS>::prove(
+//            prover_tracker,
+//            &sorted_bag,
+//            &range_poly,
+//            &m_range,
+//        )?;
+//        let proof = prover_tracker.compile_proof();
+       
+//        // set up verifier tracker and create subclaims
+//        verifier_tracker.set_compiled_proof(proof);
+//        let f_bag_comm = BagComm::new(verifier_tracker.transfer_prover_comm(f_bag.poly.id), verifier_tracker.transfer_prover_comm(f_bag.selector.id));
+//        let g_bag_comm = BagComm::new(verifier_tracker.transfer_prover_comm(g_bag.poly.id), verifier_tracker.transfer_prover_comm(g_bag.selector.id));
+//        BagEqIOP::<E, PCS>::verify(verifier_tracker, &f_bag_comm, &g_bag_comm)?;
+
+//        // check that the ProverTracker and VerifierTracker are in the same state
+//        let p_tracker = prover_tracker.clone_underlying_tracker();
+//        let v_tracker = verifier_tracker.clone_underlying_tracker();
+//        assert_eq!(p_tracker.id_counter, v_tracker.id_counter);
+//        assert_eq!(p_tracker.sum_check_claims, v_tracker.sum_check_claims);
+//        assert_eq!(p_tracker.zero_check_claims, v_tracker.zero_check_claims);
+//        // assert_eq!(p_tracker.transcript, v_tracker.transcript);
+//        Ok(())
 //     }
 
 //     #[test]

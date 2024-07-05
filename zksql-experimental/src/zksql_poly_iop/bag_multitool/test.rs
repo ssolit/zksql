@@ -109,8 +109,8 @@ mod test {
         Ok(())
     }
 
-     // Given inputs, calls and verifies BagMultiToolCheck
-     fn test_bag_multitool_helper<E: Pairing, PCS> (
+        // Given inputs, calls and verifies BagMultiToolCheck
+        fn test_bag_multitool_helper<E: Pairing, PCS> (
         prover_tracker: &mut ProverTrackerRef<E, PCS>,
         verifier_tracker: &mut VerifierTrackerRef<E, PCS>,
         fs: &[DenseMultilinearExtension<E::ScalarField>],
@@ -150,7 +150,7 @@ mod test {
             &mg_polys_vec
         )?;
         let proof = prover_tracker.compile_proof();
-       
+        
         // set up verifier tracker and create subclaims
         verifier_tracker.set_compiled_proof(proof);
 
@@ -204,7 +204,7 @@ mod test {
         // Create Trackers
         let mut prover_tracker: ProverTrackerRef<Bls12_381, MultilinearKzgPCS<Bls12_381>> = ProverTrackerRef::new_from_tracker(ProverTracker::new(pcs_prover_param));
         let mut verifier_tracker: VerifierTrackerRef<Bls12_381, MultilinearKzgPCS<Bls12_381>> = VerifierTrackerRef::new_from_tracker(VerifierTracker::new(pcs_verifier_param));
- 
+
         // Good Path 
         test_bageq_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&mut prover_tracker, &mut verifier_tracker, &f.clone(), &f_sel.clone(),  &g.clone(), &g_sel.clone())?;
         println!("Good path passed");
@@ -223,7 +223,7 @@ mod test {
         Ok(())
     }
 
-     // Given inputs, calls and verifies BagEqCheck
+        // Given inputs, calls and verifies BagEqCheck
     fn test_bageq_helper<E, PCS>(
         prover_tracker: &mut ProverTrackerRef<E, PCS>,
         verifier_tracker: &mut VerifierTrackerRef<E, PCS>,
@@ -236,32 +236,32 @@ mod test {
     E: Pairing,
     PCS: PolynomialCommitmentScheme<E>,
     {
-       // Set up prover_tracker and prove
-       let f_bag = Bag::new(prover_tracker.track_mat_poly(f.clone())?, prover_tracker.track_mat_poly(f_sel.clone())?);
-       let g_bag = Bag::new(prover_tracker.track_mat_poly(g.clone())?, prover_tracker.track_mat_poly(g_sel.clone())?);
+        // Set up prover_tracker and prove
+        let f_bag = Bag::new(prover_tracker.track_mat_poly(f.clone())?, prover_tracker.track_mat_poly(f_sel.clone())?);
+        let g_bag = Bag::new(prover_tracker.track_mat_poly(g.clone())?, prover_tracker.track_mat_poly(g_sel.clone())?);
 
 
-       BagEqIOP::<E, PCS>::prove(
-           prover_tracker,
-           &f_bag,
-           &g_bag,
-       )?;
-       let proof = prover_tracker.compile_proof();
-      
-       // set up verifier tracker and create subclaims
-       verifier_tracker.set_compiled_proof(proof);
-       let f_bag_comm = BagComm::new(verifier_tracker.transfer_prover_comm(f_bag.poly.id), verifier_tracker.transfer_prover_comm(f_bag.selector.id));
-       let g_bag_comm = BagComm::new(verifier_tracker.transfer_prover_comm(g_bag.poly.id), verifier_tracker.transfer_prover_comm(g_bag.selector.id));
-       BagEqIOP::<E, PCS>::verify(verifier_tracker, &f_bag_comm, &g_bag_comm)?;
+        BagEqIOP::<E, PCS>::prove(
+            prover_tracker,
+            &f_bag,
+            &g_bag,
+        )?;
+        let proof = prover_tracker.compile_proof();
+        
+        // set up verifier tracker and create subclaims
+        verifier_tracker.set_compiled_proof(proof);
+        let f_bag_comm = BagComm::new(verifier_tracker.transfer_prover_comm(f_bag.poly.id), verifier_tracker.transfer_prover_comm(f_bag.selector.id));
+        let g_bag_comm = BagComm::new(verifier_tracker.transfer_prover_comm(g_bag.poly.id), verifier_tracker.transfer_prover_comm(g_bag.selector.id));
+        BagEqIOP::<E, PCS>::verify(verifier_tracker, &f_bag_comm, &g_bag_comm)?;
 
-       // check that the ProverTracker and VerifierTracker are in the same state
-       let p_tracker = prover_tracker.clone_underlying_tracker();
-       let v_tracker = verifier_tracker.clone_underlying_tracker();
-       assert_eq!(p_tracker.id_counter, v_tracker.id_counter);
-       assert_eq!(p_tracker.sum_check_claims, v_tracker.sum_check_claims);
-       assert_eq!(p_tracker.zero_check_claims, v_tracker.zero_check_claims);
-       // assert_eq!(p_tracker.transcript, v_tracker.transcript);
-       Ok(())
+        // check that the ProverTracker and VerifierTracker are in the same state
+        let p_tracker = prover_tracker.clone_underlying_tracker();
+        let v_tracker = verifier_tracker.clone_underlying_tracker();
+        assert_eq!(p_tracker.id_counter, v_tracker.id_counter);
+        assert_eq!(p_tracker.sum_check_claims, v_tracker.sum_check_claims);
+        assert_eq!(p_tracker.zero_check_claims, v_tracker.zero_check_claims);
+        // assert_eq!(p_tracker.transcript, v_tracker.transcript);
+        Ok(())
     }
 
     // Sets up randomized inputs for testing BagSubsetIOP
@@ -298,7 +298,7 @@ mod test {
         // Create Trackers
         let mut prover_tracker: ProverTrackerRef<Bls12_381, MultilinearKzgPCS<Bls12_381>> = ProverTrackerRef::new_from_tracker(ProverTracker::new(pcs_prover_param));
         let mut verifier_tracker: VerifierTrackerRef<Bls12_381, MultilinearKzgPCS<Bls12_381>> = VerifierTrackerRef::new_from_tracker(VerifierTracker::new(pcs_verifier_param));
- 
+
         // Good path 1: described above
         test_bagsubset_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&mut prover_tracker, &mut verifier_tracker, &f.clone(), &f_sel.clone(),  &g.clone(), &g_sel.clone(), &mg.clone())?;
         println!("test_bagsubset_helper good path 1 passed");
@@ -324,7 +324,7 @@ mod test {
         Ok(())
     }
 
-     // Given inputs, calls and verifies BagSubsetIOP
+        // Given inputs, calls and verifies BagSubsetIOP
     fn test_bagsubset_helper<E, PCS>(
         prover_tracker: &mut ProverTrackerRef<E, PCS>,
         verifier_tracker: &mut VerifierTrackerRef<E, PCS>,
@@ -339,38 +339,38 @@ mod test {
     PCS: PolynomialCommitmentScheme<E>,
     {
         // Set up prover_tracker and prove
-       let f_bag = Bag::new(prover_tracker.track_mat_poly(f.clone())?, prover_tracker.track_mat_poly(f_sel.clone())?);
-       let g_bag = Bag::new(prover_tracker.track_mat_poly(g.clone())?, prover_tracker.track_mat_poly(g_sel.clone())?);
-       let mg = prover_tracker.track_mat_poly(mg.clone())?;
+        let f_bag = Bag::new(prover_tracker.track_mat_poly(f.clone())?, prover_tracker.track_mat_poly(f_sel.clone())?);
+        let g_bag = Bag::new(prover_tracker.track_mat_poly(g.clone())?, prover_tracker.track_mat_poly(g_sel.clone())?);
+        let mg = prover_tracker.track_mat_poly(mg.clone())?;
 
-       BagSubsetIOP::<E, PCS>::prove(
-           prover_tracker,
-           &f_bag,
-           &g_bag,
-           &mg,
-       )?;
-       let proof = prover_tracker.compile_proof();
-      
-       // set up verifier tracker and create subclaims
-       verifier_tracker.set_compiled_proof(proof);
-       let f_bag_comm = BagComm::new(verifier_tracker.transfer_prover_comm(f_bag.poly.id), verifier_tracker.transfer_prover_comm(f_bag.selector.id));
-       let g_bag_comm = BagComm::new(verifier_tracker.transfer_prover_comm(g_bag.poly.id), verifier_tracker.transfer_prover_comm(g_bag.selector.id));
-       let mg_comm = verifier_tracker.transfer_prover_comm(mg.id);
-       BagSubsetIOP::<E, PCS>::verify(
+        BagSubsetIOP::<E, PCS>::prove(
+            prover_tracker,
+            &f_bag,
+            &g_bag,
+            &mg,
+        )?;
+        let proof = prover_tracker.compile_proof();
+        
+        // set up verifier tracker and create subclaims
+        verifier_tracker.set_compiled_proof(proof);
+        let f_bag_comm = BagComm::new(verifier_tracker.transfer_prover_comm(f_bag.poly.id), verifier_tracker.transfer_prover_comm(f_bag.selector.id));
+        let g_bag_comm = BagComm::new(verifier_tracker.transfer_prover_comm(g_bag.poly.id), verifier_tracker.transfer_prover_comm(g_bag.selector.id));
+        let mg_comm = verifier_tracker.transfer_prover_comm(mg.id);
+        BagSubsetIOP::<E, PCS>::verify(
         verifier_tracker, 
         &f_bag_comm, 
         &g_bag_comm,
         &mg_comm,
     )?;
 
-       // check that the ProverTracker and VerifierTracker are in the same state
-       let p_tracker = prover_tracker.clone_underlying_tracker();
-       let v_tracker = verifier_tracker.clone_underlying_tracker();
-       assert_eq!(p_tracker.id_counter, v_tracker.id_counter);
-       assert_eq!(p_tracker.sum_check_claims, v_tracker.sum_check_claims);
-       assert_eq!(p_tracker.zero_check_claims, v_tracker.zero_check_claims);
-       // assert_eq!(p_tracker.transcript, v_tracker.transcript);
-       Ok(())
+        // check that the ProverTracker and VerifierTracker are in the same state
+        let p_tracker = prover_tracker.clone_underlying_tracker();
+        let v_tracker = verifier_tracker.clone_underlying_tracker();
+        assert_eq!(p_tracker.id_counter, v_tracker.id_counter);
+        assert_eq!(p_tracker.sum_check_claims, v_tracker.sum_check_claims);
+        assert_eq!(p_tracker.zero_check_claims, v_tracker.zero_check_claims);
+        // assert_eq!(p_tracker.transcript, v_tracker.transcript);
+        Ok(())
     }
 
     // Sets up randomized inputs for testing BagSumIOP
@@ -445,7 +445,7 @@ mod test {
         Ok(())
     }
 
-     // Given inputs, calls and verifies BagSumIOP
+        // Given inputs, calls and verifies BagSumIOP
     fn test_bagsum_helper<E, PCS>(
         prover_tracker: &mut ProverTrackerRef<E, PCS>,
         verifier_tracker: &mut VerifierTrackerRef<E, PCS>,
@@ -474,20 +474,20 @@ mod test {
         let proof = prover_tracker.compile_proof();
 
         // set up verifier tracker and create subclaims
-       verifier_tracker.set_compiled_proof(proof);
-       let f0_bag_comm = BagComm::new(verifier_tracker.transfer_prover_comm(f0_bag.poly.id), verifier_tracker.transfer_prover_comm(f0_bag.selector.id));
-       let f1_bag_comm = BagComm::new(verifier_tracker.transfer_prover_comm(f1_bag.poly.id), verifier_tracker.transfer_prover_comm(f1_bag.selector.id));
-       let g_bag_comm = BagComm::new(verifier_tracker.transfer_prover_comm(g_bag.poly.id), verifier_tracker.transfer_prover_comm(g_bag.selector.id));
-       BagSumIOP::<E, PCS>::verify(verifier_tracker, &f0_bag_comm, &f1_bag_comm, &g_bag_comm)?;
+        verifier_tracker.set_compiled_proof(proof);
+        let f0_bag_comm = BagComm::new(verifier_tracker.transfer_prover_comm(f0_bag.poly.id), verifier_tracker.transfer_prover_comm(f0_bag.selector.id));
+        let f1_bag_comm = BagComm::new(verifier_tracker.transfer_prover_comm(f1_bag.poly.id), verifier_tracker.transfer_prover_comm(f1_bag.selector.id));
+        let g_bag_comm = BagComm::new(verifier_tracker.transfer_prover_comm(g_bag.poly.id), verifier_tracker.transfer_prover_comm(g_bag.selector.id));
+        BagSumIOP::<E, PCS>::verify(verifier_tracker, &f0_bag_comm, &f1_bag_comm, &g_bag_comm)?;
 
         // check that the ProverTracker and VerifierTracker are in the same state
-       let p_tracker = prover_tracker.clone_underlying_tracker();
-       let v_tracker = verifier_tracker.clone_underlying_tracker();
-       assert_eq!(p_tracker.id_counter, v_tracker.id_counter);
-       assert_eq!(p_tracker.sum_check_claims, v_tracker.sum_check_claims);
-       assert_eq!(p_tracker.zero_check_claims, v_tracker.zero_check_claims);
-       // assert_eq!(p_tracker.transcript, v_tracker.transcript);
-       Ok(())
+        let p_tracker = prover_tracker.clone_underlying_tracker();
+        let v_tracker = verifier_tracker.clone_underlying_tracker();
+        assert_eq!(p_tracker.id_counter, v_tracker.id_counter);
+        assert_eq!(p_tracker.sum_check_claims, v_tracker.sum_check_claims);
+        assert_eq!(p_tracker.zero_check_claims, v_tracker.zero_check_claims);
+        // assert_eq!(p_tracker.transcript, v_tracker.transcript);
+        Ok(())
     }
 
     // Sets up randomized inputs for testing BagPrescPermIOP
@@ -503,7 +503,6 @@ mod test {
         // Create Trackers
         let mut prover_tracker: ProverTrackerRef<Bls12_381, MultilinearKzgPCS<Bls12_381>> = ProverTrackerRef::new_from_tracker(ProverTracker::new(pcs_prover_param));
         let mut verifier_tracker: VerifierTrackerRef<Bls12_381, MultilinearKzgPCS<Bls12_381>> = VerifierTrackerRef::new_from_tracker(VerifierTracker::new(pcs_verifier_param));
-  
 
         // randomly init f, and a permuation vec, and build g off of it
         let one_poly = DenseMultilinearExtension::from_evaluations_vec(nv, vec![Fr::one(); 2_usize.pow(nv as u32)]);
@@ -546,7 +545,7 @@ mod test {
         Ok(())
     }
 
-     // Given inputs, calls and verifies BagPrescPermIOP
+        // Given inputs, calls and verifies BagPrescPermIOP
     fn test_bag_presc_perm_helper<E, PCS>(
         prover_tracker: &mut ProverTrackerRef<E, PCS>,
         verifier_tracker: &mut VerifierTrackerRef<E, PCS>,
