@@ -279,7 +279,7 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
     }
 
 
-    pub fn mul_const(
+    pub fn mul_scalar(
         &mut self, 
         poly_id: TrackerID, 
         c: E::ScalarField
@@ -581,7 +581,7 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> TrackedPoly<E, PCS> {
         assert!(self.same_tracker(other), "TrackedPolys are not from the same tracker");
     }
     
-    pub fn add(&self, other: &TrackedPoly<E, PCS>) -> Self {
+    pub fn add_poly(&self, other: &TrackedPoly<E, PCS>) -> Self {
         self.assert_same_tracker(&other);
         assert_eq!(self.num_vars, other.num_vars);
         let tracker_ref: &RefCell<ProverTracker<E, PCS>> = self.tracker.borrow();
@@ -589,7 +589,7 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> TrackedPoly<E, PCS> {
         TrackedPoly::new(res_id, self.num_vars, self.tracker.clone())
     }
 
-    pub fn sub(&self, other: &TrackedPoly<E, PCS>) -> Self {
+    pub fn sub_poly(&self, other: &TrackedPoly<E, PCS>) -> Self {
         self.assert_same_tracker(&other);
         assert_eq!(self.num_vars, other.num_vars);
         let tracker_ref: &RefCell<ProverTracker<E, PCS>> = self.tracker.borrow();
@@ -597,12 +597,18 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> TrackedPoly<E, PCS> {
         TrackedPoly::new(res_id, self.num_vars, self.tracker.clone())
     }
 
-    pub fn mul(&self, other: &TrackedPoly<E, PCS>) -> Self {
+    pub fn mul_poly(&self, other: &TrackedPoly<E, PCS>) -> Self {
         self.assert_same_tracker(&other);
         assert_eq!(self.num_vars, other.num_vars);
         let tracker_ref: &RefCell<ProverTracker<E, PCS>> = self.tracker.borrow();
         let res_id = tracker_ref.borrow_mut().mul_polys(self.id.clone(), other.id.clone());
         TrackedPoly::new(res_id, self.num_vars,self.tracker.clone())
+    }
+
+    pub fn mul_scalar(&self, c: E::ScalarField) -> Self {
+        let tracker_ref: &RefCell<ProverTracker<E, PCS>> = self.tracker.borrow();
+        let res_id = tracker_ref.borrow_mut().mul_scalar(self.id.clone(), c);
+        TrackedPoly::new(res_id, self.num_vars, self.tracker.clone())
     }
 
     pub fn evaluate(&self, pt: &[E::ScalarField]) -> Option<E::ScalarField>{
@@ -664,7 +670,7 @@ mod test {
 
         let poly1 = tracker.track_and_commit_poly(rand_mle_1.clone())?;
         let poly2 = tracker.track_and_commit_poly(rand_mle_2.clone())?;
-        let sum_poly = poly1.add(&poly2);
+        let sum_poly = poly1.add_poly(&poly2);
 
         // assert addition list is constructed correctly
         let sum_poly_id_repr = tracker.get_virt_poly(sum_poly.id);
@@ -700,9 +706,9 @@ mod test {
         let poly2 = tracker.track_and_commit_poly(rand_mle_2.clone())?;
         let poly3 = tracker.track_and_commit_poly(rand_mle_3.clone())?;
 
-        let p1_plus_p2 = poly1.add(&poly2);
-        let p1_plus_p2_plus_p3 = p1_plus_p2.add(&poly3);
-        let p3_plus_p1_plus_p2 = poly3.add(&p1_plus_p2);
+        let p1_plus_p2 = poly1.add_poly(&poly2);
+        let p1_plus_p2_plus_p3 = p1_plus_p2.add_poly(&poly3);
+        let p3_plus_p1_plus_p2 = poly3.add_poly(&p1_plus_p2);
 
         // assert addition list is constructed correctly
         let p1_plus_p2_plus_p3_repr = tracker.get_virt_poly(p1_plus_p2_plus_p3.id);
@@ -756,14 +762,14 @@ mod test {
         let poly6 = tracker.track_and_commit_poly(rand_mle_6.clone())?;
         let poly7 = tracker.track_and_commit_poly(rand_mle_7.clone())?;
 
-        let mut addend1 = poly1.add(&poly2);
-        addend1 = addend1.mul(&poly3);
-        addend1 = addend1.mul(&poly4);
+        let mut addend1 = poly1.add_poly(&poly2);
+        addend1 = addend1.mul_poly(&poly3);
+        addend1 = addend1.mul_poly(&poly4);
 
-        let mut addend2 = poly5.mul(&poly6);
-        addend2 = addend2.add(&poly7);
+        let mut addend2 = poly5.mul_poly(&poly6);
+        addend2 = addend2.add_poly(&poly7);
         
-        let sum = addend1.add(&addend2);
+        let sum = addend1.add_poly(&addend2);
 
         let test_eval_pt: Vec<Fr> = (0..nv).map(|_| Fr::rand(&mut rng)).collect();
         let addend1_expected_eval = (rand_mle_1.evaluate(&test_eval_pt).unwrap() + 
@@ -835,7 +841,7 @@ mod test {
         let poly2 = tracker.track_and_commit_poly(rand_mle_2.clone())?;
         let poly3 = tracker.track_and_commit_poly(rand_mle_3.clone())?;
 
-        let virt_poly = poly1.add(&poly2).mul(&poly3);
+        let virt_poly = poly1.add_poly(&poly2).mul_poly(&poly3);
         let virt_poly_evals = virt_poly.evaluations();
         let mut expected_poly_evals = (rand_mle_1 + rand_mle_2).to_evaluations();
         for i in 0..expected_poly_evals.len() {

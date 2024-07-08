@@ -199,6 +199,31 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTracker<E, PCS> {
         id
     }
 
+    pub fn mul_scalar(
+        &mut self, 
+        poly_id: TrackerID, 
+        c: E::ScalarField
+    ) -> TrackerID {
+        let id = self.gen_id();
+        let virtual_comms_clone = self.virtual_comms.clone(); // need to clone so the new copy can be moved into the closure
+        let virtual_comms_ref_cell: &RefCell<HashMap<TrackerID, Box<dyn Fn(&[E::ScalarField]) -> Result<E::ScalarField, PolyIOPErrors>>>> = self.virtual_comms.borrow();
+        virtual_comms_ref_cell.borrow_mut().insert(
+            id.clone(), 
+            Box::new(
+                move |point: &[E::ScalarField]| {
+                    let virtual_comms_ref_cell: &RefCell<HashMap<TrackerID, Box<dyn Fn(&[E::ScalarField]) -> Result<E::ScalarField, PolyIOPErrors>>>> = virtual_comms_clone.borrow();
+                    let virtual_comms = virtual_comms_ref_cell.borrow();
+                    let poly_eval_box = virtual_comms.get(&poly_id).unwrap();
+                    let poly_eval: <E as Pairing>::ScalarField = poly_eval_box(point)?;
+                    let new_eval: <E as Pairing>::ScalarField = c.clone() * poly_eval; // c * old eval
+                    Ok(new_eval)
+                }
+            ),
+        );
+                
+        id
+    }
+
     fn eval_virtual_comm( 
         &self, 
         comm_id: TrackerID, 
@@ -406,7 +431,7 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> TrackedComm<E, PCS> {
         assert!(self.same_tracker(other), "TrackedComms are not from the same tracker");
     }
     
-    pub fn add(&self, other: &TrackedComm<E, PCS>) -> Self {
+    pub fn add_comms(&self, other: &TrackedComm<E, PCS>) -> Self {
         self.assert_same_tracker(&other);
         let tracker_ref: &RefCell<VerifierTracker<E, PCS>> = self.tracker.borrow();
         let mut tracker: RefMut<VerifierTracker<E, PCS>> = tracker_ref.borrow_mut();
@@ -414,17 +439,23 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> TrackedComm<E, PCS> {
         TrackedComm::new(res_id, self.tracker.clone())
     }
 
-    pub fn sub(&self, other: &TrackedComm<E, PCS>) -> Self {
+    pub fn sub_comms(&self, other: &TrackedComm<E, PCS>) -> Self {
         self.assert_same_tracker(&other);
         let tracker_ref: &RefCell<VerifierTracker<E, PCS>> = self.tracker.borrow();
         let res_id = tracker_ref.borrow_mut().sub_comms(self.id.clone(), other.id.clone());
         TrackedComm::new(res_id, self.tracker.clone())
     }
 
-    pub fn mul(&self, other: &TrackedComm<E, PCS>) -> Self {
+    pub fn mul_comms(&self, other: &TrackedComm<E, PCS>) -> Self {
         self.assert_same_tracker(&other);
         let tracker_ref: &RefCell<VerifierTracker<E, PCS>> = self.tracker.borrow();
         let res_id = tracker_ref.borrow_mut().mul_comms(self.id.clone(), other.id.clone());
+        TrackedComm::new(res_id, self.tracker.clone())
+    }
+
+    pub fn mul_scalar(&self, c: E::ScalarField) -> TrackedComm<E, PCS> {
+        let tracker_ref: &RefCell<VerifierTracker<E, PCS>> = self.tracker.borrow();
+        let res_id = tracker_ref.borrow_mut().mul_scalar(self.id.clone(), c);
         TrackedComm::new(res_id, self.tracker.clone())
     }
 
@@ -488,9 +519,9 @@ fn test_eval_comm() -> Result<(), PolyIOPErrors> {
     let gamma_comm = tracker.track_virtual_comm(Box::new(move |_: &[Fr]| -> Result<Fr, PolyIOPErrors> {
         Ok(gamma)
     }));
-    let mut res_comm = comm1.add(&gamma_comm);
-    res_comm = res_comm.mul(&comm2);
-    let res_comm = res_comm.sub(&one_comm);
+    let mut res_comm = comm1.add_comms(&gamma_comm);
+    res_comm = res_comm.mul_comms(&comm2);
+    let res_comm = res_comm.sub_comms(&one_comm);
 
     // simulate decision phase
     println!("evaluating virtual comm");
