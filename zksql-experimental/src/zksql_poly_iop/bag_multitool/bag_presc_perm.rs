@@ -5,7 +5,10 @@ use std::marker::PhantomData;
 
 use subroutines::pcs::PolynomialCommitmentScheme;
 use crate::utils::{
-    bag::{Bag, BagComm}, errors::PolyIOPErrors, prover_tracker::{self, ProverTrackerRef, TrackedPoly}, verifier_tracker::{TrackedComm, VerifierTrackerRef}
+    bag::{Bag, BagComm}, 
+    errors::PolyIOPErrors, 
+    prover_tracker::{ProverTrackerRef, TrackedPoly}, 
+    verifier_tracker::{TrackedComm, VerifierTrackerRef}
 };
 use super::bag_eq::BagEqIOP;
 

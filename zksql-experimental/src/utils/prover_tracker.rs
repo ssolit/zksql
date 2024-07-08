@@ -403,7 +403,7 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
         // 4) takes all relevant stuff and returns a CompiledProof
 
         // // 1) aggregate the subclaims into a single MLE
-        let nv = self.materialized_polys.iter().map(|(id, p)| p.num_vars()).max().unwrap();
+        let nv = self.materialized_polys.iter().map(|(_, p)| p.num_vars()).max().unwrap();
         // let mut agg_mle = DenseMultilinearExtension::<E::ScalarField>::from_evaluations_vec(nv, vec![E::ScalarField::zero(); 2_usize.pow(nv as u32)]);
         // let mut agg_sum = E::ScalarField::zero();
         // let sumcheck_claims = self.sum_check_claims.clone();

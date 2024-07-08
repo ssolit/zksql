@@ -22,7 +22,6 @@ use std::{
     rc::Rc,
     borrow::Borrow,
 };
-use std::ops::Neg;
 use transcript::{IOPTranscript, TranscriptError};
 
 
