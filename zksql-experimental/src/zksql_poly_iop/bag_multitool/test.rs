@@ -124,12 +124,12 @@ mod test {
     E: Pairing,
     PCS: PolynomialCommitmentScheme<E>,{
         // Set up prover_tracker and prove
-        let f_polys_vec: Vec<TrackedPoly<E, PCS>> = fs.iter().map(|p| prover_tracker.track_mat_poly(p.clone())).collect::<Result<Vec<_>, _>>()?;
-        let f_sel_polys_vec: Vec<TrackedPoly<E, PCS>> = f_sels.iter().map(|p| prover_tracker.track_mat_poly(p.clone())).collect::<Result<Vec<_>, _>>()?;
-        let mf_polys_vec: Vec<TrackedPoly<E, PCS>> = mfs.iter().map(|p| prover_tracker.track_mat_poly(p.clone())).collect::<Result<Vec<_>, _>>()?;
-        let g_polys_vec: Vec<TrackedPoly<E, PCS>> = gs.iter().map(|p| prover_tracker.track_mat_poly(p.clone())).collect::<Result<Vec<_>, _>>()?;
-        let g_sel_polys_vec: Vec<TrackedPoly<E, PCS>> = g_sels.iter().map(|p| prover_tracker.track_mat_poly(p.clone())).collect::<Result<Vec<_>, _>>()?;
-        let mg_polys_vec: Vec<TrackedPoly<E, PCS>> = mgs.iter().map(|p| prover_tracker.track_mat_poly(p.clone())).collect::<Result<Vec<_>, _>>()?;
+        let f_polys_vec: Vec<TrackedPoly<E, PCS>> = fs.iter().map(|p| prover_tracker.track_and_commit_poly(p.clone())).collect::<Result<Vec<_>, _>>()?;
+        let f_sel_polys_vec: Vec<TrackedPoly<E, PCS>> = f_sels.iter().map(|p| prover_tracker.track_and_commit_poly(p.clone())).collect::<Result<Vec<_>, _>>()?;
+        let mf_polys_vec: Vec<TrackedPoly<E, PCS>> = mfs.iter().map(|p| prover_tracker.track_and_commit_poly(p.clone())).collect::<Result<Vec<_>, _>>()?;
+        let g_polys_vec: Vec<TrackedPoly<E, PCS>> = gs.iter().map(|p| prover_tracker.track_and_commit_poly(p.clone())).collect::<Result<Vec<_>, _>>()?;
+        let g_sel_polys_vec: Vec<TrackedPoly<E, PCS>> = g_sels.iter().map(|p| prover_tracker.track_and_commit_poly(p.clone())).collect::<Result<Vec<_>, _>>()?;
+        let mg_polys_vec: Vec<TrackedPoly<E, PCS>> = mgs.iter().map(|p| prover_tracker.track_and_commit_poly(p.clone())).collect::<Result<Vec<_>, _>>()?;
 
         let f_bags_vec: Vec<Bag<E, PCS>> = f_polys_vec.iter()
             .zip(f_sel_polys_vec.iter())
@@ -238,8 +238,8 @@ mod test {
     PCS: PolynomialCommitmentScheme<E>,
     {
         // Set up prover_tracker and prove
-        let f_bag = Bag::new(prover_tracker.track_mat_poly(f.clone())?, prover_tracker.track_mat_poly(f_sel.clone())?);
-        let g_bag = Bag::new(prover_tracker.track_mat_poly(g.clone())?, prover_tracker.track_mat_poly(g_sel.clone())?);
+        let f_bag = Bag::new(prover_tracker.track_and_commit_poly(f.clone())?, prover_tracker.track_and_commit_poly(f_sel.clone())?);
+        let g_bag = Bag::new(prover_tracker.track_and_commit_poly(g.clone())?, prover_tracker.track_and_commit_poly(g_sel.clone())?);
 
 
         BagEqIOP::<E, PCS>::prove(
@@ -340,9 +340,9 @@ mod test {
     PCS: PolynomialCommitmentScheme<E>,
     {
         // Set up prover_tracker and prove
-        let f_bag = Bag::new(prover_tracker.track_mat_poly(f.clone())?, prover_tracker.track_mat_poly(f_sel.clone())?);
-        let g_bag = Bag::new(prover_tracker.track_mat_poly(g.clone())?, prover_tracker.track_mat_poly(g_sel.clone())?);
-        let mg = prover_tracker.track_mat_poly(mg.clone())?;
+        let f_bag = Bag::new(prover_tracker.track_and_commit_poly(f.clone())?, prover_tracker.track_and_commit_poly(f_sel.clone())?);
+        let g_bag = Bag::new(prover_tracker.track_and_commit_poly(g.clone())?, prover_tracker.track_and_commit_poly(g_sel.clone())?);
+        let mg = prover_tracker.track_and_commit_poly(mg.clone())?;
 
         BagSubsetIOP::<E, PCS>::prove(
             prover_tracker,
@@ -462,9 +462,9 @@ mod test {
     PCS: PolynomialCommitmentScheme<E>,
     {
         // Set up prover_tracker and prove
-        let f0_bag = Bag::new(prover_tracker.track_mat_poly(f0.clone())?, prover_tracker.track_mat_poly(f0_sel.clone())?);
-        let f1_bag = Bag::new(prover_tracker.track_mat_poly(f1.clone())?, prover_tracker.track_mat_poly(f1_sel.clone())?);
-        let g_bag = Bag::new(prover_tracker.track_mat_poly(g.clone())?, prover_tracker.track_mat_poly(g_sel.clone())?);
+        let f0_bag = Bag::new(prover_tracker.track_and_commit_poly(f0.clone())?, prover_tracker.track_and_commit_poly(f0_sel.clone())?);
+        let f1_bag = Bag::new(prover_tracker.track_and_commit_poly(f1.clone())?, prover_tracker.track_and_commit_poly(f1_sel.clone())?);
+        let g_bag = Bag::new(prover_tracker.track_and_commit_poly(g.clone())?, prover_tracker.track_and_commit_poly(g_sel.clone())?);
 
         BagSumIOP::<E, PCS>::prove(
             prover_tracker,
@@ -561,9 +561,9 @@ mod test {
     PCS: PolynomialCommitmentScheme<E>,
     {
         // Set up prover_tracker and prove
-        let f_bag = Bag::new(prover_tracker.track_mat_poly(f.clone())?, prover_tracker.track_mat_poly(f_sel.clone())?);
-        let g_bag = Bag::new(prover_tracker.track_mat_poly(g.clone())?, prover_tracker.track_mat_poly(g_sel.clone())?);
-        let perm = prover_tracker.track_mat_poly(perm.clone())?;
+        let f_bag = Bag::new(prover_tracker.track_and_commit_poly(f.clone())?, prover_tracker.track_and_commit_poly(f_sel.clone())?);
+        let g_bag = Bag::new(prover_tracker.track_and_commit_poly(g.clone())?, prover_tracker.track_and_commit_poly(g_sel.clone())?);
+        let perm = prover_tracker.track_and_commit_poly(perm.clone())?;
         
         BagPrescPermIOP::<E, PCS>::prove(
             prover_tracker,

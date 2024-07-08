@@ -101,15 +101,15 @@ where PCS: PolynomialCommitmentScheme<E>
         }
         
         // construct the full challenge polynomial by taking phat and multiplying by the selector and multiplicities
-        let phat = tracker.track_mat_poly(phat_mle)?;
+        let phat = tracker.track_and_commit_poly(phat_mle)?;
         let sumcheck_challenge_poly = phat.mul(&m).mul(&bag.selector);
        
         // Create Zerocheck claim for procing phat(x) is created correctly, 
         // i.e. ZeroCheck [(p(x)-gamma) * phat(x)  - 1] = [(p * phat) - gamma * phat - 1]
         let one_const_mle = DenseMultilinearExtension::from_evaluations_vec(nv, vec![E::ScalarField::one(); 2_usize.pow(nv as u32)]);
-        let one_const_poly = tracker.track_mat_poly(one_const_mle)?;
+        let one_const_poly = tracker.track_and_commit_poly(one_const_mle)?;
         let gamma_const_mle = DenseMultilinearExtension::from_evaluations_vec(nv, vec![gamma.clone(); 2_usize.pow(nv as u32)]);
-        let gamma_const_poly = tracker.track_mat_poly(gamma_const_mle)?;
+        let gamma_const_poly = tracker.track_and_commit_poly(gamma_const_mle)?;
         let phat_check_poly = p.sub(&gamma_const_poly).mul(&phat).sub(&one_const_poly);
         // let phat_check_poly = (p.mul(&phat)).sub(phat.mul_by_const(&gamma)).sub(&one_const_poly);
        

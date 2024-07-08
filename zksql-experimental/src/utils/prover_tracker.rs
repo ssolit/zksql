@@ -94,11 +94,22 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
         let polynomial = Arc::new(polynomial);
         self.materialized_polys.insert(poly_id.clone(), polynomial.clone());
 
-        // commit to the polynomial and add to the commitment map
-        let commitment = PCS::commit(self.pcs_param.clone(), &polynomial)?;
-        self.materialized_comms.insert(poly_id.clone(), Arc::new(commitment.clone()));
+        // Return the new TrackerID
+        Ok(poly_id)
+    }
 
-        // add commitment to the transcript
+    fn track_and_commit_mat_poly(
+        &mut self,
+        polynomial: DenseMultilinearExtension<E::ScalarField>,
+    ) -> Result<TrackerID, PCSError> {
+        // commit to the p[olynomial
+        let commitment = PCS::commit(self.pcs_param.clone(), &polynomial)?;
+
+        // track the polynomial and get its id
+        let poly_id = self.track_mat_poly(polynomial)?;
+
+        // add the commitment to the commitment map and transcript
+        self.materialized_comms.insert(poly_id.clone(), Arc::new(commitment.clone()));
         self.transcript.append_serializable_element(b"comm", &commitment)?;
 
         // Return the new TrackerID
@@ -267,7 +278,8 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
         return self.track_virt_poly(new_virt_rep);
     }
 
-    pub fn mul_by_const(
+
+    pub fn mul_const(
         &mut self, 
         poly_id: TrackerID, 
         c: E::ScalarField
@@ -473,13 +485,13 @@ impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTrackerRef<E, PCS> {
         Self {tracker_rc: Rc::new(RefCell::new(tracker)) }
     }
 
-    pub fn track_mat_poly(
+    pub fn track_and_commit_poly(
         &mut self,
         polynomial: DenseMultilinearExtension<E::ScalarField>,
     ) -> Result<TrackedPoly<E, PCS>, PCSError> {
         let tracker_ref_cell: &RefCell<ProverTracker<E, PCS>> = self.tracker_rc.borrow();
         let num_vars = polynomial.num_vars();
-        let res_id = tracker_ref_cell.borrow_mut().track_mat_poly(polynomial)?;
+        let res_id = tracker_ref_cell.borrow_mut().track_and_commit_mat_poly(polynomial)?;
        Ok(TrackedPoly::new(res_id, num_vars, self.tracker_rc.clone()))
     }
 
@@ -627,8 +639,8 @@ mod test {
         let rand_mle_1 = DenseMultilinearExtension::<Fr>::rand(nv,  &mut rng);
         let rand_mle_2 = DenseMultilinearExtension::<Fr>::rand(nv,  &mut rng);
 
-        let poly1 = tracker.track_mat_poly(rand_mle_1.clone())?;
-        let poly2 = tracker.track_mat_poly(rand_mle_2.clone())?;
+        let poly1 = tracker.track_and_commit_poly(rand_mle_1.clone())?;
+        let poly2 = tracker.track_and_commit_poly(rand_mle_2.clone())?;
         
         // assert polys get different ids
         assert_ne!(poly1.id, poly2.id);
@@ -650,8 +662,8 @@ mod test {
         let rand_mle_1 = DenseMultilinearExtension::<Fr>::rand(nv,  &mut rng);
         let rand_mle_2 = DenseMultilinearExtension::<Fr>::rand(nv,  &mut rng);
 
-        let poly1 = tracker.track_mat_poly(rand_mle_1.clone())?;
-        let poly2 = tracker.track_mat_poly(rand_mle_2.clone())?;
+        let poly1 = tracker.track_and_commit_poly(rand_mle_1.clone())?;
+        let poly2 = tracker.track_and_commit_poly(rand_mle_2.clone())?;
         let sum_poly = poly1.add(&poly2);
 
         // assert addition list is constructed correctly
@@ -684,9 +696,9 @@ mod test {
         let rand_mle_2 = DenseMultilinearExtension::<Fr>::rand(nv,  &mut rng);
         let rand_mle_3 = DenseMultilinearExtension::<Fr>::rand(nv,  &mut rng);
 
-        let poly1 = tracker.track_mat_poly(rand_mle_1.clone())?;
-        let poly2 = tracker.track_mat_poly(rand_mle_2.clone())?;
-        let poly3 = tracker.track_mat_poly(rand_mle_3.clone())?;
+        let poly1 = tracker.track_and_commit_poly(rand_mle_1.clone())?;
+        let poly2 = tracker.track_and_commit_poly(rand_mle_2.clone())?;
+        let poly3 = tracker.track_and_commit_poly(rand_mle_3.clone())?;
 
         let p1_plus_p2 = poly1.add(&poly2);
         let p1_plus_p2_plus_p3 = p1_plus_p2.add(&poly3);
@@ -736,13 +748,13 @@ mod test {
         let rand_mle_6 = DenseMultilinearExtension::<Fr>::rand(nv,  &mut rng);
         let rand_mle_7 = DenseMultilinearExtension::<Fr>::rand(nv,  &mut rng);
 
-        let poly1 = tracker.track_mat_poly(rand_mle_1.clone())?;
-        let poly2 = tracker.track_mat_poly(rand_mle_2.clone())?;
-        let poly3 = tracker.track_mat_poly(rand_mle_3.clone())?;
-        let poly4 = tracker.track_mat_poly(rand_mle_4.clone())?;
-        let poly5 = tracker.track_mat_poly(rand_mle_5.clone())?;
-        let poly6 = tracker.track_mat_poly(rand_mle_6.clone())?;
-        let poly7 = tracker.track_mat_poly(rand_mle_7.clone())?;
+        let poly1 = tracker.track_and_commit_poly(rand_mle_1.clone())?;
+        let poly2 = tracker.track_and_commit_poly(rand_mle_2.clone())?;
+        let poly3 = tracker.track_and_commit_poly(rand_mle_3.clone())?;
+        let poly4 = tracker.track_and_commit_poly(rand_mle_4.clone())?;
+        let poly5 = tracker.track_and_commit_poly(rand_mle_5.clone())?;
+        let poly6 = tracker.track_and_commit_poly(rand_mle_6.clone())?;
+        let poly7 = tracker.track_and_commit_poly(rand_mle_7.clone())?;
 
         let mut addend1 = poly1.add(&poly2);
         addend1 = addend1.mul(&poly3);
@@ -780,8 +792,8 @@ mod test {
         
         let rand_mle = DenseMultilinearExtension::<Fr>::rand(nv,  &mut rng);
 
-        let poly_1a = tracker1.track_mat_poly(rand_mle.clone())?;
-        let poly_2a = tracker2.track_mat_poly(rand_mle.clone())?;
+        let poly_1a = tracker1.track_and_commit_poly(rand_mle.clone())?;
+        let poly_2a = tracker2.track_and_commit_poly(rand_mle.clone())?;
         let poly_1b = TrackedPoly::new(poly_1a.id, poly_1a.num_vars, tracker1.tracker_rc.clone());
 
         assert!(!poly_1a.same_tracker(&poly_2a));
@@ -799,7 +811,7 @@ mod test {
         
         let rand_mle = DenseMultilinearExtension::<Fr>::rand(nv,  &mut rng);
 
-        let poly = tracker.track_mat_poly(rand_mle.clone())?;
+        let poly = tracker.track_and_commit_poly(rand_mle.clone())?;
 
         // assert evaluations correctly returns evals for a mat poly
         let evals = poly.evaluations();
@@ -819,9 +831,9 @@ mod test {
         let rand_mle_2 = DenseMultilinearExtension::<Fr>::rand(nv,  &mut rng);
         let rand_mle_3 = DenseMultilinearExtension::<Fr>::rand(nv,  &mut rng);
 
-        let poly1 = tracker.track_mat_poly(rand_mle_1.clone())?;
-        let poly2 = tracker.track_mat_poly(rand_mle_2.clone())?;
-        let poly3 = tracker.track_mat_poly(rand_mle_3.clone())?;
+        let poly1 = tracker.track_and_commit_poly(rand_mle_1.clone())?;
+        let poly2 = tracker.track_and_commit_poly(rand_mle_2.clone())?;
+        let poly3 = tracker.track_and_commit_poly(rand_mle_3.clone())?;
 
         let virt_poly = poly1.add(&poly2).mul(&poly3);
         let virt_poly_evals = virt_poly.evaluations();
