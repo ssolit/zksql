@@ -26,6 +26,7 @@ use crate::utils::tracker_structs::{TrackerID, TrackerSumcheckClaim, TrackerZero
 
 use subroutines::poly_iop::sum_check::{SumCheck, SumCheckSubClaim};
 use subroutines::{PolyIOP, IOPProof};
+use arithmetic::VirtualPolynomial;
 
 
 #[derive(Derivative)]
@@ -424,6 +425,29 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
         self.zero_check_claims.push(TrackerZerocheckClaim::new(poly_id));
     }
 
+    pub fn to_arithmatic_virtual_poly(&self, id: TrackerID) -> VirtualPolynomial<E::ScalarField> {
+        let mat_poly = self.materialized_polys.get(&id);
+        if mat_poly.is_some() {
+            return VirtualPolynomial::new_from_mle(mat_poly.unwrap(), E::ScalarField::one());
+        }
+
+        let poly = self.virtual_polys.get(&id);
+        if poly.is_none() {
+            panic!("Unknown poly id: {:?}", id);
+        }
+        let poly = poly.unwrap(); // Invariant: contains only material PolyIDs
+        let first_id = poly[0].1[0].clone();
+        let nv: usize = self.get_mat_poly(first_id).unwrap().num_vars();
+
+        let mut arith_virt_poly: VirtualPolynomial<E::ScalarField> = VirtualPolynomial::new(nv);
+        for (prod_coef, prod) in poly.iter() {
+            let prod_mle_list = prod.iter().map(|poly_id| self.get_mat_poly(poly_id.clone()).unwrap().clone()).collect::<Vec<Arc<DenseMultilinearExtension<E::ScalarField>>>>();
+            arith_virt_poly.add_mle_list(prod_mle_list, prod_coef.clone()).unwrap();
+        }
+
+        arith_virt_poly
+    }
+
     pub fn compile_proof(&mut self) -> CompiledZKSQLProof<E, PCS> {
         // creates a finished proof based off the subclaims that have been recorded
         // 1) aggregates the subclaims into a single MLE
@@ -490,6 +514,10 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
             opening_proof: vec![placeholder_opening_proof],
         }
     }
+
+    
+
+
 }
 
 #[derive(Derivative)]
@@ -655,6 +683,11 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> TrackedPoly<E, PCS> {
         let tracker_ref: &RefCell<ProverTracker<E, PCS>> = self.tracker.borrow();
         tracker_ref.borrow().evaluations(self.id.clone())
     }
+
+    pub fn to_arithmatic_virtual_poly(&self) -> VirtualPolynomial<E::ScalarField> {
+        let tracker_ref: &RefCell<ProverTracker<E, PCS>> = self.tracker.borrow();
+        tracker_ref.borrow().to_arithmatic_virtual_poly(self.id.clone())
+    }
 }
 
 
@@ -667,6 +700,17 @@ mod test {
     use ark_std::test_rng;
     use subroutines::MultilinearKzgPCS;
     use crate::utils::errors::PolyIOPErrors;
+
+    use subroutines::{
+        pcs::PolynomialCommitmentScheme,
+        poly_iop::{
+            // errors::PolyIOPErrors,
+            sum_check::{SumCheck, SumCheckSubClaim, 
+                // ZeroCheckIOP, ZeroCheckIOPSubClaim,
+            },
+        },
+        IOPProof,
+    };
 
     #[test]
     fn test_track_mat_poly() -> Result<(), PolyIOPErrors> {
@@ -883,6 +927,43 @@ mod test {
             expected_poly_evals[i] *= rand_mle_3[i];
         }
         assert_eq!(virt_poly_evals, expected_poly_evals);
+        Ok(())
+    }
+
+    #[test]
+    fn test_to_arithmatic_virtual_poly() -> Result<(), PolyIOPErrors> {
+        let mut rng = test_rng();
+        let nv = 4;
+        let srs = MultilinearKzgPCS::<Bls12_381>::gen_srs_for_testing(&mut rng, nv)?;
+        let (pcs_param, _) = MultilinearKzgPCS::<Bls12_381>::trim(&srs, None, Some(nv))?;
+        let mut tracker = ProverTrackerRef::new_from_tracker(ProverTracker::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>::new(pcs_param.clone()));
+        
+        let rand_mle_1 = DenseMultilinearExtension::<Fr>::rand(nv,  &mut rng);
+        let rand_mle_2 = DenseMultilinearExtension::<Fr>::rand(nv,  &mut rng);
+        let rand_mle_3 = DenseMultilinearExtension::<Fr>::rand(nv,  &mut rng);
+        let sum1: Fr = rand_mle_1.clone().evaluations.into_iter().sum();
+        let sum2: Fr = rand_mle_2.clone().evaluations.into_iter().sum();
+        let sum3: Fr = rand_mle_3.clone().evaluations.into_iter().sum();
+        let poly1 = tracker.track_and_commit_poly(rand_mle_1.clone())?;
+        let poly2 = tracker.track_and_commit_poly(rand_mle_2.clone())?;
+        let poly3 = tracker.track_and_commit_poly(rand_mle_3.clone())?;
+
+
+        // test sumcheck on mat poly
+        let arith_virt_poly = poly1.to_arithmatic_virtual_poly();
+        let transcript = IOPTranscript::<Fr>::new(b"test");
+        let proof = <PolyIOP<Fr> as SumCheck<Fr>>::prove(&arith_virt_poly, &mut transcript.clone()).unwrap();
+        <PolyIOP<Fr> as SumCheck<Fr>>::verify(sum1, &proof, &arith_virt_poly.aux_info, &mut transcript.clone()).unwrap();
+        assert!(<PolyIOP<Fr> as SumCheck<Fr>>::verify(Fr::zero(), &proof, &arith_virt_poly.aux_info, &mut transcript.clone()).is_err());
+
+        // test sumcheck on virtual poly
+        let complex_virt_poly = poly1.add_poly(&poly2).mul_poly(&poly3).mul_poly(&poly3);
+        let sum: Fr = complex_virt_poly.evaluations().iter().sum();
+        let arith_virt_poly = complex_virt_poly.to_arithmatic_virtual_poly();
+        let proof = <PolyIOP<Fr> as SumCheck<Fr>>::prove(&arith_virt_poly, &mut transcript.clone()).unwrap();
+        <PolyIOP<Fr> as SumCheck<Fr>>::verify(sum, &proof, &arith_virt_poly.aux_info, &mut transcript.clone()).unwrap();
+        assert!(<PolyIOP<Fr> as SumCheck<Fr>>::verify(Fr::zero(), &proof, &arith_virt_poly.aux_info, &mut transcript.clone()).is_err());
+
         Ok(())
     }
 }
