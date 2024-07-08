@@ -465,19 +465,19 @@ impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTrackerRef<E, PCS> {
 
     pub fn add_sumcheck_claim(
         &mut self, 
-        poly: TrackerID, 
+        poly_id: TrackerID, 
         claimed_sum: E::ScalarField
     ) {
         let tracker_ref_cell: &RefCell<ProverTracker<E, PCS>> = self.tracker_rc.borrow();
-        tracker_ref_cell.borrow_mut().add_sumcheck_claim(poly, claimed_sum);
+        tracker_ref_cell.borrow_mut().add_sumcheck_claim(poly_id, claimed_sum);
     }
 
     pub fn add_zerocheck_claim(
         &mut self, 
-        poly: TrackerID
+        poly_id: TrackerID
     ) {
         let tracker_ref_cell: &RefCell<ProverTracker<E, PCS>> = self.tracker_rc.borrow();
-        tracker_ref_cell.borrow_mut().add_zerocheck_claim(poly);
+        tracker_ref_cell.borrow_mut().add_zerocheck_claim(poly_id);
     }
 
     pub fn compile_proof(&mut self) -> CompiledZKSQLProof<E, PCS> {
