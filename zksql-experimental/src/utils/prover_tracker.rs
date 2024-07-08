@@ -86,7 +86,7 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
     pub fn track_mat_poly(
         &mut self,
         polynomial: DenseMultilinearExtension<E::ScalarField>,
-    ) -> Result<TrackerID, PCSError> {
+    ) -> TrackerID {
         // Create the new TrackerID
         let poly_id = self.gen_id();
 
@@ -95,7 +95,7 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
         self.materialized_polys.insert(poly_id.clone(), polynomial.clone());
 
         // Return the new TrackerID
-        Ok(poly_id)
+        poly_id
     }
 
     fn track_and_commit_mat_poly(
@@ -106,7 +106,7 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
         let commitment = PCS::commit(self.pcs_param.clone(), &polynomial)?;
 
         // track the polynomial and get its id
-        let poly_id = self.track_mat_poly(polynomial)?;
+        let poly_id = self.track_mat_poly(polynomial);
 
         // add the commitment to the commitment map and transcript
         self.materialized_comms.insert(poly_id.clone(), Arc::new(commitment.clone()));
@@ -132,6 +132,25 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
 
     pub fn get_virt_poly(&self, id: TrackerID) -> Option<&Vec<(E::ScalarField, Vec<TrackerID>)>> {
         self.virtual_polys.get(&id)
+    }
+
+    pub fn get_poly_nv(&self, id: TrackerID) -> usize {
+        let mat_poly = self.materialized_polys.get(&id);
+        if mat_poly.is_some() {
+            return mat_poly.unwrap().num_vars();
+        }
+
+        // look up the virtual polynomial
+        let virt_poly = self.virtual_polys.get(&id);
+        if virt_poly.is_none() {
+            panic!("Unknown poly id: {:?}", id);
+        }
+        let virt_poly = virt_poly.unwrap(); // Invariant: contains only material PolyIDs
+
+        // figure out the number of variables, assume they all have this nv
+        let first_id = virt_poly[0].1[0].clone();
+        let nv: usize = self.get_mat_poly(first_id).unwrap().num_vars();
+        nv
     }
 
     pub fn add_sub_polys(
@@ -278,6 +297,16 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
         return self.track_virt_poly(new_virt_rep);
     }
 
+    pub fn add_scalar(
+        &mut self, 
+        poly_id: TrackerID, 
+        c: E::ScalarField
+    ) -> TrackerID { 
+       let nv = self.get_poly_nv(poly_id);
+       let scalar_mle = DenseMultilinearExtension::from_evaluations_vec(nv, vec![c; 2_usize.pow(nv as u32)]);
+       let new_id = self.track_mat_poly(scalar_mle);
+       new_id
+    }
 
     pub fn mul_scalar(
         &mut self, 
@@ -603,6 +632,12 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> TrackedPoly<E, PCS> {
         let tracker_ref: &RefCell<ProverTracker<E, PCS>> = self.tracker.borrow();
         let res_id = tracker_ref.borrow_mut().mul_polys(self.id.clone(), other.id.clone());
         TrackedPoly::new(res_id, self.num_vars,self.tracker.clone())
+    }
+
+    pub fn add_scalar(&self, c: E::ScalarField) -> Self {
+        let tracker_ref: &RefCell<ProverTracker<E, PCS>> = self.tracker.borrow();
+        let res_id = tracker_ref.borrow_mut().add_scalar(self.id.clone(), c);
+        TrackedPoly::new(res_id, self.num_vars, self.tracker.clone())
     }
 
     pub fn mul_scalar(&self, c: E::ScalarField) -> Self {

@@ -198,6 +198,30 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTracker<E, PCS> {
         id
     }
 
+    pub fn add_scalar(
+        &mut self, 
+        poly_id: TrackerID, 
+        c: E::ScalarField
+    ) -> TrackerID {
+        let id = self.gen_id();
+        let virtual_comms_clone = self.virtual_comms.clone(); // need to clone so the new copy can be moved into the closure
+        let virtual_comms_ref_cell: &RefCell<HashMap<TrackerID, Box<dyn Fn(&[E::ScalarField]) -> Result<E::ScalarField, PolyIOPErrors>>>> = self.virtual_comms.borrow();
+        virtual_comms_ref_cell.borrow_mut().insert(
+            id.clone(), 
+            Box::new(
+                move |point: &[E::ScalarField]| {
+                    let virtual_comms_ref_cell: &RefCell<HashMap<TrackerID, Box<dyn Fn(&[E::ScalarField]) -> Result<E::ScalarField, PolyIOPErrors>>>> = virtual_comms_clone.borrow();
+                    let virtual_comms = virtual_comms_ref_cell.borrow();
+                    let poly_eval_box = virtual_comms.get(&poly_id).unwrap();
+                    let poly_eval: <E as Pairing>::ScalarField = poly_eval_box(point)?;
+                    let new_eval: <E as Pairing>::ScalarField = poly_eval + c; // c + old eval
+                    Ok(new_eval)
+                }
+            ),
+        );
+        id
+    }
+
     pub fn mul_scalar(
         &mut self, 
         poly_id: TrackerID, 
@@ -452,6 +476,12 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> TrackedComm<E, PCS> {
         TrackedComm::new(res_id, self.tracker.clone())
     }
 
+    pub fn add_scalar(&self, c: E::ScalarField) -> TrackedComm<E, PCS> {
+        let tracker_ref: &RefCell<VerifierTracker<E, PCS>> = self.tracker.borrow();
+        let res_id = tracker_ref.borrow_mut().add_scalar(self.id.clone(), c);
+        TrackedComm::new(res_id, self.tracker.clone())
+    }
+
     pub fn mul_scalar(&self, c: E::ScalarField) -> TrackedComm<E, PCS> {
         let tracker_ref: &RefCell<VerifierTracker<E, PCS>> = self.tracker.borrow();
         let res_id = tracker_ref.borrow_mut().mul_scalar(self.id.clone(), c);
@@ -480,6 +510,7 @@ fn test_eval_comm() -> Result<(), PolyIOPErrors> {
     use ark_poly::MultilinearExtension;
     use ark_std::UniformRand;
     use ark_std::One;
+    use std::ops::Neg;
 
     println!("starting eval comm test");
     // set up randomness
@@ -503,27 +534,22 @@ fn test_eval_comm() -> Result<(), PolyIOPErrors> {
     };
     proof.polynomial_evals.insert((TrackerID(0), point.clone()), eval1.clone());
     proof.polynomial_evals.insert((TrackerID(1), point.clone()), eval2.clone());
-    
 
+    
     // simulate interaction phase
     // [(p(x) + gamma) * phat(x)  - 1]
     println!("making virtual comms");
     let mut tracker: VerifierTrackerRef<Bls12_381, MultilinearKzgPCS<Bls12_381>> = VerifierTrackerRef::new_from_tracker(VerifierTracker::new(pcs_verifier_param));
     let comm1 = tracker.track_mat_comm(MultilinearKzgPCS::<Bls12_381>::commit(&pcs_prover_param, &poly1.clone())?)?;
     let comm2 = tracker.track_mat_comm(MultilinearKzgPCS::<Bls12_381>::commit(&pcs_prover_param, &poly2.clone())?)?;
-    let one_comm = tracker.track_virtual_comm(Box::new(|_: &[Fr]| -> Result<Fr, PolyIOPErrors> {
-        Ok(Fr::one())
-    }));
     let gamma = tracker.get_and_append_challenge(b"gamma")?;
-    let gamma_comm = tracker.track_virtual_comm(Box::new(move |_: &[Fr]| -> Result<Fr, PolyIOPErrors> {
-        Ok(gamma)
-    }));
-    let mut res_comm = comm1.add_comms(&gamma_comm);
+    let mut res_comm = comm1.add_scalar(gamma);
     res_comm = res_comm.mul_comms(&comm2);
-    let res_comm = res_comm.sub_comms(&one_comm);
+    let res_comm = res_comm.add_scalar(Fr::one().neg());
 
     // simulate decision phase
     println!("evaluating virtual comm");
+    tracker.set_compiled_proof(proof);
     tracker.transfer_proof_poly_evals();
     let res_eval = res_comm.eval_virtual_comm(&point)?;
     let expected_eval = (eval1 + gamma) * eval2 - Fr::one();
