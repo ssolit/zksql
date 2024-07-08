@@ -2,6 +2,7 @@
 use ark_ec::pairing::Pairing;
 use ark_poly::DenseMultilinearExtension;
 use ark_std::{One, Zero};
+use std::ops::Neg;
 use std::marker::PhantomData;
 use subroutines::pcs::PolynomialCommitmentScheme;
 
@@ -106,9 +107,7 @@ where PCS: PolynomialCommitmentScheme<E>
        
         // Create Zerocheck claim for procing phat(x) is created correctly, 
         // i.e. ZeroCheck [(p(x)-gamma) * phat(x)  - 1] = [(p * phat) - gamma * phat - 1]
-        let one_const_mle = DenseMultilinearExtension::from_evaluations_vec(nv, vec![E::ScalarField::one(); 2_usize.pow(nv as u32)]);
-        let one_const_poly = tracker.track_and_commit_poly(one_const_mle)?;
-        let phat_check_poly = (p.mul_poly(&phat)).sub_poly(&phat.mul_scalar(gamma)).sub_poly(&one_const_poly);
+        let phat_check_poly = (p.mul_poly(&phat)).sub_poly(&phat.mul_scalar(gamma)).add_scalar(E::ScalarField::one().neg());
        
         
         // add the delayed prover claims to the tracker
@@ -184,10 +183,7 @@ where PCS: PolynomialCommitmentScheme<E>
         
         // make the virtual comms as prover does
         let sumcheck_challenge_comm = phat.mul_comms(&m).mul_comms(&bag.selector);
-
-        let one_closure = |_: &[E::ScalarField]| -> Result<<E as Pairing>::ScalarField, PolyIOPErrors> {Ok(E::ScalarField::one())};
-        let one_comm = tracker.track_virtual_comm(Box::new(one_closure));
-        let phat_check_poly = (p.mul_comms(&phat)).sub_comms(&phat.mul_scalar(gamma)).sub_comms(&one_comm);
+        let phat_check_poly = (p.mul_comms(&phat)).sub_comms(&phat.mul_scalar(gamma)).add_scalar(E::ScalarField::one().neg());
        
 
         // add the delayed prover claims to the tracker
