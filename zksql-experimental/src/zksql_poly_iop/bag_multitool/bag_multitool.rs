@@ -105,12 +105,13 @@ where PCS: PolynomialCommitmentScheme<E>
         let sumcheck_challenge_poly = phat.mul(&m).mul(&bag.selector);
        
         // Create Zerocheck claim for procing phat(x) is created correctly, 
-        // i.e. ZeroCheck [(p(x)-gamma) * phat(x)  - 1]
+        // i.e. ZeroCheck [(p(x)-gamma) * phat(x)  - 1] = [(p * phat) - gamma * phat - 1]
         let one_const_mle = DenseMultilinearExtension::from_evaluations_vec(nv, vec![E::ScalarField::one(); 2_usize.pow(nv as u32)]);
         let one_const_poly = tracker.track_mat_poly(one_const_mle)?;
         let gamma_const_mle = DenseMultilinearExtension::from_evaluations_vec(nv, vec![gamma.clone(); 2_usize.pow(nv as u32)]);
         let gamma_const_poly = tracker.track_mat_poly(gamma_const_mle)?;
         let phat_check_poly = p.sub(&gamma_const_poly).mul(&phat).sub(&one_const_poly);
+        // let phat_check_poly = (p.mul(&phat)).sub(phat.mul_by_const(&gamma)).sub(&one_const_poly);
        
         
         // add the delayed prover claims to the tracker

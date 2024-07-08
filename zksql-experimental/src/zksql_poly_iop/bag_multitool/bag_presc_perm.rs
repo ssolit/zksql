@@ -66,6 +66,8 @@ where PCS: PolynomialCommitmentScheme<E> {
         let fhat_check_poly = ordered_poly.add(&gamma_const_poly).mul(&fx.poly).sub(&fhat_bag.poly);
         let ghat_check_poly = perm.add(&gamma_const_poly).mul(&gx.poly).sub(&ghat_bag.poly);
         
+        // ((o + gamma) * fx) - fhat = (o * fx) + (gamma * fx) - fhat
+
         // add the delayed prover claims to the tracker
         BagEqIOP::<E, PCS>::prove(tracker, &fhat_bag, &ghat_bag)?;
         tracker.add_zerocheck_claim(fhat_check_poly.id);

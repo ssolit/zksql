@@ -147,30 +147,29 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTracker<E, PCS> {
         id
     }
 
-    // First create a virtual comm for the negation of c2, then add c1 and the virtual comm
-    // Creates two new virtual comms total, matching the process done by prover_tracker
     pub fn sub_comms(
         &mut self, 
         c1_id: TrackerID, 
         c2_id: TrackerID
     ) -> TrackerID {
-        let neg_c2_id = self.gen_id();
+        let id = self.gen_id();
         let virtual_comms_clone = self.virtual_comms.clone(); // need to clone so the new copy can be moved into the closure
         let virtual_comms_ref_cell: &RefCell<HashMap<TrackerID, Box<dyn Fn(&[E::ScalarField]) -> Result<E::ScalarField, PolyIOPErrors>>>> = self.virtual_comms.borrow();
         virtual_comms_ref_cell.borrow_mut().insert(
-            neg_c2_id.clone(), 
+            id.clone(), 
             Box::new(
                 move |point: &[E::ScalarField]| {
                     let virtual_comms_ref_cell: &RefCell<HashMap<TrackerID, Box<dyn Fn(&[E::ScalarField]) -> Result<E::ScalarField, PolyIOPErrors>>>> = virtual_comms_clone.borrow();
                     let virtual_comms = virtual_comms_ref_cell.borrow();
+                    let c1_eval_box: &Box<dyn Fn(&[<E as Pairing>::ScalarField]) -> Result<<E as Pairing>::ScalarField, PolyIOPErrors>> = virtual_comms.get(&c1_id).unwrap();
+                    let c1_eval: <E as Pairing>::ScalarField = c1_eval_box(point)?;
                     let c2_eval_box = virtual_comms.get(&c2_id).unwrap();
                     let c2_eval: <E as Pairing>::ScalarField = c2_eval_box(point)?;
-                    Ok(c2_eval.neg())
+                    Ok(c1_eval - c2_eval)
                 }
             ),
         );
-
-        self.add_comms(neg_c2_id.clone(), c1_id.clone())
+        id
     }
 
     fn mul_comms(

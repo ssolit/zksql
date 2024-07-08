@@ -52,7 +52,7 @@ pub struct ProverTracker<E: Pairing, PCS: PolynomialCommitmentScheme<E>>{
     pub transcript: IOPTranscript<E::ScalarField>,
     pub id_counter: usize,
     pub materialized_polys: HashMap<TrackerID, Arc<DenseMultilinearExtension<E::ScalarField>>>, // underlying materialized polynomials, keyed by label
-    pub virtual_polys: HashMap<TrackerID, Vec<(E::ScalarField, Vec<TrackerID>)>>, // virtual polynomials, keyed by label. Invariant: values contain only material TrackerIDs
+    pub virtual_polys: HashMap<TrackerID, Vec<(E::ScalarField, Vec<TrackerID>)>>, // virtual polynomials, keyed by label.Invariant: a virt poly contains only material TrackerIDs
     pub materialized_comms: HashMap<TrackerID, Arc<PCS::Commitment>>,
     pub sum_check_claims: Vec<TrackerSumcheckClaim<E::ScalarField>>,
     pub zero_check_claims: Vec<TrackerZerocheckClaim<E::ScalarField>>,
@@ -123,17 +123,26 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
         self.virtual_polys.get(&id)
     }
 
-    pub fn add_polys(
+    pub fn add_sub_polys(
         &mut self, 
         p1_id: TrackerID, 
-        p2_id: TrackerID
+        p2_id: TrackerID,
+        do_sub: bool,
     ) -> TrackerID {
+
+        let sign_coeff: E::ScalarField;
+        if do_sub {
+            sign_coeff = E::ScalarField::one().neg();
+        } else {
+            sign_coeff = E::ScalarField::one();
+        }
+
         let p1_mat = self.get_mat_poly(p1_id.clone());
         let p1_virt = self.get_virt_poly(p1_id.clone());
         let p2_mat = self.get_mat_poly(p2_id.clone());
         let p2_virt = self.get_virt_poly(p2_id.clone());
 
-        let mut new_virt_rep = Vec::new();
+        let mut new_virt_rep = Vec::new(); // Invariant: contains only material TrackerIDs
         match (p1_mat.is_some(), p1_virt.is_some(), p2_mat.is_some(), p2_virt.is_some()) {
             // Bad Case: p1 not found
             (false, false, _, _) => {
@@ -145,23 +154,31 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
             }
             // Case 1: both p1 and p2 are materialized
             (true, false, true, false) => {
-                new_virt_rep.push((E::ScalarField::one(), vec![p1_id]));
-                new_virt_rep.push((E::ScalarField::one(), vec![p2_id]));
+                new_virt_rep.push((sign_coeff.clone(), vec![p1_id]));
+                new_virt_rep.push((sign_coeff.clone(), vec![p2_id]));
             },
             // Case 2: p1 is materialized and p2 is virtual
             (true, false, false, true) => {
-                new_virt_rep.push((E::ScalarField::one(), vec![p1_id]));
-                new_virt_rep.append(&mut p2_virt.unwrap().clone());
+                new_virt_rep.push((sign_coeff.clone(), vec![p1_id]));
+                p2_virt.unwrap().iter().for_each(|(coeff, prod)| {
+                    new_virt_rep.push((sign_coeff * coeff.clone(), prod.clone()));
+                });
             },
             // Case 3: p2 is materialized and p1 is virtual
             (false, true, true, false) => {
-                new_virt_rep.append(&mut p1_virt.unwrap().clone());
-                new_virt_rep.push((E::ScalarField::one(), vec![p2_id]));
+                p1_virt.unwrap().iter().for_each(|(coeff, prod)| {
+                    new_virt_rep.push((sign_coeff * coeff.clone(), prod.clone()));
+                });
+                new_virt_rep.push((sign_coeff.clone(), vec![p2_id]));
             },
             // Case 4: both p1 and p2 are virtual
             (false, true, false, true) => {
-                new_virt_rep.append(&mut p1_virt.unwrap().clone());
-                new_virt_rep.append(&mut p2_virt.unwrap().clone());
+                p1_virt.unwrap().iter().for_each(|(coeff, prod)| {
+                    new_virt_rep.push((sign_coeff * coeff.clone(), prod.clone()));
+                });
+                p2_virt.unwrap().iter().for_each(|(coeff, prod)| {
+                    new_virt_rep.push((sign_coeff * coeff.clone(), prod.clone()));
+                });
             },
             // Handling unexpected cases
             _ => {
@@ -171,13 +188,20 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
         return self.track_virt_poly(new_virt_rep);
     }
 
+    pub fn add_polys(
+        &mut self, 
+        p1_id: TrackerID, 
+        p2_id: TrackerID
+    ) -> TrackerID {
+        self.add_sub_polys(p1_id, p2_id, false)
+    }
+
     pub fn sub_polys(
         &mut self, 
         p1_id: TrackerID, 
         p2_id: TrackerID
     ) -> TrackerID {
-        let neg_p2_id = self.track_virt_poly(vec![(E::ScalarField::one().neg(), vec![p2_id])]);
-        self.add_polys(p1_id, neg_p2_id)
+        self.add_sub_polys(p1_id, p2_id, true)
     }
 
     pub fn mul_polys(
@@ -190,7 +214,7 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
         let p2_mat = self.get_mat_poly(p2_id.clone());
         let p2_virt = self.get_virt_poly(p2_id.clone());
 
-        let mut new_virt_rep = Vec::new();
+        let mut new_virt_rep = Vec::new(); // Invariant: contains only material TrackerIDs
         match (p1_mat.is_some(), p1_virt.is_some(), p2_mat.is_some(), p2_virt.is_some()) {
             // Bad Case: p1 not found
             (false, false, _, _) => {
@@ -240,6 +264,26 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
                 panic!("Internal tracker::mul_polys error. This code should be unreachable");
             },
         }
+        return self.track_virt_poly(new_virt_rep);
+    }
+
+    pub fn mul_by_const(
+        &mut self, 
+        poly_id: TrackerID, 
+        c: E::ScalarField
+    ) -> TrackerID {
+        let mut new_virt_rep = Vec::new(); // Invariant: contains only material TrackerIDs
+
+        let p_mat = self.get_mat_poly(poly_id);
+        if p_mat.is_some() {
+            new_virt_rep.push((c.clone(), vec![poly_id]));
+        } else {
+            let p_virt = self.get_virt_poly(poly_id);
+            p_virt.unwrap().iter().for_each(|(coeff, prod)| {
+                new_virt_rep.push((*coeff * c, prod.clone()));
+            });
+        }
+
         return self.track_virt_poly(new_virt_rep);
     }
 
