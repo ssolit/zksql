@@ -48,7 +48,7 @@ where PCS: PolynomialCommitmentScheme<E> {
         let one_comm = tracker.track_virtual_comm(Box::new(one_closure));
         BagMultiToolIOP::verify(tracker, &[fx.clone()], &[gx.clone()], &[one_comm.clone()], &[mg.clone()])?;
  
-         end_timer!(start);
-         Ok(())
+        end_timer!(start);
+        Ok(())
     }
 }

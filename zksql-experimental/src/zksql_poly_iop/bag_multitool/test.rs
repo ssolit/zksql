@@ -181,7 +181,7 @@ mod test {
         assert_eq!(p_tracker.id_counter, v_tracker.id_counter);
         assert_eq!(p_tracker.sum_check_claims, v_tracker.sum_check_claims);
         assert_eq!(p_tracker.zero_check_claims, v_tracker.zero_check_claims);
-        // assert_eq!(p_tracker.transcript, v_tracker.transcript);
+        
         Ok(())
     }
 
@@ -261,7 +261,7 @@ mod test {
         assert_eq!(p_tracker.id_counter, v_tracker.id_counter);
         assert_eq!(p_tracker.sum_check_claims, v_tracker.sum_check_claims);
         assert_eq!(p_tracker.zero_check_claims, v_tracker.zero_check_claims);
-        // assert_eq!(p_tracker.transcript, v_tracker.transcript);
+        
         Ok(())
     }
 
@@ -370,7 +370,7 @@ mod test {
         assert_eq!(p_tracker.id_counter, v_tracker.id_counter);
         assert_eq!(p_tracker.sum_check_claims, v_tracker.sum_check_claims);
         assert_eq!(p_tracker.zero_check_claims, v_tracker.zero_check_claims);
-        // assert_eq!(p_tracker.transcript, v_tracker.transcript);
+        
         Ok(())
     }
 
@@ -487,7 +487,7 @@ mod test {
         assert_eq!(p_tracker.id_counter, v_tracker.id_counter);
         assert_eq!(p_tracker.sum_check_claims, v_tracker.sum_check_claims);
         assert_eq!(p_tracker.zero_check_claims, v_tracker.zero_check_claims);
-        // assert_eq!(p_tracker.transcript, v_tracker.transcript);
+        
         Ok(())
     }
 
@@ -586,7 +586,7 @@ mod test {
         assert_eq!(p_tracker.id_counter, v_tracker.id_counter);
         assert_eq!(p_tracker.sum_check_claims, v_tracker.sum_check_claims);
         assert_eq!(p_tracker.zero_check_claims, v_tracker.zero_check_claims);
-        // assert_eq!(p_tracker.transcript, v_tracker.transcript);
+        
         Ok(())
         
     }

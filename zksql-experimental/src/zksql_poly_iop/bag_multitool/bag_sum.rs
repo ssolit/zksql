@@ -50,8 +50,8 @@ where PCS: PolynomialCommitmentScheme<E> {
         let _ = tracker.track_virtual_comm(Box::new(one_closure)); // extra virtual comm to match the prove structure
         BagMultiToolIOP::verify(tracker, &[fx0.clone(), fx1.clone()], &[gx.clone()], &[one_comm.clone(), one_comm.clone()], &[one_comm.clone()])?;
  
-         end_timer!(start);
-         Ok(())
+        end_timer!(start);
+        Ok(())
     }
 
 }

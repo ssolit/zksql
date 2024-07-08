@@ -98,7 +98,7 @@ where PCS: PolynomialCommitmentScheme<E> {
         
         BagEqIOP::<E, PCS>::verify(tracker, &fhat_comm_bag, &ghat_comm_bag)?;
 
-         end_timer!(start);
-         Ok(())
+        end_timer!(start);
+        Ok(())
     }
 }
