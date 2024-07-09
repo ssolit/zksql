@@ -192,12 +192,12 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
             }
             // Case 1: both p1 and p2 are materialized
             (true, false, true, false) => {
-                new_virt_rep.push((sign_coeff.clone(), vec![p1_id]));
+                new_virt_rep.push((E::ScalarField::one(), vec![p1_id]));
                 new_virt_rep.push((sign_coeff.clone(), vec![p2_id]));
             },
             // Case 2: p1 is materialized and p2 is virtual
             (true, false, false, true) => {
-                new_virt_rep.push((sign_coeff.clone(), vec![p1_id]));
+                new_virt_rep.push((E::ScalarField::one(), vec![p1_id]));
                 p2_virt.unwrap().iter().for_each(|(coeff, prod)| {
                     new_virt_rep.push((sign_coeff * coeff.clone(), prod.clone()));
                 });
@@ -205,14 +205,14 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
             // Case 3: p2 is materialized and p1 is virtual
             (false, true, true, false) => {
                 p1_virt.unwrap().iter().for_each(|(coeff, prod)| {
-                    new_virt_rep.push((sign_coeff * coeff.clone(), prod.clone()));
+                    new_virt_rep.push((coeff.clone(), prod.clone()));
                 });
                 new_virt_rep.push((sign_coeff.clone(), vec![p2_id]));
             },
             // Case 4: both p1 and p2 are virtual
             (false, true, false, true) => {
                 p1_virt.unwrap().iter().for_each(|(coeff, prod)| {
-                    new_virt_rep.push((sign_coeff * coeff.clone(), prod.clone()));
+                    new_virt_rep.push((coeff.clone(), prod.clone()));
                 });
                 p2_virt.unwrap().iter().for_each(|(coeff, prod)| {
                     new_virt_rep.push((sign_coeff * coeff.clone(), prod.clone()));
@@ -460,7 +460,7 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
     // Used as a preprocessing step before batching polynomials
     pub fn equalize_materialized_poly_nv(&mut self) -> usize {
         let nv: usize = self.materialized_polys.iter().map(|(_, p)| p.num_vars()).max().ok_or(1).unwrap();
-        for (id, poly) in self.materialized_polys.iter_mut() {
+        for (_, poly) in self.materialized_polys.iter_mut() {
             *poly = dmle_increase_nv(poly, nv);
         }
         nv
@@ -500,6 +500,7 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
 
         // // 2) generate a sumcheck proof
         let avp = self.to_arithmatic_virtual_poly(zerocheck_poly);
+        println!("avp eval at origin: {:?}", avp.evaluate(&vec![E::ScalarField::zero(); avp.aux_info.num_variables]));
         let zc_aux_info = avp.aux_info.clone();
         let zc_proof = <PolyIOP<E::ScalarField> as ZeroCheck<E::ScalarField>>::prove(&avp, &mut self.transcript).unwrap();
         let sc_sum = self.evaluations(sumcheck_poly).iter().sum::<E::ScalarField>();
@@ -863,7 +864,7 @@ mod test {
     fn test_virtual_polynomial_additions() -> Result<(), PolyIOPErrors> {
         let mut rng = test_rng();
         let nv = 4;
-         let srs = MultilinearKzgPCS::<Bls12_381>::gen_srs_for_testing(&mut rng, nv)?;
+        let srs = MultilinearKzgPCS::<Bls12_381>::gen_srs_for_testing(&mut rng, nv)?;
         let (pcs_param, _) = MultilinearKzgPCS::<Bls12_381>::trim(&srs, None, Some(nv))?;
         let mut tracker = ProverTrackerRef::new_from_tracker(ProverTracker::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>::new(pcs_param));
         
@@ -904,6 +905,53 @@ mod test {
 
         let sum_eval = sum.evaluate(test_eval_pt.as_slice()).unwrap();
         assert_eq!(sum_expected_eval, sum_eval);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_poly_sub() -> Result<(), PolyIOPErrors> {
+        let mut rng = test_rng();
+        let nv = 4;
+        let srs = MultilinearKzgPCS::<Bls12_381>::gen_srs_for_testing(&mut rng, nv)?;
+        let (pcs_param, _) = MultilinearKzgPCS::<Bls12_381>::trim(&srs, None, Some(nv))?;
+        let mut tracker = ProverTrackerRef::new_from_tracker(ProverTracker::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>::new(pcs_param));
+
+        let rand_mle_1 = DenseMultilinearExtension::<Fr>::rand(nv,  &mut rng);
+        let rand_mle_2 = DenseMultilinearExtension::<Fr>::rand(nv,  &mut rng);
+        let rand_mle_3 = DenseMultilinearExtension::<Fr>::rand(nv,  &mut rng);
+        let rand_mle_4 = DenseMultilinearExtension::<Fr>::rand(nv,  &mut rng);
+        let poly1 = tracker.track_and_commit_poly(rand_mle_1.clone())?;
+        let poly2 = tracker.track_and_commit_poly(rand_mle_2.clone())?;
+        let poly3 = tracker.track_and_commit_poly(rand_mle_3.clone())?;
+        let poly4 = tracker.track_and_commit_poly(rand_mle_4.clone())?;
+        let test_eval_pt: Vec<Fr> = (0..nv).map(|_| Fr::rand(&mut rng)).collect();
+        let poly1_eval: Fr = rand_mle_1.evaluate(test_eval_pt.as_slice()).unwrap();
+        let poly2_eval: Fr = rand_mle_2.evaluate(test_eval_pt.as_slice()).unwrap();
+        let poly3_eval: Fr = rand_mle_3.evaluate(test_eval_pt.as_slice()).unwrap();
+        let poly4_eval: Fr = rand_mle_4.evaluate(test_eval_pt.as_slice()).unwrap();
+
+
+        // test two mat polys
+        let poly1_minus_poly2 = poly1.sub_poly(&poly2);
+        let poly1_minus_poly2_eval: Fr = poly1_minus_poly2.evaluate(test_eval_pt.as_slice()).unwrap();
+        assert_eq!(poly1_minus_poly2_eval, poly1_eval - poly2_eval);
+
+        // test mat - virt
+        let mat_minus_virt = poly3.sub_poly(&poly1_minus_poly2);
+        let mat_minus_virt_eval: Fr = mat_minus_virt.evaluate(test_eval_pt.as_slice()).unwrap();
+        assert_eq!(mat_minus_virt_eval, poly3_eval - (poly1_eval - poly2_eval));
+
+        // test virt - mat
+        let virt_minus_mat = poly1_minus_poly2.sub_poly(&poly3);
+        let virt_minus_mat_eval: Fr = virt_minus_mat.evaluate(test_eval_pt.as_slice()).unwrap();
+        assert_eq!(virt_minus_mat_eval, (poly1_eval - poly2_eval) - poly3_eval);
+
+        // test mat - mat
+        let poly3_minus_poly4 = poly3.sub_poly(&poly4);
+        let mat_minus_mat = poly1_minus_poly2.sub_poly(&poly3_minus_poly4);
+        let mat_minus_mat_eval: Fr = mat_minus_mat.evaluate(test_eval_pt.as_slice()).unwrap();
+        assert_eq!(mat_minus_mat_eval, (poly1_eval - poly2_eval)- (poly3_eval - poly4_eval));
 
         Ok(())
     }
