@@ -22,11 +22,14 @@ use std::{
 use ark_serialize::CanonicalSerialize;
 
 use crate::utils::tracker_structs::{TrackerID, TrackerSumcheckClaim, TrackerZerocheckClaim};
+use crate::utils::dmle_utils::dmle_increase_nv;
 
-
-use subroutines::poly_iop::sum_check::{SumCheck, SumCheckSubClaim};
-use subroutines::{PolyIOP, IOPProof};
-use arithmetic::VirtualPolynomial;
+use subroutines::{
+    PolyIOP,
+    poly_iop::prelude::{SumCheck, ZeroCheck},
+    IOPProof,
+};
+use arithmetic::{VPAuxInfo, VirtualPolynomial};
 
 
 #[derive(Derivative)]
@@ -36,10 +39,14 @@ use arithmetic::VirtualPolynomial;
     Debug(bound = "PCS: PolynomialCommitmentScheme<E>"),
 )]
 pub struct CompiledZKSQLProof<E: Pairing, PCS: PolynomialCommitmentScheme<E>> {
+    pub comms: HashMap<TrackerID, PCS::Commitment>,
     pub sum_check_claims: HashMap<TrackerID, E::ScalarField>, // id -> [ sum_{i=0}^n p(i) ]
-    pub comms: HashMap<TrackerID, Arc<PCS::Commitment>>,
-    pub polynomial_evals: HashMap<(TrackerID, Vec<E::ScalarField>), E::ScalarField>, // (id, point) -> eval, // id -> p(comm_opening_point) 
-    pub opening_point: Vec<E::ScalarField>,
+    pub sc_proof: IOPProof<E::ScalarField>,
+    pub sc_sum: E::ScalarField,
+    pub sc_aux_info: VPAuxInfo<E::ScalarField>,
+    pub zc_proof: IOPProof<E::ScalarField>,
+    pub zc_aux_info: VPAuxInfo<E::ScalarField>,
+    pub query_map: HashMap<(TrackerID, Vec<E::ScalarField>), E::ScalarField>, // (id, point) -> eval, // id -> p(comm_opening_point) 
     pub opening_proof: Vec<PCS::Proof>,
 }
 
@@ -54,7 +61,7 @@ pub struct ProverTracker<E: Pairing, PCS: PolynomialCommitmentScheme<E>>{
     pub id_counter: usize,
     pub materialized_polys: HashMap<TrackerID, Arc<DenseMultilinearExtension<E::ScalarField>>>, // underlying materialized polynomials, keyed by label
     pub virtual_polys: HashMap<TrackerID, Vec<(E::ScalarField, Vec<TrackerID>)>>, // virtual polynomials, keyed by label.Invariant: a virt poly contains only material TrackerIDs
-    pub materialized_comms: HashMap<TrackerID, Arc<PCS::Commitment>>,
+    pub materialized_comms: HashMap<TrackerID, PCS::Commitment>,
     pub sum_check_claims: Vec<TrackerSumcheckClaim<E::ScalarField>>,
     pub zero_check_claims: Vec<TrackerZerocheckClaim<E::ScalarField>>,
 }
@@ -110,7 +117,7 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
         let poly_id = self.track_mat_poly(polynomial);
 
         // add the commitment to the commitment map and transcript
-        self.materialized_comms.insert(poly_id.clone(), Arc::new(commitment.clone()));
+        self.materialized_comms.insert(poly_id.clone(), commitment.clone());
         self.transcript.append_serializable_element(b"comm", &commitment)?;
 
         // Return the new TrackerID
@@ -448,6 +455,17 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
         arith_virt_poly
     }
 
+    // iterates through the materialized polynomials and increases the number of variables
+    // to the max number of variables in the tracker
+    // Used as a preprocessing step before batching polynomials
+    pub fn equalize_materialized_poly_nv(&mut self) -> usize {
+        let nv: usize = self.materialized_polys.iter().map(|(_, p)| p.num_vars()).max().ok_or(1).unwrap();
+        for (id, poly) in self.materialized_polys.iter_mut() {
+            *poly = dmle_increase_nv(poly, nv);
+        }
+        nv
+    }
+
     pub fn compile_proof(&mut self) -> CompiledZKSQLProof<E, PCS> {
         // creates a finished proof based off the subclaims that have been recorded
         // 1) aggregates the subclaims into a single MLE
@@ -455,24 +473,39 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
         // 3) create a batch opening proofs for the sumcheck point
         // 4) takes all relevant stuff and returns a CompiledProof
 
+        let nv = self.equalize_materialized_poly_nv();
+
+
         // // 1) aggregate the subclaims into a single MLE
-        let nv = self.materialized_polys.iter().map(|(_, p)| p.num_vars()).max().unwrap();
-        // let mut agg_mle = DenseMultilinearExtension::<E::ScalarField>::from_evaluations_vec(nv, vec![E::ScalarField::zero(); 2_usize.pow(nv as u32)]);
-        // let mut agg_sum = E::ScalarField::zero();
-        // let sumcheck_claims = self.sum_check_claims.clone();
-        // for claim in sumcheck_claims.iter() {
-        //     let challenge = self.get_and_append_challenge(b"sumcheck challenge").unwrap();
-        //     let claim_poly_id = claim.label.clone();
-        //     let claim_mat_poly = self.materialized_polys.get(&claim_poly_id).unwrap();
-        //     let poly_times_challenge_evals = claim_mat_poly.evaluations.iter().map(|x| *x * challenge).collect::<Vec<_>>();
-        //     let poly_times_challenge = DenseMultilinearExtension::<E::ScalarField>::from_evaluations_vec(claim_mat_poly.num_vars(), poly_times_challenge_evals);
-        //     agg_mle += poly_times_challenge;
-        //     agg_sum += claim.claimed_sum * challenge;
-        // };
+        // //    start with zero checks, then sumchecks
+
+        let mut zerocheck_poly = self.track_mat_poly(DenseMultilinearExtension::<E::ScalarField>::from_evaluations_vec(nv, vec![E::ScalarField::zero(); 2_usize.pow(nv as u32)]));
+        let zero_check_claims = self.zero_check_claims.clone();
+        for claim in zero_check_claims {
+            let challenge = self.get_and_append_challenge(b"zerocheck challenge").unwrap();
+            let claim_poly_id = self.mul_scalar(claim.label.clone(), challenge);
+            // let claim_poly_raw_evals = self.evaluations(claim_poly_id);
+            // let claim_mle = DenseMultilinearExtension::<E::ScalarField>::from_evaluations_vec(log2(claim_poly_raw_evals.len()) as usize, claim_poly_raw_evals);
+            // let claim_mle = dmle_increase_nv(&claim_mle, nv);
+            zerocheck_poly = self.add_polys(zerocheck_poly, claim_poly_id);
+        }
+
+        let mut sumcheck_poly = self.track_mat_poly(DenseMultilinearExtension::<E::ScalarField>::from_evaluations_vec(nv, vec![E::ScalarField::zero(); 2_usize.pow(nv as u32)]));
+        let sumcheck_claims = self.sum_check_claims.clone();
+        for claim in sumcheck_claims.iter() {
+            let challenge = self.get_and_append_challenge(b"sumcheck challenge").unwrap();
+            let claim_poly_id = self.mul_scalar(claim.label.clone(), challenge);
+            sumcheck_poly = self.add_polys(zerocheck_poly, claim_poly_id);
+        };
 
         // // 2) generate a sumcheck proof
-        // let agg_mle = VirtualPolynomial::new_from_mle(&Arc::new(agg_mle), agg_sum);
-        // let sumcheck_proof: IOPProof<E::ScalarField> = <PolyIOP<E::ScalarField> as SumCheck<E::ScalarField>>::prove(&agg_mle, &mut self.transcript).unwrap();
+        let avp = self.to_arithmatic_virtual_poly(zerocheck_poly);
+        let zc_aux_info = avp.aux_info.clone();
+        let zc_proof = <PolyIOP<E::ScalarField> as ZeroCheck<E::ScalarField>>::prove(&avp, &mut self.transcript).unwrap();
+        let sc_sum = self.evaluations(sumcheck_poly).iter().sum::<E::ScalarField>();
+        let avp = self.to_arithmatic_virtual_poly(sumcheck_poly);
+        let sc_aux_info = avp.aux_info.clone();
+        let sc_proof = <PolyIOP<E::ScalarField> as SumCheck<E::ScalarField>>::prove(&avp, &mut self.transcript).unwrap();
         
         // 3) create a batch opening proofs for the sumcheck point
         // let eval_pt = sumcheck_proof.point.clone();
@@ -487,10 +520,6 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
         // }
         // let batch_opening_proof = PCS::multi_open(&self.pcs_param, &polynomials, &points, &evals, &mut self.transcript).unwrap();
 
-
-
-
-
         // 4) create the CompiledProof
         // TODO: actually make a sumcheck proof and get these value
         // made a default value for now for testing
@@ -498,6 +527,9 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
         for claim in self.sum_check_claims.iter() {
             sumcheck_val_map.insert(claim.label.clone(), claim.claimed_sum);
         }
+
+
+        let placeholder_query_map: HashMap<(TrackerID, Vec<E::ScalarField>), E::ScalarField> = HashMap::new();
 
         let placeholder_opening_point = vec![E::ScalarField::zero(); nv];
         let mut placeholder_poly_evals: HashMap<(TrackerID, Vec<E::ScalarField>), E::ScalarField> = HashMap::new();
@@ -508,9 +540,13 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
         let placeholder_opening_proof = PCS::open(&self.pcs_param, &DenseMultilinearExtension::<E::ScalarField>::from_evaluations_vec(nv, vec![E::ScalarField::zero(); 2_usize.pow(nv as u32)]), &placeholder_opening_point).unwrap().0;
         CompiledZKSQLProof {
             sum_check_claims: sumcheck_val_map,
+            sc_proof,
+            sc_sum,
+            sc_aux_info,
+            zc_proof,
+            zc_aux_info,
+            query_map: placeholder_query_map,
             comms: self.materialized_comms.clone(),
-            polynomial_evals: placeholder_poly_evals,
-            opening_point: placeholder_opening_point,
             opening_proof: vec![placeholder_opening_proof],
         }
     }
@@ -603,6 +639,12 @@ impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTrackerRef<E, PCS> {
         let tracker_ref_cell: &RefCell<ProverTracker<E, PCS>> = self.tracker_rc.borrow();
         let tracker = tracker_ref_cell.borrow();
         (*tracker).clone()
+    }
+
+    pub fn deep_copy(&self) -> ProverTrackerRef<E, PCS> {
+        let tracker_ref_cell: &RefCell<ProverTracker<E, PCS>> = self.tracker_rc.borrow();
+        let tracker = tracker_ref_cell.borrow();
+        ProverTrackerRef::new_from_tracker((*tracker).clone())
     }
 }
 
@@ -702,12 +744,12 @@ mod test {
     use crate::utils::errors::PolyIOPErrors;
 
     use subroutines::{
+        PolyIOP,
         pcs::PolynomialCommitmentScheme,
         poly_iop::{
             // errors::PolyIOPErrors,
-            sum_check::{SumCheck, SumCheckSubClaim, 
-                // ZeroCheckIOP, ZeroCheckIOPSubClaim,
-            },
+            sum_check::{SumCheck, SumCheckSubClaim},
+            zero_check::{ZeroCheck, ZeroCheckSubClaim},
         },
         IOPProof,
     };
@@ -941,15 +983,13 @@ mod test {
         let rand_mle_1 = DenseMultilinearExtension::<Fr>::rand(nv,  &mut rng);
         let rand_mle_2 = DenseMultilinearExtension::<Fr>::rand(nv,  &mut rng);
         let rand_mle_3 = DenseMultilinearExtension::<Fr>::rand(nv,  &mut rng);
-        let sum1: Fr = rand_mle_1.clone().evaluations.into_iter().sum();
-        let sum2: Fr = rand_mle_2.clone().evaluations.into_iter().sum();
-        let sum3: Fr = rand_mle_3.clone().evaluations.into_iter().sum();
         let poly1 = tracker.track_and_commit_poly(rand_mle_1.clone())?;
         let poly2 = tracker.track_and_commit_poly(rand_mle_2.clone())?;
         let poly3 = tracker.track_and_commit_poly(rand_mle_3.clone())?;
 
 
         // test sumcheck on mat poly
+        let sum1: Fr = rand_mle_1.clone().evaluations.into_iter().sum();
         let arith_virt_poly = poly1.to_arithmatic_virtual_poly();
         let transcript = IOPTranscript::<Fr>::new(b"test");
         let proof = <PolyIOP<Fr> as SumCheck<Fr>>::prove(&arith_virt_poly, &mut transcript.clone()).unwrap();

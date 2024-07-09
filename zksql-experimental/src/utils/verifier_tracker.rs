@@ -17,16 +17,22 @@ use subroutines::PolynomialCommitmentScheme;
 use crate::utils::errors::PolyIOPErrors;
 use std::{
     collections::HashMap,
-    sync::Arc,
     cell::RefCell,
     rc::Rc,
     borrow::Borrow,
 };
 use transcript::{IOPTranscript, TranscriptError};
-
+use ark_std::Zero;
 
 use crate::utils::tracker_structs::{TrackerID, TrackerSumcheckClaim, TrackerZerocheckClaim};
 use crate::utils::prover_tracker::CompiledZKSQLProof;
+
+use subroutines::{
+    PolyIOP,
+    poly_iop::prelude::{SumCheck, ZeroCheck},
+    IOPProof,
+};
+use arithmetic::{VPAuxInfo, VirtualPolynomial};
 
 #[derive(Derivative, Display)]
 #[derivative(
@@ -36,7 +42,7 @@ pub struct VerifierTracker<E: Pairing, PCS: PolynomialCommitmentScheme<E>> {
     pub pcs_params: PCS::VerifierParam,
     pub transcript: IOPTranscript<E::ScalarField>,
     pub id_counter: usize,
-    pub materialized_comms: HashMap<TrackerID, Arc<PCS::Commitment>>, // map from id to Commitment
+    pub materialized_comms: HashMap<TrackerID, PCS::Commitment>, // map from id to Commitment
     pub virtual_comms: Rc<RefCell<HashMap<TrackerID, Box<dyn Fn(&[E::ScalarField]) -> Result<E::ScalarField, PolyIOPErrors>>>>>, // id -> eval_fn
     pub query_map: Rc<RefCell<HashMap<(TrackerID, Vec<E::ScalarField>), E::ScalarField>>>, // (poly_id, point) -> eval
     pub sum_check_claims: Vec<TrackerSumcheckClaim<E::ScalarField>>,
@@ -69,7 +75,7 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTracker<E, PCS> {
         TrackerID(self.id_counter)
     }
 
-    pub fn track_mat_comm(&mut self, comm: Arc<PCS::Commitment>) -> Result<TrackerID, PolyIOPErrors> {
+    pub fn track_mat_comm(&mut self, comm: PCS::Commitment) -> Result<TrackerID, PolyIOPErrors> {
         // Create the new TrackerID
         let id = self.gen_id();
         
@@ -111,7 +117,7 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTracker<E, PCS> {
         self.proof = proof;
     }
 
-    pub fn get_mat_comm(&self, id: TrackerID) -> Option<&Arc<PCS::Commitment>> {
+    pub fn get_mat_comm(&self, id: TrackerID) -> Option<&PCS::Commitment> {
         self.materialized_comms.get(&id)
     }
     
@@ -278,7 +284,7 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTracker<E, PCS> {
         self.zero_check_claims.push(TrackerZerocheckClaim::new(poly_id));
     }
 
-    pub fn get_prover_comm(&self, id: TrackerID) -> Option<&Arc<PCS::Commitment>> { 
+    pub fn get_prover_comm(&self, id: TrackerID) -> Option<&PCS::Commitment> { 
         self.proof.comms.get(&id) 
     }
 
@@ -289,9 +295,34 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTracker<E, PCS> {
     pub fn transfer_proof_poly_evals(&mut self) {
         let query_map_ref_cell: &RefCell<HashMap<(TrackerID, Vec<E::ScalarField>), E::ScalarField>> = self.query_map.borrow();
         let mut query_map = query_map_ref_cell.borrow_mut();
-        for (key, value) in &self.proof.polynomial_evals {
+        for (key, value) in &self.proof.query_map {
             query_map.insert(key.clone(), value.clone());
         }
+    }
+
+    pub fn verify_claims(&mut self) -> Result<(), PolyIOPErrors> {
+        let zero_closure = |_: &[E::ScalarField]| -> Result<<E as Pairing>::ScalarField, PolyIOPErrors> {Ok(E::ScalarField::zero())};
+        let mut zerocheck_comm = self.track_virtual_comm(Box::new(zero_closure));
+        let zero_check_claims = self.zero_check_claims.clone();
+        for claim in zero_check_claims {
+            let challenge = self.get_and_append_challenge(b"zerocheck challenge").unwrap();
+            let claim_poly_id = self.mul_scalar(claim.label.clone(), challenge);
+            zerocheck_comm = self.add_comms(zerocheck_comm, claim_poly_id);
+        }
+
+        let zero_closure = |_: &[E::ScalarField]| -> Result<<E as Pairing>::ScalarField, PolyIOPErrors> {Ok(E::ScalarField::zero())};
+        let mut sumcheck_comm = self.track_virtual_comm(Box::new(zero_closure));
+        let sumcheck_claims = self.sum_check_claims.clone();
+        for claim in sumcheck_claims.iter() {
+            let challenge = self.get_and_append_challenge(b"sumcheck challenge").unwrap();
+            let claim_poly_id = self.mul_scalar(claim.label.clone(), challenge);
+            sumcheck_comm = self.add_comms(zerocheck_comm, claim_poly_id);
+        };
+
+        <PolyIOP<E::ScalarField> as ZeroCheck<E::ScalarField>>::verify(&self.proof.zc_proof, &self.proof.zc_aux_info, &mut self.transcript);
+        <PolyIOP<E::ScalarField> as SumCheck<E::ScalarField>>::verify(self.proof.sc_sum, &self.proof.sc_proof, &self.proof.sc_aux_info, &mut self.transcript);
+
+        Ok(())
     }
 
     
@@ -326,7 +357,7 @@ impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTrackerRef<E, PCS>
     ) -> Result<TrackedComm<E, PCS>, PolyIOPErrors> {
         let tracker_ref: &RefCell<VerifierTracker<E, PCS>> = self.tracker_rc.borrow();
         let mut tracker: RefMut<VerifierTracker<E, PCS>> = tracker_ref.borrow_mut();
-        let res_id = tracker.track_mat_comm(Arc::new(comm))?;
+        let res_id = tracker.track_mat_comm(comm)?;
         Ok(TrackedComm::new(res_id, self.tracker_rc.clone()))
     }
 
@@ -350,7 +381,7 @@ impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTrackerRef<E, PCS>
         tracker_ref_cell.borrow_mut().set_compiled_proof(proof);
     }
 
-    pub fn get_mat_comm(&self, id: TrackerID) -> Arc<PCS::Commitment> {
+    pub fn get_mat_comm(&self, id: TrackerID) -> PCS::Commitment {
         let tracker_ref_cell: &RefCell<VerifierTracker<E, PCS>> = self.tracker_rc.borrow();
         tracker_ref_cell.borrow().get_mat_comm(id).unwrap().clone()
     }
@@ -393,12 +424,12 @@ impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTrackerRef<E, PCS>
 
     pub fn transfer_prover_comm(&mut self,  id: TrackerID) -> TrackedComm<E, PCS> {
         let new_id: TrackerID;
-        let comm: Arc<PCS::Commitment>;
+        let comm: PCS::Commitment;
         let tracker_ref_cell: &RefCell<VerifierTracker<E, PCS>> = self.tracker_rc.borrow();
         {
             // Scope the immutable borrow
             let tracker = tracker_ref_cell.borrow();
-            let comm_opt: Option<&Arc<PCS::Commitment>> = tracker.proof.comms.get(&id);
+            let comm_opt: Option<&PCS::Commitment> = tracker.proof.comms.get(&id);
             match comm_opt {
                 Some(value) => {
                     comm = value.clone();
@@ -419,11 +450,23 @@ impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTrackerRef<E, PCS>
         new_comm
     }
 
+    pub fn verify_claims(&self) -> Result<(), PolyIOPErrors> {
+        let tracker_ref_cell: &RefCell<VerifierTracker<E, PCS>> = self.tracker_rc.borrow();
+        let mut tracker = tracker_ref_cell.borrow_mut();
+        tracker.verify_claims()
+    }
+
     // used for testing
     pub fn clone_underlying_tracker(&self) -> VerifierTracker<E, PCS> {
         let tracker_ref_cell: &RefCell<VerifierTracker<E, PCS>> = self.tracker_rc.borrow();
         let tracker = tracker_ref_cell.borrow();
         (*tracker).clone()
+    }
+
+    pub fn deep_copy(&self) -> VerifierTrackerRef<E, PCS> {
+        let tracker_ref_cell: &RefCell<VerifierTracker<E, PCS>> = self.tracker_rc.borrow();
+        let tracker = tracker_ref_cell.borrow();
+        VerifierTrackerRef::new_from_tracker((*tracker).clone())
     }
 }
 
@@ -511,6 +554,7 @@ fn test_eval_comm() -> Result<(), PolyIOPErrors> {
     use ark_std::UniformRand;
     use ark_std::One;
     use std::ops::Neg;
+    use crate::utils::prover_tracker::{ProverTracker, ProverTrackerRef, TrackedPoly};
 
     println!("starting eval comm test");
     // set up randomness
@@ -525,23 +569,20 @@ fn test_eval_comm() -> Result<(), PolyIOPErrors> {
     let point = [Fr::rand(&mut rng); NV].to_vec();
     let eval1 = poly1.evaluate(&point).unwrap();
     let eval2 = poly2.evaluate(&point).unwrap();
-    let mut proof: CompiledZKSQLProof<Bls12_381, MultilinearKzgPCS<Bls12_381>> = CompiledZKSQLProof {
-        sum_check_claims: HashMap::new(),
-        comms: HashMap::new(),
-        polynomial_evals: HashMap::new(),
-        opening_point: vec![],
-        opening_proof: vec![],
-    };
-    proof.polynomial_evals.insert((TrackerID(0), point.clone()), eval1.clone());
-    proof.polynomial_evals.insert((TrackerID(1), point.clone()), eval2.clone());
+    let mut prover_tracker: ProverTrackerRef<Bls12_381, MultilinearKzgPCS<Bls12_381>> = ProverTrackerRef::new_from_tracker(ProverTracker::new(pcs_prover_param));
+    prover_tracker.track_and_commit_poly(poly1.clone())?;
+    prover_tracker.track_and_commit_poly(poly2.clone())?;
+    let mut proof = prover_tracker.compile_proof();
+    proof.query_map.insert((TrackerID(0), point.clone()), eval1.clone());
+    proof.query_map.insert((TrackerID(1), point.clone()), eval2.clone());
 
     
     // simulate interaction phase
     // [(p(x) + gamma) * phat(x)  - 1]
     println!("making virtual comms");
     let mut tracker: VerifierTrackerRef<Bls12_381, MultilinearKzgPCS<Bls12_381>> = VerifierTrackerRef::new_from_tracker(VerifierTracker::new(pcs_verifier_param));
-    let comm1 = tracker.track_mat_comm(MultilinearKzgPCS::<Bls12_381>::commit(&pcs_prover_param, &poly1.clone())?)?;
-    let comm2 = tracker.track_mat_comm(MultilinearKzgPCS::<Bls12_381>::commit(&pcs_prover_param, &poly2.clone())?)?;
+    let comm1 = tracker.track_mat_comm(proof.comms.get(&TrackerID(0)).unwrap().clone())?;
+    let comm2 = tracker.track_mat_comm(proof.comms.get(&TrackerID(1)).unwrap().clone())?;
     let gamma = tracker.get_and_append_challenge(b"gamma")?;
     let mut res_comm = comm1.add_scalar(gamma);
     res_comm = res_comm.mul_comms(&comm2);
