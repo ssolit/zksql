@@ -6,11 +6,13 @@
 
 //! Error module.
 
-use subroutines::pcs::prelude::PCSError;
+use std::string::String;
+
 use arithmetic::ArithErrors;
-use ark_std::string::String;
 use displaydoc::Display;
+use subroutines::pcs::prelude::PCSError;
 use transcript::TranscriptError;
+
 
 /// A `enum` specifying the possible failure modes of the PolyIOP.
 #[derive(Display, Debug)]

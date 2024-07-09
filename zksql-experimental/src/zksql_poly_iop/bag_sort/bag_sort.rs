@@ -2,28 +2,19 @@
 // by showing it's elements are a subset of [0, 2^n] 
 // and the product of its elements is non-zero
 
-use arithmetic::VPAuxInfo;
 use ark_ec::pairing::Pairing;
-use ark_ff::{batch_inversion, PrimeField};
+use ark_ff::batch_inversion;
 use ark_poly::DenseMultilinearExtension;
 use ark_poly::MultilinearExtension;
 use ark_std::{end_timer, One, start_timer, Zero};
-use std::{fmt::Debug, marker::PhantomData, sync::Arc};
+use std::marker::PhantomData;
 
-use subroutines::{
-    pcs::PolynomialCommitmentScheme
-};
+use subroutines::pcs::PolynomialCommitmentScheme;
 use crate::{
-    tracker::{
-        bag::{Bag, BagComm},
-        prover_tracker::{ProverTrackerRef, TrackedPoly}, 
-        tracker_structs::TrackerID, 
-        verifier_tracker::{TrackedComm, VerifierTrackerRef},
-        errors::PolyIOPErrors,
-    },
+    tracker::prelude::*,
     zksql_poly_iop::bag_multitool::{
-        bag_presc_perm::{BagPrescPermIOP}, 
-        bag_subset::{BagSubsetIOP},
+        bag_presc_perm::BagPrescPermIOP, 
+        bag_subset::BagSubsetIOP,
     },
 };
 

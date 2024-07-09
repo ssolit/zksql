@@ -1,6 +1,13 @@
-use ark_ff::PrimeField;
-use std::marker::PhantomData;
+use std::collections::HashMap;
 use std::fmt::Display;
+use std::marker::PhantomData;
+
+use ark_ec::pairing::Pairing;
+use ark_ff::PrimeField;
+use derivative::Derivative;
+
+use arithmetic::VPAuxInfo;
+use subroutines::{IOPProof, PolynomialCommitmentScheme};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct TrackerID(pub usize);
@@ -40,4 +47,20 @@ impl <F: PrimeField> TrackerZerocheckClaim<F> {
     }
 }
 
-
+#[derive(Derivative)]
+#[derivative(
+    Clone(bound = "PCS: PolynomialCommitmentScheme<E>"),
+    Default(bound = "PCS: PolynomialCommitmentScheme<E>"),
+    Debug(bound = "PCS: PolynomialCommitmentScheme<E>"),
+)]
+pub struct CompiledZKSQLProof<E: Pairing, PCS: PolynomialCommitmentScheme<E>> {
+    pub comms: HashMap<TrackerID, PCS::Commitment>,
+    pub sum_check_claims: HashMap<TrackerID, E::ScalarField>, // id -> [ sum_{i=0}^n p(i) ]
+    pub sc_proof: IOPProof<E::ScalarField>,
+    pub sc_sum: E::ScalarField,
+    pub sc_aux_info: VPAuxInfo<E::ScalarField>,
+    pub zc_proof: IOPProof<E::ScalarField>,
+    pub zc_aux_info: VPAuxInfo<E::ScalarField>,
+    pub query_map: HashMap<(TrackerID, Vec<E::ScalarField>), E::ScalarField>, // (id, point) -> eval, // id -> p(comm_opening_point) 
+    pub opening_proof: Vec<PCS::Proof>,
+}

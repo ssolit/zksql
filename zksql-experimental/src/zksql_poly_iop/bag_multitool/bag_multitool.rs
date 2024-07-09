@@ -6,13 +6,7 @@ use std::ops::Neg;
 use std::marker::PhantomData;
 use subroutines::pcs::PolynomialCommitmentScheme;
 
-use crate::tracker::{
-    bag::{Bag, BagComm},
-    prover_tracker::{ProverTrackerRef, TrackedPoly}, 
-    tracker_structs::TrackerID, 
-    verifier_tracker::{TrackedComm, VerifierTrackerRef},
-    errors::PolyIOPErrors,
-};
+use crate::tracker::prelude::*;
 
 
 pub struct BagMultiToolIOP<E: Pairing, PCS: PolynomialCommitmentScheme<E>>(PhantomData<E>, PhantomData<PCS>);

@@ -14,15 +14,8 @@ mod test {
     use ark_std::{One, Zero, rand::Rng};
 
     use crate::{
-        tracker::{
-            bag::{Bag, BagComm},
-            prover_tracker::{ProverTracker, ProverTrackerRef, TrackedPoly},
-            verifier_tracker::{TrackedComm, VerifierTracker, VerifierTrackerRef},
-            errors::PolyIOPErrors,
-        }, 
-        zksql_poly_iop::{
-            bag_sort::bag_sort::{BagStrictSortIOP},
-        },
+        tracker::prelude::*,
+        zksql_poly_iop::bag_sort::bag_sort::BagStrictSortIOP,
     };
 
 
@@ -63,8 +56,8 @@ mod test {
         let m_range = DenseMultilinearExtension::from_evaluations_vec(num_range_pow, m_range_evals);
 
         // create trackers
-        let mut prover_tracker: ProverTrackerRef<Bls12_381, MultilinearKzgPCS<Bls12_381>> = ProverTrackerRef::new_from_tracker(ProverTracker::new(pcs_prover_param));
-        let mut verifier_tracker: VerifierTrackerRef<Bls12_381, MultilinearKzgPCS<Bls12_381>> = VerifierTrackerRef::new_from_tracker(VerifierTracker::new(pcs_verifier_param));
+        let mut prover_tracker: ProverTrackerRef<Bls12_381, MultilinearKzgPCS<Bls12_381>> = ProverTrackerRef::new_from_pcs_params(pcs_prover_param);
+        let mut verifier_tracker: VerifierTrackerRef<Bls12_381, MultilinearKzgPCS<Bls12_381>> = VerifierTrackerRef::new_from_pcs_params(pcs_verifier_param);
 
         // test good path 1
         test_bag_strict_sort_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&mut prover_tracker, &mut verifier_tracker, &sorted_bag_poly, &sorted_bag_sel, &range_poly.clone(), &m_range.clone())?;
