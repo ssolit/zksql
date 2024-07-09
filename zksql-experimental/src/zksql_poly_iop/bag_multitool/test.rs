@@ -108,7 +108,7 @@ mod test {
         assert!(bad_result3.is_err());
         println!("bad path 3 passed");
 
-        // // exit successfully 
+        // exit successfully 
         Ok(())
     }
 

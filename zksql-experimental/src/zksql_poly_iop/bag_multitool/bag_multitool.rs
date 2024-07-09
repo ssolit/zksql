@@ -108,28 +108,6 @@ where PCS: PolynomialCommitmentScheme<E>
         // Create Zerocheck claim for procing phat(x) is created correctly, 
         // i.e. ZeroCheck [(p(x)-gamma) * phat(x)  - 1] = [(p * phat) - gamma * phat - 1]
         let phat_check_poly = (p.mul_poly(&phat)).sub_poly(&phat.mul_scalar(gamma)).add_scalar(E::ScalarField::one().neg());
-
-        // println!("bag_multitool debug start");
-        // let zero_vec = vec![E::ScalarField::zero(); nv];
-
-        // // let phat_check_poly_evals = phat_check_poly.evaluations();
-        // // println!("phat_check_poly_evals: {:?}", phat_check_poly_evals);
-        // // let nv = phat.num_vars();
-        // // let p_origin_eval = p.evaluate(&zero_vec).unwrap();
-        // // let phat_origin_eval = phat.evaluate(&zero_vec).unwrap();
-        // // let first_mul = p.mul_poly(&phat);
-        // // assert_eq!(first_mul.evaluate(&zero_vec).unwrap(),p_origin_eval * phat_origin_eval);
-        // // let second_mul = &phat.mul_scalar(gamma);
-        // // assert_eq!(second_mul.evaluate(&zero_vec).unwrap(), phat_origin_eval * gamma);
-        // // let sub_result = (p.mul_poly(&phat)).sub_poly(&phat.mul_scalar(gamma));
-        // // assert_eq!(sub_result.evaluate(&zero_vec).unwrap(), p_origin_eval * phat_origin_eval - (phat_origin_eval * gamma));
-        // // assert_eq!(sub_result.evaluate(&zero_vec).unwrap(), E::ScalarField::one());
-
-        // let most_of_it = (p.mul_poly(&phat)).sub_poly(&phat.mul_scalar(gamma));
-        // assert_eq!(most_of_it.evaluate(&zero_vec).unwrap(), E::ScalarField::one());
-        // println!("most_of_it: {:?}", most_of_it.evaluations());
-        // assert_eq!(phat_check_poly.evaluate(&zero_vec).unwrap(), E::ScalarField::zero());
-        // println!("got here\n\n");
         
         // add the delayed prover claims to the tracker
         tracker.add_sumcheck_claim(sumcheck_challenge_poly.id, v);
