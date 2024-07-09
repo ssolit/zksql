@@ -50,8 +50,8 @@ where PCS: PolynomialCommitmentScheme<E> {
         let fx_evals = fx.poly.evaluations();
         let gx_evals = gx.poly.evaluations();
         let perm_evals = perm.evaluations();
-        let fhat_evals = (0..2_usize.pow(fx.num_vars() as u32)).map(|i| ordered_mle[i] + gamma * fx_evals[i]).collect::<Vec<_>>();
-        let ghat_evals = (0..2_usize.pow(gx.num_vars() as u32)).map(|i| perm_evals[i] + gamma * gx_evals[i]).collect::<Vec<_>>();
+        let fhat_evals = (0..2_usize.pow(fx.num_vars() as u32)).map(|i| (ordered_mle[i] + gamma) * fx_evals[i]).collect::<Vec<_>>();
+        let ghat_evals = (0..2_usize.pow(gx.num_vars() as u32)).map(|i| (perm_evals[i] + gamma) * gx_evals[i]).collect::<Vec<_>>();
         let fhat_mle = DenseMultilinearExtension::from_evaluations_vec(fx.num_vars(), fhat_evals);
         let ghat_mle = DenseMultilinearExtension::from_evaluations_vec(gx.num_vars(), ghat_evals);
 

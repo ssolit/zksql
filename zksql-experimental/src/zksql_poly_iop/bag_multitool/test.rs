@@ -411,7 +411,7 @@ mod test {
         let g_sel = one_poly.clone();
 
         test_bagsum_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&mut prover_tracker, &mut verifier_tracker, &f0.clone(), &f0_sel.clone(), &f1.clone(), &f1_sel.clone(), &g.clone(), &g_sel.clone())?;
-        println!("test_bagsum good path 1 passed\n");
+        println!("test_bagsum good path 1 passed");
 
         // good path 2, f0 and f1 are different sized
         let f0_evals = gen_evals.clone()[..gen_evals.len()/2].to_vec();
@@ -436,7 +436,7 @@ mod test {
         let g_sel = DenseMultilinearExtension::from_evaluations_vec(nv, g_sel_evals.clone());
 
         test_bagsum_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&mut prover_tracker, &mut verifier_tracker, &f0.clone(), &f0_sel.clone(), &f1.clone(), &f1_sel.clone(), &g.clone(), &g_sel.clone())?;
-        println!("test_bagsum good path 2 passed\n");
+        println!("test_bagsum good path 2 passed");
 
         // bad path
         let mut bad_f0_evals = f0_evals.clone();
@@ -526,7 +526,7 @@ mod test {
 
         // good path
         test_bag_presc_perm_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&mut prover_tracker, &mut verifier_tracker, &f.clone(), &f_sel.clone(), &g.clone(), &g_sel.clone(), &perm.clone())?;
-        println!("test_presc_perm good path 1 passed\n");
+        println!("test_presc_perm good path 1 passed");
 
         // bad path 1 - different elements
         let mut bad_f_evals = f_evals.clone();
@@ -536,7 +536,7 @@ mod test {
         let bad_f_sel = one_poly.clone();
         let bad_result1 = test_bag_presc_perm_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&mut prover_tracker.deep_copy(), &mut verifier_tracker.deep_copy(), &bad_f.clone(), &bad_f_sel.clone(), &g.clone(), &g_sel.clone(), &perm.clone());
         assert!(bad_result1.is_err());
-        println!("test_presc_perm bad path 1 passed\n");
+        println!("test_presc_perm bad path 1 passed");
 
         // bad path 2 - f and g are a different permutation than perm
         let mut bad_perm_evals = perm_evals.clone();
@@ -546,7 +546,7 @@ mod test {
         let bad_perm = DenseMultilinearExtension::from_evaluations_vec(nv, bad_perm_evals.clone());
         let bad_result2 = test_bag_presc_perm_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&mut prover_tracker.deep_copy(), &mut verifier_tracker.deep_copy(), &f.clone(), &f_sel.clone(), &g.clone(), &g_sel.clone(), &bad_perm.clone());
         assert!(bad_result2.is_err());
-        println!("test_presc_perm bad path 2 passed\n");
+        println!("test_presc_perm bad path 2 passed");
 
         // exit successfully 
         Ok(())
