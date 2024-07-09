@@ -30,9 +30,7 @@ use crate::utils::prover_tracker::CompiledZKSQLProof;
 use subroutines::{
     PolyIOP,
     poly_iop::prelude::{SumCheck, ZeroCheck},
-    IOPProof,
 };
-use arithmetic::{VPAuxInfo, VirtualPolynomial};
 
 #[derive(Derivative, Display)]
 #[derivative(
@@ -209,6 +207,7 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTracker<E, PCS> {
         poly_id: TrackerID, 
         c: E::ScalarField
     ) -> TrackerID {
+        let _ = self.gen_id(); // burn a tracker id to match how prover_tracker::add_scalar works
         let id = self.gen_id();
         let virtual_comms_clone = self.virtual_comms.clone(); // need to clone so the new copy can be moved into the closure
         let virtual_comms_ref_cell: &RefCell<HashMap<TrackerID, Box<dyn Fn(&[E::ScalarField]) -> Result<E::ScalarField, PolyIOPErrors>>>> = self.virtual_comms.borrow();
@@ -316,11 +315,11 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTracker<E, PCS> {
         for claim in sumcheck_claims.iter() {
             let challenge = self.get_and_append_challenge(b"sumcheck challenge").unwrap();
             let claim_poly_id = self.mul_scalar(claim.label.clone(), challenge);
-            sumcheck_comm = self.add_comms(zerocheck_comm, claim_poly_id);
+            sumcheck_comm = self.add_comms(sumcheck_comm, claim_poly_id);
         };
 
-        <PolyIOP<E::ScalarField> as ZeroCheck<E::ScalarField>>::verify(&self.proof.zc_proof, &self.proof.zc_aux_info, &mut self.transcript);
-        <PolyIOP<E::ScalarField> as SumCheck<E::ScalarField>>::verify(self.proof.sc_sum, &self.proof.sc_proof, &self.proof.sc_aux_info, &mut self.transcript);
+        <PolyIOP<E::ScalarField> as ZeroCheck<E::ScalarField>>::verify(&self.proof.zc_proof, &self.proof.zc_aux_info, &mut self.transcript).unwrap();
+        <PolyIOP<E::ScalarField> as SumCheck<E::ScalarField>>::verify(self.proof.sc_sum, &self.proof.sc_proof, &self.proof.sc_aux_info, &mut self.transcript).unwrap();
 
         Ok(())
     }
@@ -554,7 +553,7 @@ fn test_eval_comm() -> Result<(), PolyIOPErrors> {
     use ark_std::UniformRand;
     use ark_std::One;
     use std::ops::Neg;
-    use crate::utils::prover_tracker::{ProverTracker, ProverTrackerRef, TrackedPoly};
+    use crate::utils::prover_tracker::{ProverTracker, ProverTrackerRef};
 
     println!("starting eval comm test");
     // set up randomness

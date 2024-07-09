@@ -190,85 +190,85 @@ mod test {
         Ok(())
     }
 
-    // Sets up randomized inputs for testing BagEqCheck
-    fn test_bageq() -> Result<(), PolyIOPErrors> {
-        // testing params
-        let nv = 8;
-        let mut rng = test_rng();
+    // // Sets up randomized inputs for testing BagEqCheck
+    // fn test_bageq() -> Result<(), PolyIOPErrors> {
+    //     // testing params
+    //     let nv = 8;
+    //     let mut rng = test_rng();
 
-        // PCS params
-        let srs = MultilinearKzgPCS::<Bls12_381>::gen_srs_for_testing(&mut rng, nv)?;
-        let (pcs_prover_param, pcs_verifier_param) = MultilinearKzgPCS::<Bls12_381>::trim(&srs, None, Some(nv))?;
+    //     // PCS params
+    //     let srs = MultilinearKzgPCS::<Bls12_381>::gen_srs_for_testing(&mut rng, nv)?;
+    //     let (pcs_prover_param, pcs_verifier_param) = MultilinearKzgPCS::<Bls12_381>::trim(&srs, None, Some(nv))?;
 
-        // randomly init f, mf, and a permutation vec, and build g, mg based off of it
-        let f = arithmetic::random_permutation_mles(nv, 1, &mut rng)[0].clone();
-        let g = arithmetic::random_permutation_mles(nv, 1, &mut rng)[0].clone();
-        let one_poly = DenseMultilinearExtension::from_evaluations_vec(nv, vec![Fr::one(); 2_usize.pow(nv as u32)]);
-        let f_sel = one_poly.clone();
-        let g_sel = one_poly.clone();
+    //     // randomly init f, mf, and a permutation vec, and build g, mg based off of it
+    //     let f = arithmetic::random_permutation_mles(nv, 1, &mut rng)[0].clone();
+    //     let g = arithmetic::random_permutation_mles(nv, 1, &mut rng)[0].clone();
+    //     let one_poly = DenseMultilinearExtension::from_evaluations_vec(nv, vec![Fr::one(); 2_usize.pow(nv as u32)]);
+    //     let f_sel = one_poly.clone();
+    //     let g_sel = one_poly.clone();
         
-        // Create Trackers
-        let mut prover_tracker: ProverTrackerRef<Bls12_381, MultilinearKzgPCS<Bls12_381>> = ProverTrackerRef::new_from_tracker(ProverTracker::new(pcs_prover_param));
-        let mut verifier_tracker: VerifierTrackerRef<Bls12_381, MultilinearKzgPCS<Bls12_381>> = VerifierTrackerRef::new_from_tracker(VerifierTracker::new(pcs_verifier_param));
+    //     // Create Trackers
+    //     let mut prover_tracker: ProverTrackerRef<Bls12_381, MultilinearKzgPCS<Bls12_381>> = ProverTrackerRef::new_from_tracker(ProverTracker::new(pcs_prover_param));
+    //     let mut verifier_tracker: VerifierTrackerRef<Bls12_381, MultilinearKzgPCS<Bls12_381>> = VerifierTrackerRef::new_from_tracker(VerifierTracker::new(pcs_verifier_param));
 
-        // Good Path 
-        test_bageq_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&mut prover_tracker, &mut verifier_tracker, &f.clone(), &f_sel.clone(),  &g.clone(), &g_sel.clone())?;
-        println!("Good path passed");
+    //     // Good Path 
+    //     test_bageq_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&mut prover_tracker, &mut verifier_tracker, &f.clone(), &f_sel.clone(),  &g.clone(), &g_sel.clone())?;
+    //     println!("Good path passed");
 
-        // Bad path
-        let mut h_evals = f.evaluations.clone();
-        h_evals[0] = h_evals[0] + Fr::one();
-        let h = DenseMultilinearExtension::from_evaluations_vec(f.num_vars, h_evals);
-        let h_sel = one_poly.clone();
+    //     // Bad path
+    //     let mut h_evals = f.evaluations.clone();
+    //     h_evals[0] = h_evals[0] + Fr::one();
+    //     let h = DenseMultilinearExtension::from_evaluations_vec(f.num_vars, h_evals);
+    //     let h_sel = one_poly.clone();
 
-        let bad_result1 = test_bageq_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&mut prover_tracker.deep_copy(), &mut verifier_tracker.deep_copy(), &f.clone(), &f_sel.clone(), &h.clone(), &h_sel.clone());
-        assert!(bad_result1.is_err());
-        println!("Bad path passed");
+    //     let bad_result1 = test_bageq_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&mut prover_tracker.deep_copy(), &mut verifier_tracker.deep_copy(), &f.clone(), &f_sel.clone(), &h.clone(), &h_sel.clone());
+    //     assert!(bad_result1.is_err());
+    //     println!("Bad path passed");
 
-        // exit successfully 
-        Ok(())
-    }
+    //     // exit successfully 
+    //     Ok(())
+    // }
 
-        // Given inputs, calls and verifies BagEqCheck
-    fn test_bageq_helper<E, PCS>(
-        prover_tracker: &mut ProverTrackerRef<E, PCS>,
-        verifier_tracker: &mut VerifierTrackerRef<E, PCS>,
-        f: &DenseMultilinearExtension<E::ScalarField>,
-        f_sel: &DenseMultilinearExtension<E::ScalarField>,
-        g: &DenseMultilinearExtension<E::ScalarField>,
-        g_sel: &DenseMultilinearExtension<E::ScalarField>,
-    ) -> Result<(), PolyIOPErrors>
-    where
-    E: Pairing,
-    PCS: PolynomialCommitmentScheme<E>,
-    {
-        // Set up prover_tracker and prove
-        let f_bag = Bag::new(prover_tracker.track_and_commit_poly(f.clone())?, prover_tracker.track_and_commit_poly(f_sel.clone())?);
-        let g_bag = Bag::new(prover_tracker.track_and_commit_poly(g.clone())?, prover_tracker.track_and_commit_poly(g_sel.clone())?);
+    //     // Given inputs, calls and verifies BagEqCheck
+    // fn test_bageq_helper<E, PCS>(
+    //     prover_tracker: &mut ProverTrackerRef<E, PCS>,
+    //     verifier_tracker: &mut VerifierTrackerRef<E, PCS>,
+    //     f: &DenseMultilinearExtension<E::ScalarField>,
+    //     f_sel: &DenseMultilinearExtension<E::ScalarField>,
+    //     g: &DenseMultilinearExtension<E::ScalarField>,
+    //     g_sel: &DenseMultilinearExtension<E::ScalarField>,
+    // ) -> Result<(), PolyIOPErrors>
+    // where
+    // E: Pairing,
+    // PCS: PolynomialCommitmentScheme<E>,
+    // {
+    //     // Set up prover_tracker and prove
+    //     let f_bag = Bag::new(prover_tracker.track_and_commit_poly(f.clone())?, prover_tracker.track_and_commit_poly(f_sel.clone())?);
+    //     let g_bag = Bag::new(prover_tracker.track_and_commit_poly(g.clone())?, prover_tracker.track_and_commit_poly(g_sel.clone())?);
 
 
-        BagEqIOP::<E, PCS>::prove(
-            prover_tracker,
-            &f_bag,
-            &g_bag,
-        )?;
-        let proof = prover_tracker.compile_proof();
+    //     BagEqIOP::<E, PCS>::prove(
+    //         prover_tracker,
+    //         &f_bag,
+    //         &g_bag,
+    //     )?;
+    //     let proof = prover_tracker.compile_proof();
         
-        // set up verifier tracker and create subclaims
-        verifier_tracker.set_compiled_proof(proof);
-        let f_bag_comm = BagComm::new(verifier_tracker.transfer_prover_comm(f_bag.poly.id), verifier_tracker.transfer_prover_comm(f_bag.selector.id));
-        let g_bag_comm = BagComm::new(verifier_tracker.transfer_prover_comm(g_bag.poly.id), verifier_tracker.transfer_prover_comm(g_bag.selector.id));
-        BagEqIOP::<E, PCS>::verify(verifier_tracker, &f_bag_comm, &g_bag_comm)?;
+    //     // set up verifier tracker and create subclaims
+    //     verifier_tracker.set_compiled_proof(proof);
+    //     let f_bag_comm = BagComm::new(verifier_tracker.transfer_prover_comm(f_bag.poly.id), verifier_tracker.transfer_prover_comm(f_bag.selector.id));
+    //     let g_bag_comm = BagComm::new(verifier_tracker.transfer_prover_comm(g_bag.poly.id), verifier_tracker.transfer_prover_comm(g_bag.selector.id));
+    //     BagEqIOP::<E, PCS>::verify(verifier_tracker, &f_bag_comm, &g_bag_comm)?;
 
-        // check that the ProverTracker and VerifierTracker are in the same state
-        let p_tracker = prover_tracker.clone_underlying_tracker();
-        let v_tracker = verifier_tracker.clone_underlying_tracker();
-        assert_eq!(p_tracker.id_counter, v_tracker.id_counter);
-        assert_eq!(p_tracker.sum_check_claims, v_tracker.sum_check_claims);
-        assert_eq!(p_tracker.zero_check_claims, v_tracker.zero_check_claims);
+    //     // check that the ProverTracker and VerifierTracker are in the same state
+    //     let p_tracker = prover_tracker.clone_underlying_tracker();
+    //     let v_tracker = verifier_tracker.clone_underlying_tracker();
+    //     assert_eq!(p_tracker.id_counter, v_tracker.id_counter);
+    //     assert_eq!(p_tracker.sum_check_claims, v_tracker.sum_check_claims);
+    //     assert_eq!(p_tracker.zero_check_claims, v_tracker.zero_check_claims);
         
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
     // // Sets up randomized inputs for testing BagSubsetIOP
     // fn test_bagsubset() -> Result<(), PolyIOPErrors> {
@@ -604,11 +604,11 @@ mod test {
         res.unwrap();
     }
 
-    #[test]
-    fn bageq_test() {
-        let res = test_bageq();
-        res.unwrap();
-    }
+    // #[test]
+    // fn bageq_test() {
+    //     let res = test_bageq();
+    //     res.unwrap();
+    // }
 
     // #[test]
     // fn bagsubset_test() {

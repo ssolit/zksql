@@ -31,8 +31,8 @@ where PCS: PolynomialCommitmentScheme<E> {
         let nv = fx.num_vars();
 
         // initialize multiplicity vector
-        let one_const_poly = DenseMultilinearExtension::from_evaluations_vec(nv, vec![E::ScalarField::one(); 2_usize.pow(nv as u32)]);
-        let mx = tracker.track_and_commit_poly(one_const_poly)?;
+        let one_const_mle = DenseMultilinearExtension::from_evaluations_vec(nv, vec![E::ScalarField::one(); 2_usize.pow(nv as u32)]);
+        let mx = tracker.track_and_commit_poly(one_const_mle)?;
 
         // call the bag_multitool prover
         // the null_offset is set to zero here because we assume it is an exact permutation without extra nulls

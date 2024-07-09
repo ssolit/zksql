@@ -312,7 +312,8 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
     ) -> TrackerID { 
        let nv = self.get_poly_nv(poly_id);
        let scalar_mle = DenseMultilinearExtension::from_evaluations_vec(nv, vec![c; 2_usize.pow(nv as u32)]);
-       let new_id = self.track_mat_poly(scalar_mle);
+       let scalar_id = self.track_mat_poly(scalar_mle);
+       let new_id = self.add_polys(poly_id, scalar_id);
        new_id
     }
 
@@ -500,7 +501,6 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
 
         // // 2) generate a sumcheck proof
         let avp = self.to_arithmatic_virtual_poly(zerocheck_poly);
-        println!("avp eval at origin: {:?}", avp.evaluate(&vec![E::ScalarField::zero(); avp.aux_info.num_variables]));
         let zc_aux_info = avp.aux_info.clone();
         let zc_proof = <PolyIOP<E::ScalarField> as ZeroCheck<E::ScalarField>>::prove(&avp, &mut self.transcript).unwrap();
         let sc_sum = self.evaluations(sumcheck_poly).iter().sum::<E::ScalarField>();
@@ -749,10 +749,8 @@ mod test {
         pcs::PolynomialCommitmentScheme,
         poly_iop::{
             // errors::PolyIOPErrors,
-            sum_check::{SumCheck, SumCheckSubClaim},
-            zero_check::{ZeroCheck, ZeroCheckSubClaim},
+            sum_check::SumCheck,
         },
-        IOPProof,
     };
 
     #[test]
