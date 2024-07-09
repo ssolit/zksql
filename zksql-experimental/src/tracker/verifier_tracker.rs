@@ -14,7 +14,7 @@ use ark_serialize::CanonicalSerialize;
 use std::cell::RefMut;
 use derivative::Derivative;
 use subroutines::PolynomialCommitmentScheme;
-use crate::utils::errors::PolyIOPErrors;
+use crate::tracker::errors::PolyIOPErrors;
 use std::{
     collections::HashMap,
     cell::RefCell,
@@ -24,8 +24,8 @@ use std::{
 use transcript::{IOPTranscript, TranscriptError};
 use ark_std::Zero;
 
-use crate::utils::tracker_structs::{TrackerID, TrackerSumcheckClaim, TrackerZerocheckClaim};
-use crate::utils::prover_tracker::CompiledZKSQLProof;
+use crate::tracker::tracker_structs::{TrackerID, TrackerSumcheckClaim, TrackerZerocheckClaim};
+use crate::tracker::prover_tracker::CompiledZKSQLProof;
 
 use subroutines::{
     PolyIOP,
@@ -553,7 +553,7 @@ fn test_eval_comm() -> Result<(), PolyIOPErrors> {
     use ark_std::UniformRand;
     use ark_std::One;
     use std::ops::Neg;
-    use crate::utils::prover_tracker::{ProverTracker, ProverTrackerRef};
+    use crate::tracker::prover_tracker::{ProverTracker, ProverTrackerRef};
 
     println!("starting eval comm test");
     // set up randomness

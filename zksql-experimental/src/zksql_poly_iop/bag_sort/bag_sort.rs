@@ -14,7 +14,7 @@ use subroutines::{
     pcs::PolynomialCommitmentScheme
 };
 use crate::{
-    utils::{
+    tracker::{
         bag::{Bag, BagComm},
         prover_tracker::{ProverTrackerRef, TrackedPoly}, 
         tracker_structs::TrackerID, 
@@ -110,6 +110,8 @@ where PCS: PolynomialCommitmentScheme<E> {
             &range_bag.clone(),
             &m_range.clone(),
         )?;
+
+
         
 
         

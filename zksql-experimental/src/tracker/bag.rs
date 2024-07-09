@@ -1,8 +1,8 @@
 use derivative::Derivative;
 use subroutines::PolynomialCommitmentScheme;
 use ark_ec::pairing::Pairing;
-use crate::utils::prover_tracker::{ProverTrackerRef, TrackedPoly};
-use crate::utils::verifier_tracker::TrackedComm;
+use crate::tracker::prover_tracker::{ProverTrackerRef, TrackedPoly};
+use crate::tracker::verifier_tracker::TrackedComm;
 
 #[derive(Derivative)]
 #[derivative(

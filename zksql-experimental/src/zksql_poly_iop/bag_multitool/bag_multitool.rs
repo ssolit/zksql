@@ -6,7 +6,7 @@ use std::ops::Neg;
 use std::marker::PhantomData;
 use subroutines::pcs::PolynomialCommitmentScheme;
 
-use crate::utils::{
+use crate::tracker::{
     bag::{Bag, BagComm},
     prover_tracker::{ProverTrackerRef, TrackedPoly}, 
     tracker_structs::TrackerID, 

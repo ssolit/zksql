@@ -21,8 +21,8 @@ use std::{
 
 use ark_serialize::CanonicalSerialize;
 
-use crate::utils::tracker_structs::{TrackerID, TrackerSumcheckClaim, TrackerZerocheckClaim};
-use crate::utils::dmle_utils::dmle_increase_nv;
+use crate::tracker::tracker_structs::{TrackerID, TrackerSumcheckClaim, TrackerZerocheckClaim};
+use crate::tracker::dmle_utils::dmle_increase_nv;
 
 use subroutines::{
     PolyIOP,
@@ -752,7 +752,7 @@ mod test {
     use ark_ff::UniformRand;
     use ark_std::test_rng;
     use subroutines::MultilinearKzgPCS;
-    use crate::utils::errors::PolyIOPErrors;
+    use crate::tracker::errors::PolyIOPErrors;
 
     use subroutines::{
         PolyIOP,

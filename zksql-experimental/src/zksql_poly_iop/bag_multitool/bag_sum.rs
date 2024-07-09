@@ -4,7 +4,7 @@ use ark_std::{end_timer, One, start_timer};
 use std::marker::PhantomData;
 
 use subroutines::pcs::PolynomialCommitmentScheme;
-use crate::utils::{
+use crate::tracker::{
     bag::{Bag, BagComm},
     prover_tracker::ProverTrackerRef, 
     verifier_tracker::VerifierTrackerRef,

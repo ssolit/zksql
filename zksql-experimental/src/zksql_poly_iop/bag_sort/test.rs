@@ -14,7 +14,7 @@ mod test {
     use ark_std::{One, Zero, rand::Rng};
 
     use crate::{
-        utils::{
+        tracker::{
             bag::{Bag, BagComm},
             prover_tracker::{ProverTracker, ProverTrackerRef, TrackedPoly},
             verifier_tracker::{TrackedComm, VerifierTracker, VerifierTrackerRef},
