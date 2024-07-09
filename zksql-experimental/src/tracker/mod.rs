@@ -1,6 +1,12 @@
-pub mod errors;
-pub mod prover_tracker;
-pub mod verifier_tracker;
-pub mod tracker_structs;
-pub mod bag;
-pub mod dmle_utils;
+mod prover_tracker;
+mod prover_wrapper;
+mod verifier_tracker;
+mod verifier_wrapper;
+mod tracker_structs;
+mod errors;
+mod bag;
+mod prod_check_utils;
+mod dmle_utils;
+mod test;
+
+pub mod prelude;
