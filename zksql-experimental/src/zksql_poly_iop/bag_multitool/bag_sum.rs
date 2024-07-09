@@ -27,8 +27,8 @@ where PCS: PolynomialCommitmentScheme<E> {
         let f0_one_const_poly = DenseMultilinearExtension::from_evaluations_vec(fx0.num_vars(), vec![E::ScalarField::one(); 2_usize.pow(fx0.num_vars() as u32)]); 
         let f1_one_const_poly = DenseMultilinearExtension::from_evaluations_vec(fx1.num_vars(), vec![E::ScalarField::one(); 2_usize.pow(fx1.num_vars() as u32)]);
         let g_one_const_poly = DenseMultilinearExtension::from_evaluations_vec(gx.num_vars(), vec![E::ScalarField::one(); 2_usize.pow(gx.num_vars() as u32)]);
-        let mfxs = vec![tracker.track_and_commit_poly(f0_one_const_poly)?, tracker.track_and_commit_poly(f1_one_const_poly)?];
-        let mgxs = vec![tracker.track_and_commit_poly(g_one_const_poly)?];
+        let mfxs = vec![tracker.track_mat_poly(f0_one_const_poly), tracker.track_mat_poly(f1_one_const_poly)];
+        let mgxs = vec![tracker.track_mat_poly(g_one_const_poly)];
 
         // use bag_multitool
         BagMultiToolIOP::<E, PCS>::prove(tracker, &[fx0.clone(), fx1.clone()], &[gx.clone()], &mfxs.clone(), &mgxs.clone())?;

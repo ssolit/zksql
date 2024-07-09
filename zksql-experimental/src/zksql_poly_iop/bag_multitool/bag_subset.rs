@@ -27,7 +27,7 @@ where PCS: PolynomialCommitmentScheme<E> {
 
         // initialize multiplicity vector
         let one_const_mle = DenseMultilinearExtension::from_evaluations_vec(nv, vec![E::ScalarField::one(); 2_usize.pow(nv as u32)]);
-        let mf = tracker.track_and_commit_poly(one_const_mle)?;
+        let mf = tracker.track_mat_poly(one_const_mle);
 
         // call the bag_multitool prover
         BagMultiToolIOP::<E, PCS>::prove(tracker, &[fx.clone()], &[gx.clone()], &[mf.clone()], &[mg.clone()])?;    

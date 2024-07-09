@@ -50,7 +50,7 @@ mod test {
     use ark_bls12_381::{Bls12_381, Fr};
     use ark_ff::UniformRand;
     use ark_poly::MultilinearExtension;
-    use ark_std::{test_rng};
+    use ark_std::test_rng;
 
     #[test]
     fn test_dmle_increase_nv() {

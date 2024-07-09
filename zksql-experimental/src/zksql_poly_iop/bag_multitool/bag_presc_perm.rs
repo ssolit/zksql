@@ -56,8 +56,8 @@ where PCS: PolynomialCommitmentScheme<E> {
         let ghat_mle = DenseMultilinearExtension::from_evaluations_vec(gx.num_vars(), ghat_evals);
 
         // set up polynomials in the tracker
-        let one_poly = tracker.track_and_commit_poly(one_mle)?;
-        let ordered_poly = tracker.track_and_commit_poly(ordered_mle)?;
+        let one_poly = tracker.track_mat_poly(one_mle);
+        let ordered_poly = tracker.track_mat_poly(ordered_mle);
         let fhat = tracker.track_and_commit_poly(fhat_mle)?;
         let ghat = tracker.track_and_commit_poly(ghat_mle)?;
         let fhat_bag = Bag::new(fhat, one_poly.clone());

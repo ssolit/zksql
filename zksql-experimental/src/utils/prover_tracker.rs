@@ -579,6 +579,16 @@ impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTrackerRef<E, PCS> {
         Self {tracker_rc: Rc::new(RefCell::new(tracker)) }
     }
 
+    pub fn track_mat_poly(
+        &mut self,
+        polynomial: DenseMultilinearExtension<E::ScalarField>,
+    ) -> TrackedPoly<E, PCS> {
+        let tracker_ref_cell: &RefCell<ProverTracker<E, PCS>> = self.tracker_rc.borrow();
+        let num_vars = polynomial.num_vars();
+        let res_id = tracker_ref_cell.borrow_mut().track_mat_poly(polynomial);
+       TrackedPoly::new(res_id, num_vars, self.tracker_rc.clone())
+    }
+
     pub fn track_and_commit_poly(
         &mut self,
         polynomial: DenseMultilinearExtension<E::ScalarField>,
