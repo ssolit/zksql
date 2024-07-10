@@ -98,13 +98,13 @@ where PCS: PolynomialCommitmentScheme<E> {
             &supp_no_dups_checker,
         )?;
     
-        // (BagStrictSortIOP) Show supp is sorted by calling bag_sort
-        BagStrictSortIOP::<E, PCS>::verify(
-            verifier_tracker,
-            supp,
-            range_comm,
-            supp_range_m,
-        )?;
+        // // (BagStrictSortIOP) Show supp is sorted by calling bag_sort
+        // BagStrictSortIOP::<E, PCS>::verify(
+        //     verifier_tracker,
+        //     supp,
+        //     range_comm,
+        //     supp_range_m,
+        // )?;
 
         Ok(())
 
