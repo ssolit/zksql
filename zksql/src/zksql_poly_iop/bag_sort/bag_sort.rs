@@ -10,6 +10,7 @@ use ark_std::{end_timer, One, start_timer, Zero};
 use std::marker::PhantomData;
 
 use subroutines::pcs::PolynomialCommitmentScheme;
+use crate::zksql_poly_iop::bag_no_zeros::BagNoZerosIOP;
 use crate::{
     tracker::prelude::*,
     zksql_poly_iop::bag_multitool::{
@@ -56,12 +57,12 @@ where PCS: PolynomialCommitmentScheme<E> {
         //      selector = [1, .., 1, 1, 0]
         //      diff_evals = [selector * (p - q) + (1 - selector)] 
         // recall (1 - selector) = [1, 0, 0, ..], makes first element non-zero for the product check
-        let mut diff_sel_evals = vec![E::ScalarField::one(); sorted_len];
-        diff_sel_evals[sorted_len - 1] = E::ScalarField::zero();
+        let mut diff_range_sel_evals = vec![E::ScalarField::one(); sorted_len];
+        diff_range_sel_evals[sorted_len - 1] = E::ScalarField::zero(); // the last element is allowed to be out of range because of the wraparound
         let diff_evals = (0..sorted_len).map(
-            |i| diff_sel_evals[i] * (q_evals[i] - sorted_poly_evals[i]) + (E::ScalarField::one() - diff_sel_evals[i]) // p-q here made the sign correct? depends on sort order?
+            |i| diff_range_sel_evals[i] * (q_evals[i] - sorted_poly_evals[i]) + (E::ScalarField::one() - diff_range_sel_evals[i]) // p-q here made the sign correct? depends on sort order?
         ).collect::<Vec<_>>();
-        let diff_sel_mle = DenseMultilinearExtension::from_evaluations_vec(sorted_nv, diff_sel_evals);
+        let diff_range_sel_mle = DenseMultilinearExtension::from_evaluations_vec(sorted_nv, diff_range_sel_evals);
 
         // Get inverses of diff_evals for the product check, which shows
         // the bag is strictly sorted (rather than just sorted) since no elements are zero
@@ -85,30 +86,28 @@ where PCS: PolynomialCommitmentScheme<E> {
         )?;
 
         // Set up the tracker and prove the range/subset check
-        let diff_sel = prover_tracker.track_mat_poly(diff_sel_mle); // note: is a precomputed one-poly
-        let diff_poly = diff_sel.mul_poly(&q_poly.sub_poly(&p_poly)).add_scalar(E::ScalarField::one()).sub_poly(&diff_sel);
+        let diff_range_sel = prover_tracker.track_mat_poly(diff_range_sel_mle); // note: is a precomputed one-poly
+        let diff_range_poly = diff_range_sel.mul_poly(&q_poly.sub_poly(&p_poly)).add_scalar(E::ScalarField::one()).sub_poly(&diff_range_sel);
         #[cfg(debug_assertions)] {
-            assert_eq!(diff_poly.evaluations(), diff_evals);
+            assert_eq!(diff_range_poly.evaluations(), diff_evals);
         }
-        let diff_bag = Bag::new(diff_poly.clone(), diff_sel);
+        let diff_range_bag = Bag::new(diff_range_poly.clone(), diff_range_sel);
         let range_sel_mle = DenseMultilinearExtension::from_evaluations_vec(range_nv, vec![E::ScalarField::one(); range_len]);
         let range_sel = prover_tracker.track_mat_poly(range_sel_mle); // note: is a precomputedone-poly
         let range_bag = Bag::new(range_poly.clone(), range_sel);
         BagSubsetIOP::<E, PCS>::prove(
             prover_tracker,
-            &diff_bag.clone(),
+            &diff_range_bag.clone(),
             &range_bag.clone(),
             &m_range.clone(),
         )?;
 
         // prove diff contains no zeros by showing diff * diff_inverse - 1 = 0
-        let diff_inverse_mle = DenseMultilinearExtension::from_evaluations_vec(
-            diff_bag.num_vars(),
-            diff_eval_inverses,
-        );
-        let diff_inverse_poly = prover_tracker.track_and_commit_poly(diff_inverse_mle)?;
-        let no_dups_check_poly = diff_poly.mul_poly(&diff_inverse_poly).sub_poly(&p_sel);
-        prover_tracker.add_zerocheck_claim(no_dups_check_poly.id);
+        let dups_check_bag = Bag::new(diff_range_poly.clone(), p_sel.clone()); // use p_sel instead of diff_range_sel to ignore stuff
+        BagNoZerosIOP::<E, PCS>::prove(
+            prover_tracker,
+            dups_check_bag,
+        )?;
 
         end_timer!(start);
         Ok(())
@@ -172,15 +171,11 @@ where PCS: PolynomialCommitmentScheme<E> {
         )?;
 
         // check that diff * diff_inverse - 1 = 0, showing that diff contains no zeros and thus p has no dups
-        let diff_inverse_id = verifier_tracker.get_next_id();
-        let diff_inverse_comm = verifier_tracker.transfer_prover_comm(diff_inverse_id);
-        let no_dups_check_poly = diff_comm.mul_comms(&diff_inverse_comm).sub_comms(&sorted_bag_comm.selector);
-        verifier_tracker.add_zerocheck_claim(no_dups_check_poly.id);
-
-
-
-
-        
+        let no_dups_check_bag = BagComm::new(diff_comm.clone(), sorted_bag_comm.selector.clone());
+        BagNoZerosIOP::<E, PCS>::verify(
+            verifier_tracker,
+            no_dups_check_bag,
+        )?;
 
         Ok(())
     }
