@@ -7,7 +7,6 @@ use ark_ff::batch_inversion;
 use ark_poly::DenseMultilinearExtension;
 use ark_poly::MultilinearExtension;
 use ark_std::{end_timer, One, start_timer, Zero};
-use rand_chacha::rand_core::le;
 use std::marker::PhantomData;
 
 use subroutines::pcs::PolynomialCommitmentScheme;
