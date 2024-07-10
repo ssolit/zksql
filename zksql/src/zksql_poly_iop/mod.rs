@@ -4,9 +4,11 @@
 pub mod prelude;
 
 mod join;
-pub mod bag_multitool;
+mod bag_multitool;
+mod bag_no_zeros;
 mod bag_sort;
 mod bag_supp;
+
 
 mod select;
 

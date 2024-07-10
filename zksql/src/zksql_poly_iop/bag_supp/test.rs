@@ -3,20 +3,21 @@
 // mod test {
 //     use ark_ec::pairing::Pairing;
 //     use ark_poly::DenseMultilinearExtension;
-//     use std::sync::Arc;
+    
 //     use std::collections::HashSet;
 //     use subroutines::{
 //         pcs::PolynomialCommitmentScheme,
-//         poly_iop::errors::PolyIOPErrors,
 //         MultilinearKzgPCS
 //     };
-//     use transcript::IOPTranscript;
 
 //     use ark_bls12_381::{Bls12_381, Fr};
-//     use ark_std::{Zero, One, test_rng};
-//     use ark_std::rand::Rng;
+//     use ark_std::test_rng;
+//     use ark_std::{One, Zero, rand::Rng};
 
-//     use crate::zksql_poly_iop::bag_supp::bag_supp::BagSuppIOP;
+//     use crate::{
+//         tracker::prelude::*,
+//         zksql_poly_iop::bag_supp::bag_supp::BagSuppIOP,
+//     };
     
 
 //     fn test_bag_supp() -> Result<(), PolyIOPErrors> {
