@@ -64,14 +64,16 @@ mod test {
         println!("BagStrictSortIOP good path 1 test passed");
 
         // test good path 2: sel is non-trivial
+        // The first two elements are both 0, but only the second element is included by the selector
         let mut sorted_poly_nums_2 = sorted_poly_nums.clone();
         sorted_poly_nums_2[0] = 0;
         sorted_poly_nums_2[1] = 0;
+        sorted_poly_nums_2[2] = 0;
         let sorted_poly_evals_2 = sorted_poly_nums_2.iter().map(|x| Fr::from(*x as u64)).collect();
         let sorted_poly_2 = DenseMultilinearExtension::from_evaluations_vec(nv, sorted_poly_evals_2);
         let mut sel_2_evals = vec![Fr::one(); 2_usize.pow(nv as u32)];
-        sel_2_evals[0] = Fr::zero();
-        sel_2_evals[1] = Fr::one();
+        sel_2_evals[0] = Fr::zero(); 
+        sel_2_evals[1] = Fr::zero(); 
         let sel_2 = DenseMultilinearExtension::from_evaluations_vec(nv, sel_2_evals);
         let mut m_range_nums_2 = vec![0; 2_usize.pow(num_range_pow as u32)];
         let diff_nums_2 = (1..2_usize.pow(nv as u32)).map(

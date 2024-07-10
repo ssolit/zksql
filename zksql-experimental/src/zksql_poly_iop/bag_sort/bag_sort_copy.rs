@@ -41,26 +41,27 @@ where PCS: PolynomialCommitmentScheme<E> {
 
         // create shifted permutation poly for the prescribed permutation check, which shows 
         // q is correctly created based off of p. Then we can use q for calculating diffs in the range check 
-        // 	    create first vector s=(0, 1, .., 2^{nv}-1) and another that is the permuted version of it t=(1, .., 2^{nv}-1, 0)
-        // 	    (p,q) are p is orig input, q is p left shifted by 1 with wraparound
+        // 	    create first vector s=(0, 1, ..) and another that is the permuted version of it t=(2^{nv}, 0, 1, ..)
+        // 	    (p,q) are p is orig input, q is p offset by 1 with wraparound
         let mut shift_perm_evals: Vec<E::ScalarField>  = Vec::<E::ScalarField>::with_capacity(sorted_len);
-        shift_perm_evals.extend((1..(sorted_len)).map(|x| E::ScalarField::from(x as u64)));
-        shift_perm_evals.push(E::ScalarField::zero());
+        shift_perm_evals.push(E::ScalarField::from((sorted_len - 1) as u64));
+        shift_perm_evals.extend((0..(sorted_len - 1)).map(|x| E::ScalarField::from(x as u64)));
 
         let mut q_evals = Vec::<E::ScalarField>::with_capacity(sorted_len);
-        q_evals.extend_from_slice(&sorted_poly_evals[1..sorted_len]);
-        q_evals.push(*sorted_poly_evals.first().unwrap());
+        q_evals.push(*sorted_poly_evals.last().unwrap());
+        q_evals.extend_from_slice(&sorted_poly_evals[..sorted_len]);
+        q_evals.pop();
 
         // Create a difference poly and its selector for the range check, which shows
         // the bag is sorted since the differences are in the correct range 
         //      sorted_bag = [a_0, a_1, ..] from the input
-        //      selector = [1, .., 1, 1, 0]
+        //      selector = [0, 1, 1, ..]
         //      diff_evals = [selector * (p - q) + (1 - selector)] 
         // recall (1 - selector) = [1, 0, 0, ..], makes first element non-zero for the product check
         let mut diff_sel_evals = vec![E::ScalarField::one(); sorted_len];
-        diff_sel_evals[sorted_len - 1] = E::ScalarField::zero();
+        diff_sel_evals[0] = E::ScalarField::zero();
         let diff_evals = (0..sorted_len).map(
-            |i| diff_sel_evals[i] * (q_evals[i] - sorted_poly_evals[i]) + (E::ScalarField::one() - diff_sel_evals[i]) // p-q here made the sign correct? depends on sort order?
+            |i| diff_sel_evals[i] * (sorted_poly_evals[i] - q_evals[i]) + (E::ScalarField::one() - diff_sel_evals[i]) // p-q here made the sign correct? depends on sort order?
         ).collect::<Vec<_>>();
         let diff_sel_mle = DenseMultilinearExtension::from_evaluations_vec(sorted_nv, diff_sel_evals);
 
@@ -87,7 +88,8 @@ where PCS: PolynomialCommitmentScheme<E> {
 
         // Set up the tracker and prove the range/subset check
         let diff_sel = prover_tracker.track_mat_poly(diff_sel_mle); // note: is a precomputed one-poly
-        let diff_poly = diff_sel.mul_poly(&q_poly.sub_poly(&p_poly)).add_scalar(E::ScalarField::one()).sub_poly(&diff_sel);
+            // diff_evals = [selector * (q - p) + (1 - selector)] 
+        let diff_poly = diff_sel.mul_poly(&p_poly.sub_poly(&q_poly)).add_scalar(E::ScalarField::one()).sub_poly(&diff_sel);
         #[cfg(debug_assertions)] {
             assert_eq!(diff_poly.evaluations(), diff_evals);
         }
@@ -108,8 +110,57 @@ where PCS: PolynomialCommitmentScheme<E> {
             diff_eval_inverses,
         );
         let diff_inverse_poly = prover_tracker.track_and_commit_poly(diff_inverse_mle)?;
-        let no_dups_check_poly = diff_poly.mul_poly(&diff_inverse_poly).sub_poly(&p_sel);
+        let no_dups_check_poly = diff_poly.mul_poly(&diff_inverse_poly).sub_poly(&one_poly);
+        println!("nodeups check poly: {:?}", no_dups_check_poly.evaluations());
         prover_tracker.add_zerocheck_claim(no_dups_check_poly.id);
+
+
+        
+
+        
+        // Set up the tracker and prove the product check
+        // println!("diff_evals: {:?}", diff_evals);
+        // println!("diff_eval_inverses: {:?}", diff_eval_inverses);
+        // let diff_inverse_poly = Arc::new(DenseMultilinearExtension::from_evaluations_vec(
+        //     diff_bag.num_vars(),
+        //     diff_eval_inverses,
+        // ));
+        // TODO: Do product check
+        
+        // WRONG!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        // TODO: get this to error successfully since I shouldn't be using 2poly
+        // println!("\n\nRemember 2 poly is hardcoded here, so it should be failing");
+        // println!("diff_evals: {:?}", diff_evals);
+        // println!("\n\n");
+        // let two_poly = Arc::new(DenseMultilinearExtension::from_evaluations_vec(diff_bag.num_vars, vec![E::ScalarField::from(3 as u64); diff_bag.poly.evaluations.len()]));
+        // let (no_dups_product_proof, _, _) = ProductCheckIOP::<E, PCS>::prove(
+        //     pcs_param,
+        //     &[diff_poly, diff_inverse_poly],
+        //     &[two_poly.clone(), one_poly.clone()], // for some reason fxs and gxs need to be the same length
+        //     &mut transcript.clone(),
+        // )?;
+
+        // #[cfg(debug_assertions)] {
+        //     let (f_aux_info, g_aux_info) = BagSubsetIOP::<E, PCS>::verification_info(
+        //         pcs_param,
+        //     &diff_poly.clone(),
+        //     &range_poly.clone(),
+        //     &m_range.clone(),
+        //         null_offset,
+        //         &mut transcript.clone(),
+        //     );
+        //     let verify_result = BagSubsetIOP::<E, PCS>::verify(
+        //         pcs_param,
+        //         &range_proof,
+        //         &f_aux_info,
+        //         &g_aux_info,
+        //         &mut transcript.clone(),
+        //     );
+        //     match verify_result {
+        //         Ok(_) => (),
+        //         Err(e) => println!("BagStrictSortIOP::prove failed: {}", e),
+        //     }
+        // }
 
         end_timer!(start);
         Ok(())
@@ -132,13 +183,13 @@ where PCS: PolynomialCommitmentScheme<E> {
         let p_comm = sorted_bag_comm.poly.clone();
 
         let mut shift_perm_evals: Vec<E::ScalarField>  = Vec::<E::ScalarField>::with_capacity(sorted_len);
-        shift_perm_evals.extend((1..(sorted_len)).map(|x| E::ScalarField::from(x as u64)));
-        shift_perm_evals.push(E::ScalarField::zero());
+        shift_perm_evals.push(E::ScalarField::from((sorted_len - 1) as u64));
+        shift_perm_evals.extend((0..(sorted_len - 1)).map(|x| E::ScalarField::from(x as u64)));
         let shift_perm_mle = DenseMultilinearExtension::from_evaluations_vec(sorted_nv, shift_perm_evals);
         let shift_perm_closure = move |pt: &[E::ScalarField]| -> Result<<E as Pairing>::ScalarField, PolyIOPErrors> {Ok(shift_perm_mle.evaluate(pt).unwrap())};
         
         let mut diff_sel_evals = vec![E::ScalarField::one(); sorted_len];
-        diff_sel_evals[sorted_len - 1] = E::ScalarField::zero();
+        diff_sel_evals[0] = E::ScalarField::zero();
         let diff_sel_mle = DenseMultilinearExtension::from_evaluations_vec(sorted_nv, diff_sel_evals);
         let diff_sel_closure = move |pt: &[E::ScalarField]| -> Result<<E as Pairing>::ScalarField, PolyIOPErrors> {Ok(diff_sel_mle.evaluate(pt).unwrap())};
         
@@ -160,7 +211,7 @@ where PCS: PolynomialCommitmentScheme<E> {
 
         // set up the tracker and verify the range check
         let diff_sel_comm = verifier_tracker.track_virtual_comm(Box::new(diff_sel_closure));
-        let diff_comm = diff_sel_comm.mul_comms(&q_comm.sub_comms(&p_comm)).add_scalar(E::ScalarField::one()).sub_comms(&diff_sel_comm);
+        let diff_comm = diff_sel_comm.mul_comms(&p_comm.sub_comms(&q_comm)).add_scalar(E::ScalarField::one()).sub_comms(&diff_sel_comm);
         let diff_bag = BagComm::new(diff_comm.clone(), diff_sel_comm);
         let range_sel_closure = one_closure.clone();
         let range_sel = verifier_tracker.track_virtual_comm(Box::new(range_sel_closure));
@@ -175,7 +226,7 @@ where PCS: PolynomialCommitmentScheme<E> {
         // check that diff * diff_inverse - 1 = 0, showing that diff contains no zeros and thus p has no dups
         let diff_inverse_id = verifier_tracker.get_next_id();
         let diff_inverse_comm = verifier_tracker.transfer_prover_comm(diff_inverse_id);
-        let no_dups_check_poly = diff_comm.mul_comms(&diff_inverse_comm).sub_comms(&sorted_bag_comm.selector);
+        let no_dups_check_poly = diff_comm.mul_comms(&diff_inverse_comm).sub_comms(&one_comm);
         verifier_tracker.add_zerocheck_claim(no_dups_check_poly.id);
 
 
