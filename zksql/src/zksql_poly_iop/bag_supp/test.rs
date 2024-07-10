@@ -1,145 +1,186 @@
 
-// #[cfg(test)]
-// mod test {
-//     use ark_ec::pairing::Pairing;
-//     use ark_poly::DenseMultilinearExtension;
+#[cfg(test)]
+mod test {
+    use ark_ec::pairing::Pairing;
+    use ark_poly::DenseMultilinearExtension;
+    use rayon::range;
     
-//     use std::collections::HashSet;
-//     use subroutines::{
-//         pcs::PolynomialCommitmentScheme,
-//         MultilinearKzgPCS
-//     };
+    use std::collections::HashSet;
+    use subroutines::{
+        pcs::PolynomialCommitmentScheme,
+        MultilinearKzgPCS
+    };
 
-//     use ark_bls12_381::{Bls12_381, Fr};
-//     use ark_std::test_rng;
-//     use ark_std::{One, Zero, rand::Rng};
+    use ark_bls12_381::{Bls12_381, Fr};
+    use ark_std::test_rng;
+    use ark_std::{One, Zero, rand::Rng};
 
-//     use crate::{
-//         tracker::prelude::*,
-//         zksql_poly_iop::bag_supp::bag_supp::BagSuppIOP,
-//     };
+    use crate::{
+        tracker::prelude::*,
+        zksql_poly_iop::bag_supp::bag_supp::BagSuppIOP,
+    };
     
 
-//     fn test_bag_supp() -> Result<(), PolyIOPErrors> {
-//         // testing params
-//         let orig_nv = 4;
-//         let supp_nv = orig_nv - 1;
-//         let num_range_pow = 10;
-//         let mut rng = test_rng();
+    fn test_bag_supp() -> Result<(), PolyIOPErrors> {
+        // testing params
+        let orig_nv = 4;
+        let supp_nv = orig_nv - 1;
+        let num_range_pow = 10;
+        let mut rng = test_rng();
 
-//         // PCS params
-//         let srs = MultilinearKzgPCS::<Bls12_381>::gen_srs_for_testing(&mut rng, num_range_pow)?;
-//         let (pcs_param, _) = MultilinearKzgPCS::<Bls12_381>::trim(&srs, None, Some(num_range_pow))?;
+        // PCS params
+        let srs = MultilinearKzgPCS::<Bls12_381>::gen_srs_for_testing(&mut rng, num_range_pow)?;
+        let (pcs_prover_param, pcs_verifier_param) = MultilinearKzgPCS::<Bls12_381>::trim(&srs, None, Some(10))?;
 
-//         // create a poly with duplicates and its supp
-//         let mut set = HashSet::new();
-//         while set.len() < 2_usize.pow(supp_nv as u32) {
-//             let num = rng.gen_range(1..1000);
-//             set.insert(num);
-//         }
-//         let mut supp_nums: Vec<i32> = set.into_iter().collect();
-//         supp_nums.sort();
-//         let supp_evals = supp_nums.iter().map(|x| Fr::from(*x as u64)).collect();
-//         let supp = Arc::new(DenseMultilinearExtension::from_evaluations_vec(supp_nv, supp_evals));
+        // create a poly with duplicates and its supp
+        let mut set = HashSet::new();
+        while set.len() < 2_usize.pow(supp_nv as u32) {
+            let num = rng.gen_range(1..1000);
+            set.insert(num);
+        }
+        let mut supp_nums: Vec<i32> = set.into_iter().collect();
+        supp_nums.sort();
+        let supp_evals = supp_nums.iter().map(|x| Fr::from(*x as u64)).collect();
+        let supp = DenseMultilinearExtension::from_evaluations_vec(supp_nv, supp_evals);
+        let supp_sel = DenseMultilinearExtension::from_evaluations_vec(supp_nv, vec![Fr::one(); 2_usize.pow(supp_nv as u32)]);
 
-//         let mut orig_poly_nums = supp_nums.clone();
-//         orig_poly_nums.append(&mut supp_nums.clone());
-//         let orig_poly_evals = orig_poly_nums.iter().map(|x| Fr::from(*x as u64)).collect();
-//         let orig_poly = Arc::new(DenseMultilinearExtension::from_evaluations_vec(orig_nv, orig_poly_evals));
+        let mut orig_poly_nums = supp_nums.clone();
+        orig_poly_nums.append(&mut supp_nums.clone());
+        let orig_poly_evals = orig_poly_nums.iter().map(|x| Fr::from(*x as u64)).collect();
+        let orig_poly = DenseMultilinearExtension::from_evaluations_vec(orig_nv, orig_poly_evals);
+        let orig_sel = DenseMultilinearExtension::from_evaluations_vec(orig_nv, vec![Fr::one(); 2_usize.pow(orig_nv as u32)]);
 
-//         let mut m_bag_evals = vec![Fr::one(); 2_usize.pow(supp_nv as u32)];
-//         m_bag_evals.append(&mut vec![Fr::zero(); 2_usize.pow(supp_nv as u32)]);
-//         let m_bag = Arc::new(DenseMultilinearExtension::from_evaluations_vec(orig_nv, m_bag_evals));
+        let common_mset_orig_m = DenseMultilinearExtension::from_evaluations_vec(orig_nv, vec![Fr::one(); 2_usize.pow(orig_nv as u32)]);
+        let common_mset_supp_m = DenseMultilinearExtension::from_evaluations_vec(supp_nv, vec![Fr::from(2u64); 2_usize.pow(supp_nv as u32)]);
 
-//         // create the range poly and its multiplicity vector
-//         let range_poly_evals = (0..2_usize.pow(num_range_pow as u32)).map(|x| Fr::from(x as u64)).collect(); // numbers are between 0 and 2^10 by construction
-//         let range_poly = Arc::new(DenseMultilinearExtension::from_evaluations_vec(num_range_pow, range_poly_evals));
+        // create the range poly and its multiplicity vector
+        let range_poly_evals = (0..2_usize.pow(num_range_pow as u32)).map(|x| Fr::from(x as u64)).collect(); // numbers are between 0 and 2^10 by construction
+        let range_poly = DenseMultilinearExtension::from_evaluations_vec(num_range_pow, range_poly_evals);
 
-//         let mut m_range_nums = vec![0; 2_usize.pow(num_range_pow as u32)];
-//         let diff_nums = (1..2_usize.pow(supp_nv as u32)).map(
-//             |i| supp_nums[i] - supp_nums[i - 1]
-//         ).collect::<Vec<_>>();
-//         for i in 0..diff_nums.len() {
-//             m_range_nums[diff_nums[i] as usize] += 1;
-//         }
-//         m_range_nums[1] += 1; // add one because the first number in diff_evals is set to 1
-//         let m_range_evals = m_range_nums.iter().map(|x| Fr::from(*x as u64)).collect();
-//         let m_range = Arc::new(DenseMultilinearExtension::from_evaluations_vec(num_range_pow, m_range_evals));
+        let mut m_range_nums = vec![0; 2_usize.pow(num_range_pow as u32)];
+        let diff_nums = (1..2_usize.pow(supp_nv as u32)).map(
+            |i| supp_nums[i] - supp_nums[i - 1]
+        ).collect::<Vec<_>>();
+        for i in 0..diff_nums.len() {
+            m_range_nums[diff_nums[i] as usize] += 1;
+        }
+        let m_range_evals = m_range_nums.iter().map(|x| Fr::from(*x as u64)).collect();
+        let m_range = DenseMultilinearExtension::from_evaluations_vec(num_range_pow, m_range_evals);
 
+        // create trackers
+        let mut prover_tracker: ProverTrackerRef<Bls12_381, MultilinearKzgPCS<Bls12_381>> = ProverTrackerRef::new_from_pcs_params(pcs_prover_param);
+        let mut verifier_tracker: VerifierTrackerRef<Bls12_381, MultilinearKzgPCS<Bls12_381>> = VerifierTrackerRef::new_from_pcs_params(pcs_verifier_param);
 
-//         // initialize transcript 
-//         let mut transcript = BagSuppIOP::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>::init_transcript();
-//         transcript.append_message(b"testing", b"initializing transcript for testing")?;
+        // test good path
+        test_bag_supp_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&mut prover_tracker, &mut verifier_tracker, &orig_poly.clone(), &orig_sel.clone(), &common_mset_orig_m, &supp.clone(), &supp_sel.clone(), &common_mset_supp_m, &range_poly.clone(), &m_range.clone())?;
+        println!("BagSuppIOP good path test passed");
 
-//         // test good path
-//         test_bag_supp_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&pcs_param, orig_poly.clone(), supp.clone(), m_bag.clone(), range_poly.clone(), m_range.clone(), &mut transcript)?;
-//         println!("BagSuppIOP good path test passed");
+        // test bad path 1: supp is not strictly sorted
+        let mut bad_supp_nums_1 = supp_nums.clone();
+        bad_supp_nums_1[0] = supp_nums[1];
+        bad_supp_nums_1[1] = supp_nums[0];
+        let bad_supp_1_evals = bad_supp_nums_1.iter().map(|x| Fr::from(*x as u64)).collect();
+        let bad_supp_1 = DenseMultilinearExtension::from_evaluations_vec(supp_nv, bad_supp_1_evals);
+        let bad_result1 = test_bag_supp_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&mut prover_tracker.deep_copy(), &mut verifier_tracker.deep_copy(), &orig_poly.clone(), &orig_sel.clone(), &common_mset_orig_m, &bad_supp_1.clone(), &supp_sel.clone(), &common_mset_supp_m, &range_poly.clone(), &m_range.clone());
+        assert!(bad_result1.is_err());
+        println!("BagSuppIOP bad path 1 test passed");
 
-//         // test bad path 1: supp is not strictly sorted
-//         let mut bad_supp_nums_1 = supp_nums.clone();
-//         bad_supp_nums_1[0] = supp_nums[1];
-//         bad_supp_nums_1[1] = supp_nums[0];
-//         let bad_supp_1_evals = bad_supp_nums_1.iter().map(|x| Fr::from(*x as u64)).collect();
-//         let bad_supp_1 = Arc::new(DenseMultilinearExtension::from_evaluations_vec(supp_nv, bad_supp_1_evals));
-//         let bad_result1 = test_bag_supp_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&pcs_param, orig_poly.clone(), bad_supp_1.clone(), m_bag.clone(), range_poly.clone(), m_range.clone(), &mut transcript);
-//         assert!(bad_result1.is_err());
-//         println!("BagSuppIOP bad path 1 test passed");
+        // test bad path 2: supp has an element not in orig
+        let mut bad_supp_nums_2 = supp_nums.clone();
+        bad_supp_nums_2[0] = 1023;
+        let bad_supp_2_evals = bad_supp_nums_2.iter().map(|x| Fr::from(*x as u64)).collect();
+        let bad_supp_2 = DenseMultilinearExtension::from_evaluations_vec(supp_nv, bad_supp_2_evals);
+        let bad_result2 = test_bag_supp_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&mut prover_tracker.deep_copy(), &mut verifier_tracker.deep_copy(), &orig_poly.clone(), &orig_sel.clone(), &common_mset_orig_m, &bad_supp_2.clone(), &supp_sel.clone(), &common_mset_supp_m, &range_poly.clone(), &m_range.clone());
+        assert!(bad_result2.is_err());
+        println!("BagSuppIOP bad path 2 test passed");
 
-//         // test bad path 2: supp has an element not in orig
-//         let mut bad_supp_nums_2 = supp_nums.clone();
-//         bad_supp_nums_2[0] = 1023;
-//         let bad_supp_2_evals = bad_supp_nums_2.iter().map(|x| Fr::from(*x as u64)).collect();
-//         let bad_supp_2 = Arc::new(DenseMultilinearExtension::from_evaluations_vec(supp_nv, bad_supp_2_evals));
-//         let bad_result2 = test_bag_supp_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&pcs_param, orig_poly.clone(), bad_supp_2.clone(), m_bag.clone(), range_poly.clone(), m_range.clone(), &mut transcript);
-//         assert!(bad_result2.is_err());
-//         println!("BagSuppIOP bad path 2 test passed");
+        // test bad path 3: supp is missing an element in orig
+        let mut bad_supp_nums_3 = supp_nums.clone();
+        bad_supp_nums_3[0] = bad_supp_nums_3[1];
+        let bad_supp_3_evals = bad_supp_nums_3.iter().map(|x| Fr::from(*x as u64)).collect();
+        let bad_supp_3 = DenseMultilinearExtension::from_evaluations_vec(supp_nv, bad_supp_3_evals);
+        let mut m_range_nums = m_range_nums.clone();
+        let diff_nums = (1..2_usize.pow(supp_nv as u32)).map(
+            |i| supp_nums[i] - supp_nums[i - 1]
+        ).collect::<Vec<_>>();
+        for i in 0..diff_nums.len() {
+            m_range_nums[diff_nums[i] as usize] += 1;
+        }
+        let m_range_evals = m_range_nums.iter().map(|x| Fr::from(*x as u64)).collect();
+        let m_range = DenseMultilinearExtension::from_evaluations_vec(num_range_pow, m_range_evals);
+        let bad_result3 = test_bag_supp_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&mut prover_tracker.deep_copy(), &mut verifier_tracker.deep_copy(), &orig_poly.clone(), &orig_sel.clone(), &common_mset_orig_m, &bad_supp_3.clone(), &supp_sel.clone(), &common_mset_supp_m, &range_poly.clone(), &m_range.clone());
+        assert!(bad_result3.is_err());
+        println!("BagSuppIOP bad path 3 test passed");
 
-//         // test bad path 3: supp is missing an element in orig
-//         let mut bad_supp_nums_3 = supp_nums.clone();
-//         bad_supp_nums_3[0] = bad_supp_nums_3[1];
-//         let mut m_range_nums = m_range_nums.clone();
-//         let diff_nums = (1..2_usize.pow(supp_nv as u32)).map(
-//             |i| supp_nums[i] - supp_nums[i - 1]
-//         ).collect::<Vec<_>>();
-//         for i in 0..diff_nums.len() {
-//             m_range_nums[diff_nums[i] as usize] += 1;
-//         }
-//         m_range_nums[1] += 1; // add one because the first number in diff_evals is set to 1
-//         let m_range_evals = m_range_nums.iter().map(|x| Fr::from(*x as u64)).collect();
-//         let m_range = Arc::new(DenseMultilinearExtension::from_evaluations_vec(num_range_pow, m_range_evals));
-//         let bad_result3 = test_bag_supp_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&pcs_param, orig_poly.clone(), supp.clone(), m_bag.clone(), range_poly.clone(), m_range.clone(), &mut transcript);
-//         assert!(bad_result3.is_err());
-//         println!("BagSuppIOP bad path 3 test passed");
+        Ok(())
 
-//         Ok(())
+    }
 
-//     }
+    fn test_bag_supp_helper<E: Pairing, PCS>(
+        prover_tracker: &mut ProverTrackerRef<E, PCS>,
+        verifier_tracker: &mut VerifierTrackerRef<E, PCS>,
+        bag_poly: &DenseMultilinearExtension<E::ScalarField>,
+        bag_sel: &DenseMultilinearExtension<E::ScalarField>,
+        common_mset_bag_m: &DenseMultilinearExtension<E::ScalarField>,
+        supp_poly: &DenseMultilinearExtension<E::ScalarField>,
+        supp_sel: &DenseMultilinearExtension<E::ScalarField>,
+        common_mset_supp_m: &DenseMultilinearExtension<E::ScalarField>,
+        range_poly: &DenseMultilinearExtension<E::ScalarField>,
+        supp_range_m: &DenseMultilinearExtension<E::ScalarField>,
+    ) -> Result<(), PolyIOPErrors>
+    where
+    E: Pairing,
+    PCS: PolynomialCommitmentScheme<E>,
+    {
+        let bag = Bag::new(prover_tracker.track_and_commit_poly(bag_poly.clone())?, prover_tracker.track_and_commit_poly(bag_sel.clone())?);
+        let common_mset_bag_m = prover_tracker.track_and_commit_poly(common_mset_bag_m.clone())?;
+        let supp = Bag::new(prover_tracker.track_and_commit_poly(supp_poly.clone())?, prover_tracker.track_and_commit_poly(supp_sel.clone())?);
+        let common_mset_supp_m = prover_tracker.track_and_commit_poly(common_mset_supp_m.clone())?;
+        let range_poly = prover_tracker.track_and_commit_poly(range_poly.clone())?;
+        let supp_range_m = prover_tracker.track_and_commit_poly(supp_range_m.clone())?;
 
-//     fn test_bag_supp_helper<E: Pairing, PCS>(
-//         pcs_param: &PCS::ProverParam,
-//         bag: Arc<DenseMultilinearExtension<E::ScalarField>>,
-//         supp: Arc<DenseMultilinearExtension<E::ScalarField>>,
-//         m_bag: Arc<DenseMultilinearExtension<E::ScalarField>>,
-//         range_poly: Arc<DenseMultilinearExtension<E::ScalarField>>,
-//         m_range: Arc<DenseMultilinearExtension<E::ScalarField>>,
-//         transcript: &mut IOPTranscript<E::ScalarField>,
-//     ) -> Result<(), PolyIOPErrors>
-//     where
-//         E: Pairing,
-//         PCS: PolynomialCommitmentScheme<
-//             E,
-//             Polynomial = Arc<DenseMultilinearExtension<E::ScalarField>>,
-//         >,
-//     {
-//         let proof = BagSuppIOP::<E, PCS>::prove(pcs_param, bag.clone(), supp.clone(), m_bag.clone(), range_poly.clone(), m_range.clone(), &mut transcript.clone())?;
-//         let aux_info_vec = BagSuppIOP::<E, PCS>::verification_info(pcs_param, bag, supp, m_bag, range_poly, m_range, &mut transcript.clone())?;
-//         BagSuppIOP::<E, PCS>::verify(pcs_param, &proof, aux_info_vec, &mut transcript.clone())?;
-//         Ok(())
-//     }
+        BagSuppIOP::<E, PCS>::prove(
+            prover_tracker,
+            &bag,
+            &common_mset_bag_m,
+            &supp,
+            &common_mset_supp_m,
+            &range_poly,
+            &supp_range_m,
+        )?;
+        let proof = prover_tracker.compile_proof();
+        
+        // set up verifier tracker, create subclaims, and verify IOPProofs
+        verifier_tracker.set_compiled_proof(proof);
+        let bag_comm = BagComm::new(verifier_tracker.transfer_prover_comm(bag.poly.id), verifier_tracker.transfer_prover_comm(bag.selector.id).clone());
+        let common_mset_bag_m_comm = verifier_tracker.transfer_prover_comm(common_mset_bag_m.id);
+        let supp_comm = BagComm::new(verifier_tracker.transfer_prover_comm(supp.poly.id), verifier_tracker.transfer_prover_comm(supp.selector.id).clone());
+        let common_mset_supp_m_comm = verifier_tracker.transfer_prover_comm(common_mset_supp_m.id);
+        let range_comm = verifier_tracker.transfer_prover_comm(range_poly.id).clone();
+        let supp_range_m_comm = verifier_tracker.transfer_prover_comm(supp_range_m.id);
+        BagSuppIOP::<E, PCS>::verify(
+            verifier_tracker,
+            &bag_comm,
+            &common_mset_bag_m_comm,
+            &supp_comm,
+            &common_mset_supp_m_comm,
+            &range_comm,
+            &supp_range_m_comm,
+        )?;
+        verifier_tracker.verify_claims()?;
 
-//     #[test]
-//     fn bag_supp_test() {
-//         let res = test_bag_supp();
-//         res.unwrap();
-//     }
-// }
+        // check that the ProverTracker and VerifierTracker are in the same state
+        let p_tracker = prover_tracker.clone_underlying_tracker();
+        let v_tracker = verifier_tracker.clone_underlying_tracker();
+        assert_eq!(p_tracker.id_counter, v_tracker.id_counter);
+        assert_eq!(p_tracker.sum_check_claims, v_tracker.sum_check_claims);
+        assert_eq!(p_tracker.zero_check_claims, v_tracker.zero_check_claims);
+        Ok(())
+    }
+
+    #[test]
+    fn bag_supp_test() {
+        let res = test_bag_supp();
+        res.unwrap();
+    }
+}

@@ -1,124 +1,114 @@
-// use ark_ec::pairing::Pairing;
-// use ark_ff::batch_inversion;
-// use ark_poly::DenseMultilinearExtension;
-// use ark_poly::MultilinearExtension;
-// use ark_std::{end_timer, One, start_timer, Zero};
-// use std::marker::PhantomData;
+use ark_ec::pairing::Pairing;
+use ark_ff::batch_inversion;
+use ark_poly::DenseMultilinearExtension;
+use ark_poly::MultilinearExtension;
+use ark_std::{end_timer, One, start_timer, Zero};
+use std::marker::PhantomData;
 
-// use subroutines::pcs::PolynomialCommitmentScheme;
-// use crate::{
-//     tracker::prelude::*,
-//     zksql_poly_iop::{
-//         bag_sort::bag_sort::BagStrictSortIOP,
-//         bag_multitool::bag_subset::BagSubsetIOP,
-//     },
-// };
+use subroutines::pcs::PolynomialCommitmentScheme;
+use crate::zksql_poly_iop::bag_no_zeros::BagNoZerosIOP;
+use crate::{
+    tracker::prelude::*,
+    zksql_poly_iop::{
+        bag_sort::bag_sort::BagStrictSortIOP,
+        bag_multitool::bag_multitool::BagMultiToolIOP,
+    },
+};
 
-// pub struct BagSuppIOP<E: Pairing, PCS: PolynomialCommitmentScheme<E>>(PhantomData<E>, PhantomData<PCS>);
+pub struct BagSuppIOP<E: Pairing, PCS: PolynomialCommitmentScheme<E>>(PhantomData<E>, PhantomData<PCS>);
 
-// impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> BagSuppIOP<E, PCS> 
-// where PCS: PolynomialCommitmentScheme<E> {
-//     pub fn prove(
-//         prover_tracker: &mut ProverTrackerRef<E, PCS>,
-//         bag: &Bag<E, PCS>,
-//         supp: &Bag<E, PCS>,
-//         m_bag: &TrackedPoly<E, PCS>,
-//         range_poly: &TrackedPoly<E, PCS>,
-//         m_range:&TrackedPoly<E, PCS>,
-//     ) -> Result<(), PolyIOPErrors> {
-//         let start = start_timer!(|| "bagStrictSort prove");
+impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> BagSuppIOP<E, PCS> 
+where PCS: PolynomialCommitmentScheme<E> {
+    pub fn prove(
+        prover_tracker: &mut ProverTrackerRef<E, PCS>,
+        bag: &Bag<E, PCS>,
+        common_mset_bag_m: &TrackedPoly<E, PCS>,
+        supp: &Bag<E, PCS>,
+        common_mset_supp_m: &TrackedPoly<E, PCS>,
+        range_poly: &TrackedPoly<E, PCS>,
+        supp_range_m: &TrackedPoly<E, PCS>,
+    ) -> Result<(), PolyIOPErrors> {
     
-//         // (BagSubsetIOP) Show supp is a subset of bag 
-//         BagSubsetIOP::<E, PCS>::prove(
-//             prover_tracker,
-//             &supp,
-//             &bag,
-//             &m_bag,
-//         )?;
+        // Use BagMultitool PIOP to show bag and supp share a Common Multiset
+        BagMultiToolIOP::<E, PCS>::prove(
+            prover_tracker,
+            &[bag.clone()],
+            &[supp.clone()],
+            &[common_mset_bag_m.clone()],
+            &[common_mset_supp_m.clone()],
+        )?;
     
-//         // Show supp includes all elements of bag by showing m_bag has no zeros
-//         let mut m_bag_evals = m_bag.evaluations().clone();
-//         batch_inversion(&mut m_bag_evals);
-//         let m_bag_inverse_mle = DenseMultilinearExtension::from_evaluations_vec(m_bag.num_vars,m_bag_evals);
-//         let m_bag_inverse_poly = prover_tracker.track_and_commit_poly(m_bag_inverse_mle)?;
-
-        
-//         let (bag_inclusion_proof, _, _) = ProductCheckIOP::<E, PCS>::prove(
-//             pcs_param,
-//             &[m_bag.clone(), m_bag_inverse.clone()],
-//             &[m_bag_one_poly.clone(), m_bag_one_poly.clone()], // for some reason fxs and gxs need to be the same length
-//             &mut transcript.clone(),
-//         )?;
+        // bag and supp are subsets of each other by showing multiplicity polys have no zeros
+        let bag_one_mle = DenseMultilinearExtension::from_evaluations_vec(common_mset_bag_m.num_vars(), vec![E::ScalarField::one(); 2_usize.pow(common_mset_bag_m.num_vars() as u32)]);
+        let bag_one_poly = prover_tracker.track_mat_poly(bag_one_mle);
+        let bag_no_dups_checker = Bag::new(common_mset_bag_m.clone(), bag_one_poly.clone());
+        BagNoZerosIOP::<E, PCS>::prove(
+            prover_tracker,
+            &bag_no_dups_checker,
+        )?;
+        let supp_one_mle = DenseMultilinearExtension::from_evaluations_vec(common_mset_supp_m.num_vars(), vec![E::ScalarField::one(); 2_usize.pow(common_mset_supp_m.num_vars() as u32)]);
+        let supp_one_poly = prover_tracker.track_mat_poly(supp_one_mle);
+        let supp_no_dups_checker = Bag::new(common_mset_supp_m.clone(), supp_one_poly.clone());
+        BagNoZerosIOP::<E, PCS>::prove(
+            prover_tracker,
+            &supp_no_dups_checker,
+        )?;
     
-//         // (BagStrictSortIOP) Show supp is sorted by calling bag_sort
-//         let (bag_sort_proof,) = BagStrictSortIOP::<E, PCS>::prove(
-//             pcs_param,
-//             supp.clone(),
-//             range_poly.clone(),
-//             m_range.clone(),
-//             &mut transcript.clone(),
-//         )?;
+        // (BagStrictSortIOP) Show supp is sorted by calling bag_sort
+        BagStrictSortIOP::<E, PCS>::prove(
+            prover_tracker,
+            supp,
+            range_poly,
+            supp_range_m,
+        )?;
     
-//         let proof = BagSuppIOPProof::<E, PCS> {
-//             supp_subset_proof,
-//             supp_superset_proof: bag_inclusion_proof,
-//             supp_sorted_proof: bag_sort_proof,
-//         };
+        Ok(())
+    }
+
+    pub fn verify(
+        verifier_tracker: &mut VerifierTrackerRef<E, PCS>,
+        bag: &BagComm<E, PCS>,
+        common_mset_bag_m: &TrackedComm<E, PCS>,
+        supp: &BagComm<E, PCS>,
+        common_mset_supp_m: &TrackedComm<E, PCS>,
+        range_comm: &TrackedComm<E, PCS>,
+        supp_range_m: &TrackedComm<E, PCS>,
+    ) -> Result<(), PolyIOPErrors> {
+        // Use BagMultitool PIOP to show bag and supp share a Common Multiset
+        BagMultiToolIOP::<E, PCS>::verify(
+            verifier_tracker,
+            &[bag.clone()],
+            &[supp.clone()],
+            &[common_mset_bag_m.clone()],
+            &[common_mset_supp_m.clone()],
+        )?;
     
-//         end_timer!(start);
-//         Ok(proof)
-//     }
+        // bag and supp are subsets of each other by showing multiplicity polys have no zeros
+        let one_closure = |_: &[E::ScalarField]| -> Result<<E as Pairing>::ScalarField, PolyIOPErrors> {Ok(E::ScalarField::one())};
+        let bag_one_comm = verifier_tracker.track_virtual_comm(Box::new(one_closure));
+        let bag_no_dups_checker = BagComm::new(common_mset_bag_m.clone(), bag_one_comm.clone());
+        BagNoZerosIOP::<E, PCS>::verify(
+            verifier_tracker,
+            &bag_no_dups_checker,
+        )?;
+        let supp_one_comm = verifier_tracker.track_virtual_comm(Box::new(one_closure));
+        let supp_no_dups_checker = BagComm::new(common_mset_supp_m.clone(), supp_one_comm.clone());
+        BagNoZerosIOP::<E, PCS>::verify(
+            verifier_tracker,
+            &supp_no_dups_checker,
+        )?;
+    
+        // (BagStrictSortIOP) Show supp is sorted by calling bag_sort
+        BagStrictSortIOP::<E, PCS>::verify(
+            verifier_tracker,
+            supp,
+            range_comm,
+            supp_range_m,
+        )?;
 
-//     pub fn verify(
-//         verifier_tracker: &mut VerifierTrackerRef<E, PCS>,
-//         bag: &BagComm<E, PCS>,
-//         supp: &BagComm<E, PCS>,
-//         m_bag: &TrackedComm<E, PCS>,
-//         range_poly: &TrackedComm<E, PCS>,
-//         m_range: &TrackedComm<E, PCS>,
-//     ) -> Result<(), PolyIOPErrors> {
-//         let start = start_timer!(|| "bagStrictSort verify");
+        Ok(())
 
-//         if aux_info_vec.len() != 6 {
-//             return Err(PolyIOPErrors::InvalidVerifier(
-//                 format!(
-//                     "BagSuppIOP::verify Error: aux_info_vec length is not 6, was {}",
-//                     aux_info_vec.len()
-//                 ),
-//             ));
-//         }
-
-//         let supp_subset_subclaim = BagSubsetIOP::<E, PCS>::verify(
-//             pcs_param,
-//             &proof.supp_subset_proof,
-//             &aux_info_vec[0],
-//             &aux_info_vec[1],
-//             &mut transcript.clone(),
-//         )?;
-
-//         let supp_superset_subclaim = ProductCheckIOP::<E, PCS>::verify(
-//             &proof.supp_superset_proof,
-//             &aux_info_vec[2],
-//             &mut transcript.clone(),
-//         )?;
-
-//         let supp_sorted_subclaim = BagStrictSortIOP::<E, PCS>::verify(
-//             pcs_param,
-//             &proof.supp_sorted_proof,
-//             &aux_info_vec[3],
-//             &aux_info_vec[4],
-//             &aux_info_vec[5],
-//             &mut transcript.clone(),
-//         )?;
-
-//         end_timer!(start);
-//         Ok(BagSuppIOPSubClaim::<E::ScalarField>{
-//             supp_subset_subclaim,
-//             supp_superset_subclaim,
-//             supp_sorted_subclaim,
-//         })
-
-//     }
+    }
 
 
-// }
+}

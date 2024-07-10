@@ -14,7 +14,7 @@ where PCS: PolynomialCommitmentScheme<E>
 {
     pub fn prove(
         prover_tracker: &mut ProverTrackerRef<E, PCS>,
-        bag: Bag<E, PCS>,
+        bag: &Bag<E, PCS>,
     ) -> Result<(),PolyIOPErrors> {
 
         // compute inverses of bag.poly
@@ -27,9 +27,8 @@ where PCS: PolynomialCommitmentScheme<E>
 
         // set up the tracker and add a zerocheck claim
         let inverses_poly = prover_tracker.track_and_commit_poly(inverses_mle)?;
-        let no_dups_check_poly = bag_poly.mul_poly(&inverses_poly).sub_poly(&bag_sel);
-        println!("no_dups_check_poly: {:?}", no_dups_check_poly.evaluations());
-        println!("bag_sel: {:?}", bag_sel.evaluations());
+        let no_dups_check_poly = bag_poly.mul_poly(&bag_sel).mul_poly(&inverses_poly).sub_poly(&bag_sel);
+        
         prover_tracker.add_zerocheck_claim(no_dups_check_poly.id);
 
         Ok(())
@@ -37,13 +36,13 @@ where PCS: PolynomialCommitmentScheme<E>
 
     pub fn verify(
         verifier_tracker: &mut VerifierTrackerRef<E, PCS>,
-        bag: BagComm<E, PCS>,
+        bag: &BagComm<E, PCS>,
     ) -> Result<(), PolyIOPErrors> {
         let bag_poly = bag.poly.clone();
         let bag_sel = bag.selector.clone();
         let inverses_poly_id = verifier_tracker.get_next_id();
         let inverses_poly = verifier_tracker.transfer_prover_comm(inverses_poly_id);
-        let no_dups_check_poly = bag_poly.mul_comms(&inverses_poly).sub_comms(&bag_sel);
+        let no_dups_check_poly = bag_poly.mul_comms(&bag_sel).mul_comms(&inverses_poly).sub_comms(&bag_sel);
         verifier_tracker.add_zerocheck_claim(no_dups_check_poly.id);
 
         Ok(())

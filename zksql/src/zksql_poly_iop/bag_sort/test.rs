@@ -98,7 +98,6 @@ mod test {
         println!("BagStrictSortIOP bad path 1 test passed");
 
         // test bad path 2: sorted poly has a duplicate
-        println!("starting test bad path 2");
         let mut bad_sorted_poly_nums_2 = sorted_poly_nums.clone();
         bad_sorted_poly_nums_2[1] = sorted_poly_nums[0];
         let bad_sorted_poly_2_evals = bad_sorted_poly_nums_2.iter().map(|x| Fr::from(*x as u64)).collect();

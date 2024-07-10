@@ -106,7 +106,7 @@ where PCS: PolynomialCommitmentScheme<E> {
         let dups_check_bag = Bag::new(diff_range_poly.clone(), p_sel.clone()); // use p_sel instead of diff_range_sel to ignore stuff
         BagNoZerosIOP::<E, PCS>::prove(
             prover_tracker,
-            dups_check_bag,
+            &dups_check_bag,
         )?;
 
         end_timer!(start);
@@ -174,7 +174,7 @@ where PCS: PolynomialCommitmentScheme<E> {
         let no_dups_check_bag = BagComm::new(diff_comm.clone(), sorted_bag_comm.selector.clone());
         BagNoZerosIOP::<E, PCS>::verify(
             verifier_tracker,
-            no_dups_check_bag,
+            &no_dups_check_bag,
         )?;
 
         Ok(())
