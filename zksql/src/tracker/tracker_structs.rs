@@ -57,7 +57,6 @@ pub struct CompiledZKSQLProof<E: Pairing, PCS: PolynomialCommitmentScheme<E>> {
     pub comms: HashMap<TrackerID, PCS::Commitment>,
     pub sum_check_claims: HashMap<TrackerID, E::ScalarField>, // id -> [ sum_{i=0}^n p(i) ]
     pub sc_proof: IOPProof<E::ScalarField>,
-    pub sc_sum: E::ScalarField,
     pub sc_aux_info: VPAuxInfo<E::ScalarField>,
     pub query_map: HashMap<(TrackerID, Vec<E::ScalarField>), E::ScalarField>, // (id, point) -> eval, // id -> p(comm_opening_point) 
     pub opening_proof: Vec<PCS::Proof>,

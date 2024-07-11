@@ -457,14 +457,19 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
             if old_nv != nv {
                 let ratio = 2_usize.pow((nv / old_nv) as u32);
                 *poly = dmle_increase_nv(poly, nv);
-                // let counter = 0;
-                // for claim in self.sum_check_claims.iter_mut() {
-                //     if claim.label == *id {
-                //         claim.claimed_sum = claim.claimed_sum * E::ScalarField::from(ratio as u64);
-                //     }
-                // }
             }
         }
+
+        // need to update the claims because resizing messes stuff up
+        let true_sums: Vec<E::ScalarField> = self.sum_check_claims.iter()
+            .map(|claim| {
+                self.evaluations(claim.label.clone()).iter().sum::<E::ScalarField>()
+            })
+            .collect();
+        for (claim, &true_sum) in self.sum_check_claims.iter_mut().zip(true_sums.iter()) {
+            claim.claimed_sum = true_sum;
+        }
+
         nv
     }
 
@@ -508,10 +513,7 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
         // 1.5) aggregate the sumcheck claims
         let mut sumcheck_poly = self.track_mat_poly(DenseMultilinearExtension::<E::ScalarField>::from_evaluations_vec(nv, vec![E::ScalarField::zero(); 2_usize.pow(nv as u32)]));
         let mut sc_sum = E::ScalarField::zero();
-        for claim in  self.sum_check_claims.clone().iter_mut() {
-            let true_sum: E::ScalarField = self.evaluations(claim.label.clone()).iter().sum::<E::ScalarField>();
-            claim.claimed_sum = true_sum; // doing this here because polynomials get resized and were messing things up
-
+        for claim in self.sum_check_claims.clone().iter() {
             let challenge = self.get_and_append_challenge(b"sumcheck challenge").unwrap();
             let claim_times_challenge_id = self.mul_scalar(claim.label.clone(), challenge);
             sumcheck_poly = self.add_polys(sumcheck_poly, claim_times_challenge_id);
@@ -519,8 +521,9 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
         };
 
         // 2) generate a sumcheck proof
-        // let true_agg_sum: E::ScalarField = self.evaluations(sumcheck_poly.clone()).iter().sum::<E::ScalarField>();
-        // assert_eq!(true_agg_sum, sc_sum);
+        let true_agg_sum: E::ScalarField = self.evaluations(sumcheck_poly.clone()).iter().sum::<E::ScalarField>();
+        assert_eq!(true_agg_sum, sc_sum, "prover_tracker::compile_proof error: true_agg_sum != sc_sum");
+        println!("\ncompile_proof true_agg_sum: {}", true_agg_sum);
         let sc_avp = self.to_arithmatic_virtual_poly(sumcheck_poly);
         let sc_aux_info = sc_avp.aux_info.clone();
         let sc_proof = <PolyIOP<E::ScalarField> as SumCheck<E::ScalarField>>::prove(&sc_avp, &mut self.transcript).unwrap();
@@ -567,7 +570,6 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
         CompiledZKSQLProof {
             sum_check_claims: sumcheck_val_map,
             sc_proof,
-            sc_sum,
             sc_aux_info,
             query_map: placeholder_query_map,
             comms: self.materialized_comms.clone(),

@@ -338,9 +338,10 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTracker<E, PCS> {
             sumcheck_comm = self.add_comms(sumcheck_comm, claim_times_challenge_id);
             sc_sum += claim.claimed_sum * challenge;
         };
+        println!("verifier_tracker verify claims agg_sum: {}", sc_sum);
 
         // verify the sumcheck proof
-        let iop_verify_res = <PolyIOP<E::ScalarField> as SumCheck<E::ScalarField>>::verify(self.proof.sc_sum, &self.proof.sc_proof, &self.proof.sc_aux_info, &mut self.transcript);
+        let iop_verify_res = <PolyIOP<E::ScalarField> as SumCheck<E::ScalarField>>::verify(sc_sum, &self.proof.sc_proof, &self.proof.sc_aux_info, &mut self.transcript);
         if iop_verify_res.is_err() {
             return Err(PolyIOPErrors::InvalidVerifier(iop_verify_res.err().unwrap().to_string()));
         }
