@@ -38,11 +38,10 @@ pub fn dmle_increase_nv<F: Field>(
 
     let old_len = 2_usize.pow(mle.num_vars as u32);
     let new_len = 2_usize.pow(new_nv as u32);
-    let ratio = new_len / old_len;
     let mut evals = mle.evaluations.clone();
     evals.resize(new_len, F::default());
     for i in old_len..new_len {
-        evals[i] = evals[i % ratio];
+        evals[i] = evals[i % old_len];
     }
     Arc::new(DenseMultilinearExtension::from_evaluations_vec(new_nv, evals))
 }
@@ -90,16 +89,21 @@ mod test {
     #[test]
     fn test_dmle_increase_nv() {
         let mut rng = test_rng();
-        let small_nv = 4;
+        let small_nv = 3;
         let large_nv = 8;
         
         let small_mle: DenseMultilinearExtension<Fr> = arithmetic::random_permutation_mles(small_nv, 1, &mut rng)[0].clone();
         let large_mle = dmle_increase_nv(&Arc::new(small_mle.clone()), large_nv);
         let large_eval_pt: Vec<Fr> = (0..large_nv).map(|_| Fr::rand(&mut rng)).collect();
         let small_eval_pt: Vec<Fr> = large_eval_pt[0..small_nv].to_vec();
+        let large_mle_rand_eval = large_mle.evaluate(&large_eval_pt).unwrap();
+        let small_mle_rand_eval = small_mle.evaluate(&small_eval_pt).unwrap();
+        println!("large_eval_pt: {:?}", large_eval_pt);
+        println!("large_mle_rand_eval: {}", large_mle_rand_eval);
+        println!("small_mle_rand_eval: {}", small_mle_rand_eval);
 
         assert_eq!(large_mle.num_vars(), large_nv);
         assert_eq!(large_mle.evaluations[0..2_usize.pow(small_nv as u32)], small_mle.evaluations);
-        assert_eq!(large_mle.evaluate(&large_eval_pt).unwrap(), small_mle.evaluate(&small_eval_pt).unwrap());
+        assert_eq!(large_mle_rand_eval, small_mle_rand_eval);
     }
 }
