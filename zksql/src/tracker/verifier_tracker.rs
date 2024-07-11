@@ -26,7 +26,7 @@ use derivative::Derivative;
 use displaydoc::Display;
 
 use subroutines::{PolyIOP, PolynomialCommitmentScheme};
-use subroutines::poly_iop::prelude::{SumCheck, ZeroCheck};
+use subroutines::poly_iop::prelude::SumCheck;
 
 use transcript::{IOPTranscript, TranscriptError};
 
@@ -286,7 +286,7 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTracker<E, PCS> {
     }
 
     pub fn get_prover_claimed_sum(&self, id: TrackerID) -> Option<&E::ScalarField> {
-        self.proof.sum_check_claims.get(&id)
+        self.proof.sumcheck_claims.get(&id)
     }
 
     pub fn transfer_proof_poly_evals(&mut self) {

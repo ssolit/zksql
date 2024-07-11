@@ -35,6 +35,7 @@ use transcript::IOPTranscript;
 use self::batching::{batch_verify_internal, multi_open_internal};
 
 /// KZG Polynomial Commitment Scheme on multilinear polynomials.
+#[derive(CanonicalSerialize, CanonicalDeserialize, Clone, Debug, PartialEq, Eq)]
 pub struct MultilinearKzgPCS<E: Pairing> {
     #[doc(hidden)]
     phantom: PhantomData<E>,
@@ -143,7 +144,7 @@ impl<E: Pairing> PolynomialCommitmentScheme<E> for MultilinearKzgPCS<E> {
     /// a transcript, compute a multi-opening for all the polynomials.
     fn multi_open(
         prover_param: impl Borrow<Self::ProverParam>,
-        polynomials: &[DenseMultilinearExtension<E::ScalarField>],
+        polynomials: &[Arc<DenseMultilinearExtension<E::ScalarField>>],
         points: &[Vec<E::ScalarField>],
         evals: &[E::ScalarField],
         transcript: &mut IOPTranscript<E::ScalarField>,

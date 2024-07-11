@@ -19,6 +19,7 @@ use errors::PCSError;
 use std::{borrow::Borrow, fmt::Debug, hash::Hash};
 use transcript::IOPTranscript;
 use ark_poly::DenseMultilinearExtension;
+use std::sync::Arc;
 
 /// This trait defines APIs for polynomial commitment schemes.
 /// Note that for our usage of PCS, we do not require the hiding property.
@@ -34,7 +35,7 @@ pub trait PolynomialCommitmentScheme<E: Pairing> {
     /// Proofs
     type Proof: Clone + CanonicalSerialize + CanonicalDeserialize + Debug + PartialEq + Eq;
     /// Batch proofs
-    type BatchProof;
+    type BatchProof: Clone + PartialEq + Eq + Debug;
 
     /// Build SRS for testing.
     ///
@@ -91,7 +92,7 @@ pub trait PolynomialCommitmentScheme<E: Pairing> {
     /// a transcript, compute a multi-opening for all the polynomials.
     fn multi_open(
         _prover_param: impl Borrow<Self::ProverParam>,
-        _polynomials: &[DenseMultilinearExtension<E::ScalarField>],
+        _polynomials: &[Arc<DenseMultilinearExtension<E::ScalarField>>],
         _points: &[Vec::<E::ScalarField>],
         _evals: &[E::ScalarField],
         _transcript: &mut IOPTranscript<E::ScalarField>,

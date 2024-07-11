@@ -24,6 +24,7 @@ use crate::tracker::{
     dmle_utils::{dmle_increase_nv, build_eq_x_r},
     tracker_structs::{TrackerID, TrackerSumcheckClaim, TrackerZerocheckClaim, CompiledZKSQLProof},
     errors::PolyIOPErrors,
+    // pcs_accumulator::PcsAccumulator;
 };
 
 use derivative::Derivative;
@@ -33,7 +34,7 @@ use subroutines::{
     pcs::PolynomialCommitmentScheme,
     PCSError,
     PolyIOP,
-    poly_iop::prelude::{SumCheck, ZeroCheck},
+    poly_iop::prelude::SumCheck,
 };
 
 use transcript::{IOPTranscript, TranscriptError};
@@ -535,50 +536,37 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
         
         // 3) create a batch opening proofs for the sumcheck point
         //      iterate over sc_avp, grab comms, run PCS batch open, get the proofs
-        // let sumcheck_point = sc_proof.point;
-        // let mut pcs_acc = PcsAccumulator::<E, PCS>::new(nv);
-        // pcs_acc.insert_poly_and_points(&sumcheck_poly, &sumcheck_comm, &sumcheck_point);
-        // pcs_acc.insert_poly_and_points(&zerocheck_poly, &zerocheck_comm, &zerocheck_point);
-        // let batch_openings = pcs_acc.multi_open(&pk.pcs_param, &mut transcript)?;
-
-
-        // let eval_pt = sumcheck_proof.point.clone();
-        // let mut polynomials: Vec<DenseMultilinearExtension<E::ScalarField>> = Vec::new();
-        // let mut points: Vec<Vec<E::ScalarField>> = Vec::new();
-        // let mut evals: Vec<E::ScalarField> = Vec::new();
-        // for (id, poly) in self.materialized_polys.iter() {
-        //     let p: DenseMultilinearExtension<E::ScalarField> = (*poly).clone();
-        //     polynomials.push(p);
-        //     points.push(eval_pt.clone());
-        //     evals.push(poly.evaluate(eval_pt.as_slice()).unwrap());
-        // }
-        // let batch_opening_proof = PCS::multi_open(&self.pcs_param, &polynomials, &points, &evals, &mut self.transcript).unwrap();
+        let sumcheck_point = sc_proof.point.clone();
+        let mat_poly_ids = self.materialized_polys.keys().cloned().collect::<Vec<TrackerID>>();
+        let mut mat_polys = Vec::with_capacity(mat_poly_ids.len());
+        let mut points = Vec::with_capacity(mat_poly_ids.len());
+        let mut evals = Vec::with_capacity(mat_poly_ids.len());
+        mat_poly_ids.iter().for_each(|id| {
+            let poly = self.get_mat_poly(id.clone()).unwrap().clone();
+            let eval = poly.evaluate(&sumcheck_point).unwrap();
+            mat_polys.push(poly);
+            points.push(sumcheck_point.clone());
+            evals.push(eval);
+        });
+        let pcs_proof = PCS::multi_open(&self.pcs_param, mat_polys.as_slice(), &points.as_slice(), &evals.as_slice(), &mut self.transcript)?;
 
         // 4) create the CompiledProof
-        // TODO: actually make a sumcheck proof and get these value
-        // made a default value for now for testing
         let mut sumcheck_val_map: HashMap<TrackerID, E::ScalarField> = HashMap::new();
         for claim in self.sum_check_claims.iter() {
             sumcheck_val_map.insert(claim.label.clone(), claim.claimed_sum);
         }
+        let mut query_map: HashMap<(TrackerID, Vec<E::ScalarField>), E::ScalarField> = HashMap::new();
+        mat_poly_ids.iter().for_each(|id| {
+            query_map.insert((id.clone(), sumcheck_point.clone()), E::ScalarField::zero());
+        });
 
-
-        let placeholder_query_map: HashMap<(TrackerID, Vec<E::ScalarField>), E::ScalarField> = HashMap::new();
-
-        let placeholder_opening_point = vec![E::ScalarField::zero(); nv];
-        let mut placeholder_poly_evals: HashMap<(TrackerID, Vec<E::ScalarField>), E::ScalarField> = HashMap::new();
-        for (id, _) in self.materialized_polys.iter() {
-            placeholder_poly_evals.insert((id.clone(), placeholder_opening_point.clone()), E::ScalarField::zero());
-        }
-
-        let placeholder_opening_proof = PCS::open(&self.pcs_param, &DenseMultilinearExtension::<E::ScalarField>::from_evaluations_vec(nv, vec![E::ScalarField::zero(); 2_usize.pow(nv as u32)]), &placeholder_opening_point).unwrap().0;
         Ok(CompiledZKSQLProof {
-            sum_check_claims: sumcheck_val_map,
+            sumcheck_claims: sumcheck_val_map, // need to tell verifier sum values from before aggregation
             sc_proof,
             sc_aux_info,
-            query_map: placeholder_query_map,
+            query_map,
             comms: self.materialized_comms.clone(),
-            opening_proof: vec![placeholder_opening_proof],
+            pcs_proof: vec![pcs_proof],
         })
     }
 }

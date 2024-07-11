@@ -2,7 +2,6 @@ mod bag;
 mod dmle_utils;
 mod errors;
 mod pcs_accumulator;
-mod prod_check_utils;
 mod prover_tracker;
 mod prover_wrapper;
 mod test;

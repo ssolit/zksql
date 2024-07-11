@@ -1,5 +1,3 @@
-use core::num;
-
 use derivative::Derivative;
 use subroutines::PolynomialCommitmentScheme;
 use ark_ec::pairing::Pairing;
