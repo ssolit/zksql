@@ -476,9 +476,6 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
         for claim in zero_check_claims {
             let challenge = self.get_and_append_challenge(b"zerocheck challenge").unwrap();
             let claim_poly_id = self.mul_scalar(claim.label.clone(), challenge);
-            // let claim_poly_raw_evals = self.evaluations(claim_poly_id);
-            // let claim_mle = DenseMultilinearExtension::<E::ScalarField>::from_evaluations_vec(log2(claim_poly_raw_evals.len()) as usize, claim_poly_raw_evals);
-            // let claim_mle = dmle_increase_nv(&claim_mle, nv);
             zerocheck_poly = self.add_polys(zerocheck_poly, claim_poly_id);
         }
 
@@ -487,19 +484,27 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
         for claim in sumcheck_claims.iter() {
             let challenge = self.get_and_append_challenge(b"sumcheck challenge").unwrap();
             let claim_poly_id = self.mul_scalar(claim.label.clone(), challenge);
-            sumcheck_poly = self.add_polys(zerocheck_poly, claim_poly_id);
+            sumcheck_poly = self.add_polys(sumcheck_poly, claim_poly_id);
         };
 
         // // 2) generate a sumcheck proof
-        let avp = self.to_arithmatic_virtual_poly(zerocheck_poly);
-        let zc_aux_info = avp.aux_info.clone();
-        let zc_proof = <PolyIOP<E::ScalarField> as ZeroCheck<E::ScalarField>>::prove(&avp, &mut self.transcript).unwrap();
+        let zc_avp = self.to_arithmatic_virtual_poly(zerocheck_poly);
+        let zc_aux_info = zc_avp.aux_info.clone();
+        let zc_proof = <PolyIOP<E::ScalarField> as ZeroCheck<E::ScalarField>>::prove(&zc_avp, &mut self.transcript).unwrap();
         let sc_sum = self.evaluations(sumcheck_poly).iter().sum::<E::ScalarField>();
-        let avp = self.to_arithmatic_virtual_poly(sumcheck_poly);
-        let sc_aux_info = avp.aux_info.clone();
-        let sc_proof = <PolyIOP<E::ScalarField> as SumCheck<E::ScalarField>>::prove(&avp, &mut self.transcript).unwrap();
+        let sc_avp = self.to_arithmatic_virtual_poly(sumcheck_poly);
+        let sc_aux_info = sc_avp.aux_info.clone();
+        let sc_proof = <PolyIOP<E::ScalarField> as SumCheck<E::ScalarField>>::prove(&sc_avp, &mut self.transcript).unwrap();
         
         // 3) create a batch opening proofs for the sumcheck point
+        //      iterate over sc_avp, grab comms, run PCS batch open, get the proofs
+        // let sumcheck_point = sc_proof.point;
+        // let mut pcs_acc = PcsAccumulator::<E, PCS>::new(nv);
+        // pcs_acc.insert_poly_and_points(&sumcheck_poly, &sumcheck_comm, &sumcheck_point);
+        // pcs_acc.insert_poly_and_points(&zerocheck_poly, &zerocheck_comm, &zerocheck_point);
+        // let batch_openings = pcs_acc.multi_open(&pk.pcs_param, &mut transcript)?;
+
+
         // let eval_pt = sumcheck_proof.point.clone();
         // let mut polynomials: Vec<DenseMultilinearExtension<E::ScalarField>> = Vec::new();
         // let mut points: Vec<Vec<E::ScalarField>> = Vec::new();
