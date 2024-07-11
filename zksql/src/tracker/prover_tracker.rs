@@ -468,16 +468,8 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
         let nv = self.equalize_materialized_poly_nv();
 
 
-        // // 1) aggregate the subclaims into a single MLE
-        // //    start with zero checks, then sumchecks
-
-        let mut zerocheck_poly = self.track_mat_poly(DenseMultilinearExtension::<E::ScalarField>::from_evaluations_vec(nv, vec![E::ScalarField::zero(); 2_usize.pow(nv as u32)]));
-        let zero_check_claims = self.zero_check_claims.clone();
-        for claim in zero_check_claims {
-            let challenge = self.get_and_append_challenge(b"zerocheck challenge").unwrap();
-            let claim_poly_id = self.mul_scalar(claim.label.clone(), challenge);
-            zerocheck_poly = self.add_polys(zerocheck_poly, claim_poly_id);
-        }
+        // 1) aggregate the subclaims into a single MLE
+        //    start with zero checks, then sumchecks
 
         let mut sumcheck_poly = self.track_mat_poly(DenseMultilinearExtension::<E::ScalarField>::from_evaluations_vec(nv, vec![E::ScalarField::zero(); 2_usize.pow(nv as u32)]));
         let sumcheck_claims = self.sum_check_claims.clone();
@@ -486,6 +478,18 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
             let claim_poly_id = self.mul_scalar(claim.label.clone(), challenge);
             sumcheck_poly = self.add_polys(sumcheck_poly, claim_poly_id);
         };
+
+        // 1.5) aggregate the zerocheck claims into a single MLE
+        //      Then convert the zerocheck_agg_poly to a sumcheck and 
+        //      add it to the sumcheck_poly
+
+        let mut zerocheck_poly = self.track_mat_poly(DenseMultilinearExtension::<E::ScalarField>::from_evaluations_vec(nv, vec![E::ScalarField::zero(); 2_usize.pow(nv as u32)]));
+        let zero_check_claims = self.zero_check_claims.clone();
+        for claim in zero_check_claims {
+            let challenge = self.get_and_append_challenge(b"zerocheck challenge").unwrap();
+            let claim_poly_id = self.mul_scalar(claim.label.clone(), challenge);
+            zerocheck_poly = self.add_polys(zerocheck_poly, claim_poly_id);
+        }
 
         // // 2) generate a sumcheck proof
         let zc_avp = self.to_arithmatic_virtual_poly(zerocheck_poly);

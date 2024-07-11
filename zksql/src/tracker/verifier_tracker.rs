@@ -297,14 +297,6 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTracker<E, PCS> {
     }
 
     pub fn verify_claims(&mut self) -> Result<(), PolyIOPErrors> {
-        let zero_closure = |_: &[E::ScalarField]| -> Result<<E as Pairing>::ScalarField, PolyIOPErrors> {Ok(E::ScalarField::zero())};
-        let mut zerocheck_comm = self.track_virtual_comm(Box::new(zero_closure));
-        let zero_check_claims = self.zero_check_claims.clone();
-        for claim in zero_check_claims {
-            let challenge = self.get_and_append_challenge(b"zerocheck challenge").unwrap();
-            let claim_poly_id = self.mul_scalar(claim.label.clone(), challenge);
-            zerocheck_comm = self.add_comms(zerocheck_comm, claim_poly_id);
-        }
 
         let zero_closure = |_: &[E::ScalarField]| -> Result<<E as Pairing>::ScalarField, PolyIOPErrors> {Ok(E::ScalarField::zero())};
         let mut sumcheck_comm = self.track_virtual_comm(Box::new(zero_closure));
@@ -314,6 +306,18 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTracker<E, PCS> {
             let claim_poly_id = self.mul_scalar(claim.label.clone(), challenge);
             sumcheck_comm = self.add_comms(sumcheck_comm, claim_poly_id);
         };
+
+        
+        let zero_closure = |_: &[E::ScalarField]| -> Result<<E as Pairing>::ScalarField, PolyIOPErrors> {Ok(E::ScalarField::zero())};
+        let mut zerocheck_comm = self.track_virtual_comm(Box::new(zero_closure));
+        let zero_check_claims = self.zero_check_claims.clone();
+        for claim in zero_check_claims {
+            let challenge = self.get_and_append_challenge(b"zerocheck challenge").unwrap();
+            let claim_poly_id = self.mul_scalar(claim.label.clone(), challenge);
+            zerocheck_comm = self.add_comms(zerocheck_comm, claim_poly_id);
+        }
+
+        
 
         let iop_verify_res = <PolyIOP<E::ScalarField> as ZeroCheck<E::ScalarField>>::verify(&self.proof.zc_proof, &self.proof.zc_aux_info, &mut self.transcript);
         if iop_verify_res.is_err() {
