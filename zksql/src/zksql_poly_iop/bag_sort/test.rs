@@ -147,7 +147,7 @@ mod test {
        
        // set up verifier tracker, create subclaims, and verify IOPProofs
        verifier_tracker.set_compiled_proof(proof);
-       let sorted_bag_comm = BagComm::new(verifier_tracker.transfer_prover_comm(sorted_bag.poly.id), verifier_tracker.transfer_prover_comm(sorted_bag.selector.id));
+       let sorted_bag_comm = BagComm::new(verifier_tracker.transfer_prover_comm(sorted_bag.poly.id), verifier_tracker.transfer_prover_comm(sorted_bag.selector.id), sorted_bag.num_vars());
        let range_comm = verifier_tracker.transfer_prover_comm(range_poly.id);
        let m_range_comm = verifier_tracker.transfer_prover_comm(m_range.id);
        BagStrictSortIOP::<E, PCS>::verify(verifier_tracker, &sorted_bag_comm, &range_comm, &m_range_comm)?;

@@ -72,10 +72,12 @@ mod test {
         let g2_sel = DenseMultilinearExtension::from_evaluations_vec(nv, g2_sel_evals.clone());
         test_bag_multitool_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&mut prover_tracker, &mut verifier_tracker, &[f2.clone()], &[f2_sel.clone()], &[mf.clone()],&[g2.clone()], &[g2_sel.clone()], &[mg.clone()])?;
         println!("passed");
+        println!();
 
 
         // Good Path 3: f is split into two polynomials
         print!("test_bag_multitool Good path 3 (f is split into two half-sized polynomials): ");
+        println!();
         let half_one_poly = DenseMultilinearExtension::from_evaluations_vec(nv-1, vec![Fr::one(); f_evals.len()/2]);
         let f3a_evals = f_evals.clone()[..f_evals.len()/2].to_vec();
         let f3b_evals = f_evals.clone()[f_evals.len()/2..].to_vec();
@@ -164,13 +166,13 @@ mod test {
 
         let f_bags_vec: Vec<BagComm<E, PCS>> = f_comms_vec.iter()
             .zip(f_sel_comms_vec.iter())
-            .map(|(f, f_sel)| BagComm::new(f.clone(), f_sel.clone()))
+            .map(|(f, f_sel)| BagComm::new(f.clone(), f_sel.clone(), fs[0].num_vars))
             .collect();
         let f_bags: &[BagComm<E, PCS>] = &f_bags_vec;
 
         let g_bags_vec: Vec<BagComm<E, PCS>> = g_comms_vec.iter()
             .zip(g_sel_comms_vec.iter())
-            .map(|(g, g_sel)| BagComm::new(g.clone(), g_sel.clone()))
+            .map(|(g, g_sel)| BagComm::new(g.clone(), g_sel.clone(), gs[0].num_vars))
             .collect();
         let g_bags: &[BagComm<E, PCS>] = &g_bags_vec;
         BagMultiToolIOP::<E, PCS>::verify(verifier_tracker, f_bags, g_bags, &mf_comms_vec, &mg_comms_vec)?;
@@ -238,6 +240,8 @@ mod test {
     E: Pairing,
     PCS: PolynomialCommitmentScheme<E>,
     {
+        let f_nv = f.num_vars;
+        let g_nv = g.num_vars;
         // Set up prover_tracker and prove
         let f_bag = Bag::new(prover_tracker.track_and_commit_poly(f.clone())?, prover_tracker.track_and_commit_poly(f_sel.clone())?);
         let g_bag = Bag::new(prover_tracker.track_and_commit_poly(g.clone())?, prover_tracker.track_and_commit_poly(g_sel.clone())?);
@@ -252,8 +256,8 @@ mod test {
         
         // set up verifier tracker, create subclaims, and verify IOPProofs
         verifier_tracker.set_compiled_proof(proof);
-        let f_bag_comm = BagComm::new(verifier_tracker.transfer_prover_comm(f_bag.poly.id), verifier_tracker.transfer_prover_comm(f_bag.selector.id));
-        let g_bag_comm = BagComm::new(verifier_tracker.transfer_prover_comm(g_bag.poly.id), verifier_tracker.transfer_prover_comm(g_bag.selector.id));
+        let f_bag_comm = BagComm::new(verifier_tracker.transfer_prover_comm(f_bag.poly.id), verifier_tracker.transfer_prover_comm(f_bag.selector.id), f_nv);
+        let g_bag_comm = BagComm::new(verifier_tracker.transfer_prover_comm(g_bag.poly.id), verifier_tracker.transfer_prover_comm(g_bag.selector.id), g_nv);
         BagEqIOP::<E, PCS>::verify(verifier_tracker, &f_bag_comm, &g_bag_comm)?;
         verifier_tracker.verify_claims()?;
 
@@ -345,6 +349,8 @@ mod test {
     E: Pairing,
     PCS: PolynomialCommitmentScheme<E>,
     {
+        let f_nv = f.num_vars;
+        let g_nv = g.num_vars;
         // Set up prover_tracker and prove
         let f_bag = Bag::new(prover_tracker.track_and_commit_poly(f.clone())?, prover_tracker.track_and_commit_poly(f_sel.clone())?);
         let g_bag = Bag::new(prover_tracker.track_and_commit_poly(g.clone())?, prover_tracker.track_and_commit_poly(g_sel.clone())?);
@@ -360,8 +366,8 @@ mod test {
         
         // set up verifier tracker, create subclaims, and verify IOPProofs
         verifier_tracker.set_compiled_proof(proof);
-        let f_bag_comm = BagComm::new(verifier_tracker.transfer_prover_comm(f_bag.poly.id), verifier_tracker.transfer_prover_comm(f_bag.selector.id));
-        let g_bag_comm = BagComm::new(verifier_tracker.transfer_prover_comm(g_bag.poly.id), verifier_tracker.transfer_prover_comm(g_bag.selector.id));
+        let f_bag_comm = BagComm::new(verifier_tracker.transfer_prover_comm(f_bag.poly.id), verifier_tracker.transfer_prover_comm(f_bag.selector.id), f_nv);
+        let g_bag_comm = BagComm::new(verifier_tracker.transfer_prover_comm(g_bag.poly.id), verifier_tracker.transfer_prover_comm(g_bag.selector.id), g_nv);
         let mg_comm = verifier_tracker.transfer_prover_comm(mg.id);
         BagSubsetIOP::<E, PCS>::verify(
             verifier_tracker, 
@@ -472,6 +478,9 @@ mod test {
     E: Pairing,
     PCS: PolynomialCommitmentScheme<E>,
     {
+        let f0_nv = f0.num_vars;
+        let f1_nv = f1.num_vars;
+        let g_nv = g.num_vars;
         // Set up prover_tracker and prove
         let f0_bag = Bag::new(prover_tracker.track_and_commit_poly(f0.clone())?, prover_tracker.track_and_commit_poly(f0_sel.clone())?);
         let f1_bag = Bag::new(prover_tracker.track_and_commit_poly(f1.clone())?, prover_tracker.track_and_commit_poly(f1_sel.clone())?);
@@ -487,9 +496,9 @@ mod test {
 
         // set up verifier tracker, create subclaims, and verify IOPProofs
         verifier_tracker.set_compiled_proof(proof);
-        let f0_bag_comm = BagComm::new(verifier_tracker.transfer_prover_comm(f0_bag.poly.id), verifier_tracker.transfer_prover_comm(f0_bag.selector.id));
-        let f1_bag_comm = BagComm::new(verifier_tracker.transfer_prover_comm(f1_bag.poly.id), verifier_tracker.transfer_prover_comm(f1_bag.selector.id));
-        let g_bag_comm = BagComm::new(verifier_tracker.transfer_prover_comm(g_bag.poly.id), verifier_tracker.transfer_prover_comm(g_bag.selector.id));
+        let f0_bag_comm = BagComm::new(verifier_tracker.transfer_prover_comm(f0_bag.poly.id), verifier_tracker.transfer_prover_comm(f0_bag.selector.id), f0_nv);
+        let f1_bag_comm = BagComm::new(verifier_tracker.transfer_prover_comm(f1_bag.poly.id), verifier_tracker.transfer_prover_comm(f1_bag.selector.id), f1_nv);
+        let g_bag_comm = BagComm::new(verifier_tracker.transfer_prover_comm(g_bag.poly.id), verifier_tracker.transfer_prover_comm(g_bag.selector.id), g_nv);
         BagSumIOP::<E, PCS>::verify(verifier_tracker, &f0_bag_comm, &f1_bag_comm, &g_bag_comm)?;
         verifier_tracker.verify_claims()?;
 
@@ -572,6 +581,7 @@ mod test {
     E: Pairing,
     PCS: PolynomialCommitmentScheme<E>,
     {
+        let nv = f.num_vars;
         // Set up prover_tracker and prove
         let f_bag = Bag::new(prover_tracker.track_and_commit_poly(f.clone())?, prover_tracker.track_and_commit_poly(f_sel.clone())?);
         let g_bag = Bag::new(prover_tracker.track_and_commit_poly(g.clone())?, prover_tracker.track_and_commit_poly(g_sel.clone())?);
@@ -587,8 +597,8 @@ mod test {
 
         // set up verifier tracker, create subclaims, and verify IOPProofs
         verifier_tracker.set_compiled_proof(proof);
-        let f_bag_comm = BagComm::new(verifier_tracker.transfer_prover_comm(f_bag.poly.id), verifier_tracker.transfer_prover_comm(f_bag.selector.id));
-        let g_bag_comm = BagComm::new(verifier_tracker.transfer_prover_comm(g_bag.poly.id), verifier_tracker.transfer_prover_comm(g_bag.selector.id));
+        let f_bag_comm = BagComm::new(verifier_tracker.transfer_prover_comm(f_bag.poly.id), verifier_tracker.transfer_prover_comm(f_bag.selector.id), nv);
+        let g_bag_comm = BagComm::new(verifier_tracker.transfer_prover_comm(g_bag.poly.id), verifier_tracker.transfer_prover_comm(g_bag.selector.id), nv);
         let perm_comm = verifier_tracker.transfer_prover_comm(perm.id);
         BagPrescPermIOP::<E, PCS>::verify(verifier_tracker, &f_bag_comm, &g_bag_comm, &perm_comm)?;
         verifier_tracker.verify_claims()?;

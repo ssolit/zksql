@@ -165,9 +165,9 @@ mod test {
         
         // set up verifier tracker, create subclaims, and verify IOPProofs
         verifier_tracker.set_compiled_proof(proof);
-        let bag_comm = BagComm::new(verifier_tracker.transfer_prover_comm(bag.poly.id), verifier_tracker.transfer_prover_comm(bag.selector.id).clone());
+        let bag_comm = BagComm::new(verifier_tracker.transfer_prover_comm(bag.poly.id), verifier_tracker.transfer_prover_comm(bag.selector.id).clone(), bag.num_vars());
         let common_mset_bag_m_comm = verifier_tracker.transfer_prover_comm(common_mset_bag_m.id);
-        let supp_comm = BagComm::new(verifier_tracker.transfer_prover_comm(supp.poly.id), verifier_tracker.transfer_prover_comm(supp.selector.id).clone());
+        let supp_comm = BagComm::new(verifier_tracker.transfer_prover_comm(supp.poly.id), verifier_tracker.transfer_prover_comm(supp.selector.id).clone(), supp.num_vars());
         let common_mset_supp_m_comm = verifier_tracker.transfer_prover_comm(common_mset_supp_m.id);
         let range_comm = verifier_tracker.transfer_prover_comm(range_poly.id).clone();
         let supp_range_m_comm = verifier_tracker.transfer_prover_comm(supp_range_m.id);

@@ -452,10 +452,9 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
     // Used as a preprocessing step before batching polynomials
     fn equalize_materialized_poly_nv(&mut self) -> usize {
         let nv: usize = self.materialized_polys.iter().map(|(_, p)| p.num_vars()).max().ok_or(1).unwrap();
-        for (id, poly) in self.materialized_polys.iter_mut() {
+        for (_, poly) in self.materialized_polys.iter_mut() {
             let old_nv = poly.num_vars();
             if old_nv != nv {
-                let ratio = 2_usize.pow((nv / old_nv) as u32);
                 *poly = dmle_increase_nv(poly, nv);
             }
         }
@@ -523,7 +522,6 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
         // 2) generate a sumcheck proof
         let true_agg_sum: E::ScalarField = self.evaluations(sumcheck_poly.clone()).iter().sum::<E::ScalarField>();
         assert_eq!(true_agg_sum, sc_sum, "prover_tracker::compile_proof error: true_agg_sum != sc_sum");
-        println!("\ncompile_proof true_agg_sum: {}", true_agg_sum);
         let sc_avp = self.to_arithmatic_virtual_poly(sumcheck_poly);
         let sc_aux_info = sc_avp.aux_info.clone();
         let sc_proof = <PolyIOP<E::ScalarField> as SumCheck<E::ScalarField>>::prove(&sc_avp, &mut self.transcript).unwrap();

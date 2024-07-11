@@ -86,13 +86,13 @@ where PCS: PolynomialCommitmentScheme<E> {
         // bag and supp are subsets of each other by showing multiplicity polys have no zeros
         let one_closure = |_: &[E::ScalarField]| -> Result<<E as Pairing>::ScalarField, PolyIOPErrors> {Ok(E::ScalarField::one())};
         let bag_one_comm = verifier_tracker.track_virtual_comm(Box::new(one_closure));
-        let bag_no_dups_checker = BagComm::new(common_mset_bag_m.clone(), bag_one_comm.clone());
+        let bag_no_dups_checker = BagComm::new(common_mset_bag_m.clone(), bag_one_comm.clone(), bag.num_vars());
         BagNoZerosIOP::<E, PCS>::verify(
             verifier_tracker,
             &bag_no_dups_checker,
         )?;
         let supp_one_comm = verifier_tracker.track_virtual_comm(Box::new(one_closure));
-        let supp_no_dups_checker = BagComm::new(common_mset_supp_m.clone(), supp_one_comm.clone());
+        let supp_no_dups_checker = BagComm::new(common_mset_supp_m.clone(), supp_one_comm.clone(), supp.num_vars());
         BagNoZerosIOP::<E, PCS>::verify(
             verifier_tracker,
             &supp_no_dups_checker,

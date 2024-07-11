@@ -148,7 +148,7 @@ where PCS: PolynomialCommitmentScheme<E> {
         let shift_perm_comm = verifier_tracker.track_virtual_comm(Box::new(shift_perm_closure));
         let q_poly_id = verifier_tracker.get_next_id();
         let q_comm = verifier_tracker.transfer_prover_comm(q_poly_id);
-        let q_bag = BagComm::new(q_comm.clone(), one_comm.clone());
+        let q_bag = BagComm::new(q_comm.clone(), one_comm.clone(), sorted_nv);
         BagPrescPermIOP::<E, PCS>::verify(
             verifier_tracker,
             &sorted_bag_comm.clone(),
@@ -159,10 +159,10 @@ where PCS: PolynomialCommitmentScheme<E> {
         // set up the tracker and verify the range check
         let diff_sel_comm = verifier_tracker.track_virtual_comm(Box::new(diff_sel_closure));
         let diff_comm = diff_sel_comm.mul_comms(&q_comm.sub_comms(&p_comm)).add_scalar(E::ScalarField::one()).sub_comms(&diff_sel_comm);
-        let diff_bag = BagComm::new(diff_comm.clone(), diff_sel_comm);
+        let diff_bag = BagComm::new(diff_comm.clone(), diff_sel_comm, sorted_bag_comm.num_vars());
         let range_sel_closure = one_closure.clone();
         let range_sel = verifier_tracker.track_virtual_comm(Box::new(range_sel_closure));
-        let range_bag = BagComm::new(range_comm.clone(), range_sel);
+        let range_bag = BagComm::new(range_comm.clone(), range_sel, sorted_bag_comm.num_vars());
         BagSubsetIOP::<E, PCS>::verify(
             verifier_tracker,
             &diff_bag.clone(),
@@ -171,7 +171,7 @@ where PCS: PolynomialCommitmentScheme<E> {
         )?;
 
         // check that diff * diff_inverse - 1 = 0, showing that diff contains no zeros and thus p has no dups
-        let no_dups_check_bag = BagComm::new(diff_comm.clone(), sorted_bag_comm.selector.clone());
+        let no_dups_check_bag = BagComm::new(diff_comm.clone(), sorted_bag_comm.selector.clone(), sorted_bag_comm.num_vars());
         BagNoZerosIOP::<E, PCS>::verify(
             verifier_tracker,
             &no_dups_check_bag,

@@ -96,8 +96,8 @@ where PCS: PolynomialCommitmentScheme<E> {
         let fhat_comm = tracker.transfer_prover_comm(fhat_id);
         let ghat_id = tracker.get_next_id();
         let ghat_comm = tracker.transfer_prover_comm(ghat_id);
-        let fhat_comm_bag = BagComm::new(fhat_comm, one_comm.clone());
-        let ghat_comm_bag = BagComm::new(ghat_comm, one_comm);
+        let fhat_comm_bag = BagComm::new(fhat_comm, one_comm.clone(), fx.num_vars());
+        let ghat_comm_bag = BagComm::new(ghat_comm, one_comm, gx.num_vars());
         let fhat_check_poly = (ordered_comm.mul_comms(&fx.poly)).add_comms(&fx.poly.mul_scalar(gamma)).sub_comms(&fhat_comm_bag.poly);
         let ghat_check_poly = (perm.mul_comms(&gx.poly)).add_comms(&gx.poly.mul_scalar(gamma)).sub_comms(&ghat_comm_bag.poly);
         
