@@ -297,7 +297,7 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTracker<E, PCS> {
         }
     }
 
-    fn convert_zerocheck_claims_to_sumcheck_claim(&mut self, nv: usize) -> TrackerID {
+    fn convert_zerocheck_claims_to_sumcheck_claim(&mut self, nv: usize) {
         // 1)   aggregate the zerocheck claims into a single MLE
         let zero_closure = |_: &[E::ScalarField]| -> Result<<E as Pairing>::ScalarField, PolyIOPErrors> {Ok(E::ScalarField::zero())};
         let mut zerocheck_agg_comm = self.track_virtual_comm(Box::new(zero_closure));
@@ -319,14 +319,18 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTracker<E, PCS> {
 
         // create the relevant sumcheck claim
         let new_sc_claim_comm = self.mul_comms(zerocheck_agg_comm, eq_x_r_comm); // Note: SumCheck val should be zero
-        new_sc_claim_comm
+        self.add_sumcheck_claim(new_sc_claim_comm, E::ScalarField::zero());
     }
 
     pub fn verify_claims(&mut self) -> Result<(), PolyIOPErrors> {
-
         let nv = self.proof.sc_aux_info.num_variables;
-        // aggregate zerocheck and sumcheck claim comms
-        let mut sumcheck_comm = self.convert_zerocheck_claims_to_sumcheck_claim(nv); // Note: SumCheck val should be zero
+
+        // aggregate zerocheck claims into a single sumcheck claim
+        self.convert_zerocheck_claims_to_sumcheck_claim(nv); // Note: SumCheck val should be zero
+
+        // aggregate the sumcheck claims
+        let zero_closure = |_: &[E::ScalarField]| -> Result<<E as Pairing>::ScalarField, PolyIOPErrors> {Ok(E::ScalarField::zero())};
+        let mut sumcheck_comm = self.track_virtual_comm(Box::new(zero_closure));
         let sumcheck_claims = self.sum_check_claims.clone();
         for claim in sumcheck_claims.iter() {
             let challenge = self.get_and_append_challenge(b"sumcheck challenge").unwrap();

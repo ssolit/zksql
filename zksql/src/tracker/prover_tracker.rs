@@ -458,7 +458,7 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
         nv
     }
 
-    fn convert_zerocheck_claims_to_sumcheck_claim(&mut self, nv: usize) -> TrackerID {
+    fn convert_zerocheck_claims_to_sumcheck_claim(&mut self, nv: usize) {
         // 1)   aggregate the zerocheck claims into a single MLE
         let mut zerocheck_agg_poly = self.track_mat_poly(DenseMultilinearExtension::<E::ScalarField>::from_evaluations_vec(nv, vec![E::ScalarField::zero(); 2_usize.pow(nv as u32)]));
         let zero_check_claims = self.zero_check_claims.clone();
@@ -477,7 +477,7 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
 
         // create the relevant sumcheck claim
         let new_sc_claim_poly = self.mul_polys(zerocheck_agg_poly, eq_x_r_id); // Note: SumCheck val should be zero
-        new_sc_claim_poly
+        self.add_sumcheck_claim(new_sc_claim_poly, E::ScalarField::zero());
     }
 
 
@@ -492,12 +492,11 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
 
         // 1)   aggregate the zerocheck claims into a single MLE
         //      Then convert the zerocheck_agg_poly to a sumcheck
-        let mut sumcheck_poly = self.convert_zerocheck_claims_to_sumcheck_claim(nv); // Note: SumCheck val should be zero
-        let sc_sum = self.evaluations(sumcheck_poly).iter().sum::<E::ScalarField>();
+        self.convert_zerocheck_claims_to_sumcheck_claim(nv); // Note: SumCheck val should be zero
+        // let sc_sum = self.evaluations(sumcheck_poly).iter().sum::<E::ScalarField>();
 
-        // 1.5) aggregate the subclaims into a single MLE
-        //    start with zero checks, then sumchecks
-        // let mut sumcheck_poly = self.track_mat_poly(DenseMultilinearExtension::<E::ScalarField>::from_evaluations_vec(nv, vec![E::ScalarField::zero(); 2_usize.pow(nv as u32)]));
+        // 1.5) aggregate the sumcheck claims
+        let mut sumcheck_poly = self.track_mat_poly(DenseMultilinearExtension::<E::ScalarField>::from_evaluations_vec(nv, vec![E::ScalarField::zero(); 2_usize.pow(nv as u32)]));
         let sumcheck_claims = self.sum_check_claims.clone();
         for claim in sumcheck_claims.iter() {
             let challenge = self.get_and_append_challenge(b"sumcheck challenge").unwrap();
