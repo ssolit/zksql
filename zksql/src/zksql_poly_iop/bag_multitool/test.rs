@@ -152,7 +152,7 @@ mod test {
             &mf_polys_vec,
             &mg_polys_vec
         )?;
-        let proof = prover_tracker.compile_proof();
+        let proof = prover_tracker.compile_proof()?;
         
         // set up verifier tracker, create subclaims, and verify IOPProofs
         verifier_tracker.set_compiled_proof(proof);
@@ -252,7 +252,7 @@ mod test {
             &f_bag,
             &g_bag,
         )?;
-        let proof = prover_tracker.compile_proof();
+        let proof = prover_tracker.compile_proof()?;
         
         // set up verifier tracker, create subclaims, and verify IOPProofs
         verifier_tracker.set_compiled_proof(proof);
@@ -362,7 +362,7 @@ mod test {
             &g_bag,
             &mg,
         )?;
-        let proof = prover_tracker.compile_proof();
+        let proof = prover_tracker.compile_proof()?;
         
         // set up verifier tracker, create subclaims, and verify IOPProofs
         verifier_tracker.set_compiled_proof(proof);
@@ -492,7 +492,7 @@ mod test {
             &f1_bag,
             &g_bag,
         )?;
-        let proof = prover_tracker.compile_proof();
+        let proof = prover_tracker.compile_proof()?;
 
         // set up verifier tracker, create subclaims, and verify IOPProofs
         verifier_tracker.set_compiled_proof(proof);
@@ -593,7 +593,7 @@ mod test {
             &g_bag,
             &perm,
         )?;
-        let proof = prover_tracker.compile_proof();
+        let proof = prover_tracker.compile_proof()?;
 
         // set up verifier tracker, create subclaims, and verify IOPProofs
         verifier_tracker.set_compiled_proof(proof);

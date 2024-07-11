@@ -23,6 +23,7 @@ use arithmetic::VirtualPolynomial;
 use crate::tracker::{
     dmle_utils::{dmle_increase_nv, build_eq_x_r},
     tracker_structs::{TrackerID, TrackerSumcheckClaim, TrackerZerocheckClaim, CompiledZKSQLProof},
+    errors::PolyIOPErrors,
 };
 
 use derivative::Derivative;
@@ -495,7 +496,7 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
     }
 
 
-    pub fn compile_proof(&mut self) -> CompiledZKSQLProof<E, PCS> {
+    pub fn compile_proof(&mut self) -> Result<CompiledZKSQLProof<E, PCS>, PolyIOPErrors> {
         // creates a finished proof based off the subclaims that have been recorded
         // 1) aggregates the subclaims into a single MLE
         // 2) generates a sumcheck proof
@@ -520,8 +521,13 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
         };
 
         // 2) generate a sumcheck proof
-        let true_agg_sum: E::ScalarField = self.evaluations(sumcheck_poly.clone()).iter().sum::<E::ScalarField>();
-        assert_eq!(true_agg_sum, sc_sum, "prover_tracker::compile_proof error: true_agg_sum != sc_sum");
+        #[cfg(debug_assertions)] {
+            let true_agg_sum: E::ScalarField = self.evaluations(sumcheck_poly.clone()).iter().sum::<E::ScalarField>();
+            if true_agg_sum != sc_sum {
+                let err_msg = "prover_tracker::compile_proof error: true_agg_sum != sc_sum";
+                return Err(PolyIOPErrors::InvalidVerifier(err_msg.to_string()));
+            }
+        }
         let sc_avp = self.to_arithmatic_virtual_poly(sumcheck_poly);
         let sc_aux_info = sc_avp.aux_info.clone();
         let sc_proof = <PolyIOP<E::ScalarField> as SumCheck<E::ScalarField>>::prove(&sc_avp, &mut self.transcript).unwrap();
@@ -565,13 +571,13 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
         }
 
         let placeholder_opening_proof = PCS::open(&self.pcs_param, &DenseMultilinearExtension::<E::ScalarField>::from_evaluations_vec(nv, vec![E::ScalarField::zero(); 2_usize.pow(nv as u32)]), &placeholder_opening_point).unwrap().0;
-        CompiledZKSQLProof {
+        Ok(CompiledZKSQLProof {
             sum_check_claims: sumcheck_val_map,
             sc_proof,
             sc_aux_info,
             query_map: placeholder_query_map,
             comms: self.materialized_comms.clone(),
             opening_proof: vec![placeholder_opening_proof],
-        }
+        })
     }
 }

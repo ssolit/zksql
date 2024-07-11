@@ -60,11 +60,14 @@ mod test {
         let mut verifier_tracker: VerifierTrackerRef<Bls12_381, MultilinearKzgPCS<Bls12_381>> = VerifierTrackerRef::new_from_pcs_params(pcs_verifier_param);
 
         // test good path 1
+        print!("BagStrictSortIOP good path 1 test: ");
+        println!();
         test_bag_strict_sort_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&mut prover_tracker, &mut verifier_tracker, &sorted_bag_poly, &sorted_bag_sel, &range_poly.clone(), &m_range.clone())?;
-        println!("BagStrictSortIOP good path 1 test passed");
+        println!("passed");
 
         // test good path 2: sel is non-trivial
         // The first two elements are both 0, but only the second element is included by the selector
+        print!("BagStrictSortIOP good path 2 test: ");
         let mut sorted_poly_nums_2 = sorted_poly_nums.clone();
         sorted_poly_nums_2[0] = 0;
         sorted_poly_nums_2[1] = 0;
@@ -85,9 +88,10 @@ mod test {
         let m_range_evals_2 = m_range_nums_2.iter().map(|x| Fr::from(*x as u64)).collect();
         let m_range_2 = DenseMultilinearExtension::from_evaluations_vec(num_range_pow, m_range_evals_2);
         test_bag_strict_sort_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&mut prover_tracker, &mut verifier_tracker, &sorted_poly_2, &sel_2, &range_poly.clone(), &m_range_2.clone())?;
-        println!("BagStrictSortIOP good path 2 test passed");
+        println!("passed");
 
         // test bad path 1: sorted poly is not strictly sorted
+        print!("BagStrictSortIOP bad path 1 test: ");
         let mut bad_sorted_poly_nums_1 = sorted_poly_nums.clone();
         bad_sorted_poly_nums_1[0] = sorted_poly_nums[1];
         bad_sorted_poly_nums_1[1] = sorted_poly_nums[0];
@@ -95,9 +99,10 @@ mod test {
         let bad_sorted_poly_1 = DenseMultilinearExtension::from_evaluations_vec(nv, bad_sorted_poly_1_evals);
         let bad_result1: Result<(), PolyIOPErrors> = test_bag_strict_sort_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&mut prover_tracker.deep_copy(), &mut verifier_tracker.deep_copy(), &bad_sorted_poly_1, &sorted_bag_sel, &range_poly.clone(), &m_range.clone());
         assert!(bad_result1.is_err());
-        println!("BagStrictSortIOP bad path 1 test passed");
+        println!("passed");
 
         // test bad path 2: sorted poly has a duplicate
+        print!("BagStrictSortIOP bad path 2 test: ");
         let mut bad_sorted_poly_nums_2 = sorted_poly_nums.clone();
         bad_sorted_poly_nums_2[1] = sorted_poly_nums[0];
         let bad_sorted_poly_2_evals = bad_sorted_poly_nums_2.iter().map(|x| Fr::from(*x as u64)).collect();
@@ -113,7 +118,7 @@ mod test {
         let bad2_m_range = DenseMultilinearExtension::from_evaluations_vec(num_range_pow, bad2_m_range_evals);
         let bad_result2 = test_bag_strict_sort_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&mut prover_tracker.deep_copy(), &mut verifier_tracker.deep_copy(), &bad_sorted_poly_2, &sorted_bag_sel, &range_poly.clone(), &bad2_m_range.clone());
         assert!(bad_result2.is_err());
-        println!("BagStrictSortIOP bad path 2 test passed");
+        println!("passed");
 
         Ok(())
 
@@ -132,25 +137,31 @@ mod test {
     PCS: PolynomialCommitmentScheme<E>,
     {
        // Set up prover_tracker and prove
+       let range_nv = range_mle.num_vars;
        let sorted_bag = Bag::new(prover_tracker.track_and_commit_poly(sorted_bag_poly.clone())?, prover_tracker.track_and_commit_poly(sorted_bag_sel.clone())?);
        let range_poly = prover_tracker.track_and_commit_poly(range_mle.clone())?;
+       let range_sel = prover_tracker.track_mat_poly(DenseMultilinearExtension::from_evaluations_vec(range_nv, vec![E::ScalarField::one(); 2_usize.pow(range_nv as u32)]));
+       let range_bag = Bag::new(range_poly.clone(), range_sel);
        let m_range = prover_tracker.track_and_commit_poly(m_range.clone())?;
 
 
        BagStrictSortIOP::<E, PCS>::prove(
            prover_tracker,
            &sorted_bag,
-           &range_poly,
+           &range_bag,
            &m_range,
        )?;
-       let proof = prover_tracker.compile_proof();
+       let proof = prover_tracker.compile_proof()?;
        
        // set up verifier tracker, create subclaims, and verify IOPProofs
+       let one_closure = |_: &[E::ScalarField]| -> Result<<E as Pairing>::ScalarField, PolyIOPErrors> {Ok(E::ScalarField::one())};
        verifier_tracker.set_compiled_proof(proof);
        let sorted_bag_comm = BagComm::new(verifier_tracker.transfer_prover_comm(sorted_bag.poly.id), verifier_tracker.transfer_prover_comm(sorted_bag.selector.id), sorted_bag.num_vars());
        let range_comm = verifier_tracker.transfer_prover_comm(range_poly.id);
+       let range_sel_comm = verifier_tracker.track_virtual_comm(Box::new(one_closure));
+       let range_bag_comm = BagComm::new(range_comm.clone(), range_sel_comm, range_nv);
        let m_range_comm = verifier_tracker.transfer_prover_comm(m_range.id);
-       BagStrictSortIOP::<E, PCS>::verify(verifier_tracker, &sorted_bag_comm, &range_comm, &m_range_comm)?;
+       BagStrictSortIOP::<E, PCS>::verify(verifier_tracker, &sorted_bag_comm, &range_bag_comm, &m_range_comm)?;
        verifier_tracker.verify_claims()?;
 
        // check that the ProverTracker and VerifierTracker are in the same state

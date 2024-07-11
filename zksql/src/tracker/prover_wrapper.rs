@@ -14,6 +14,7 @@ use arithmetic::VirtualPolynomial;
 use crate::tracker::{
     prover_tracker::ProverTracker,
     tracker_structs::{CompiledZKSQLProof, TrackerID},
+    errors::PolyIOPErrors,
 };
 
 use derivative::Derivative;
@@ -107,7 +108,7 @@ impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTrackerRef<E, PCS> {
         tracker_ref_cell.borrow_mut().add_zerocheck_claim(poly_id);
     }
 
-    pub fn compile_proof(&mut self) -> CompiledZKSQLProof<E, PCS> {
+    pub fn compile_proof(&mut self) -> Result<CompiledZKSQLProof<E, PCS>, PolyIOPErrors> {
         let tracker_ref_cell: &RefCell<ProverTracker<E, PCS>> = self.tracker_rc.borrow();
         tracker_ref_cell.borrow_mut().compile_proof()
     }
