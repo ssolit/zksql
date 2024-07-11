@@ -497,14 +497,17 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
 
         // 1.5) aggregate the sumcheck claims
         let mut sumcheck_poly = self.track_mat_poly(DenseMultilinearExtension::<E::ScalarField>::from_evaluations_vec(nv, vec![E::ScalarField::zero(); 2_usize.pow(nv as u32)]));
+        let mut sc_sum = E::ScalarField::zero();
         for claim in  self.sum_check_claims.clone().iter() {
             let challenge = self.get_and_append_challenge(b"sumcheck challenge").unwrap();
             let claim_times_challenge_id = self.mul_scalar(claim.label.clone(), challenge);
             sumcheck_poly = self.add_polys(sumcheck_poly, claim_times_challenge_id);
+            sc_sum += claim.claimed_sum * challenge;
         };
 
         // 2) generate a sumcheck proof
-        let sc_sum = self.evaluations(sumcheck_poly).iter().sum::<E::ScalarField>();
+        // let sc_sum_2 = self.evaluations(sumcheck_poly).iter().sum::<E::ScalarField>();
+        // assert_eq!(sc_sum, sc_sum_2); // probably won't match for bad cases
         let sc_avp = self.to_arithmatic_virtual_poly(sumcheck_poly);
         let sc_aux_info = sc_avp.aux_info.clone();
         let sc_proof = <PolyIOP<E::ScalarField> as SumCheck<E::ScalarField>>::prove(&sc_avp, &mut self.transcript).unwrap();

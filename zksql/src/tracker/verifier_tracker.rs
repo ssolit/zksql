@@ -331,10 +331,12 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTracker<E, PCS> {
         // aggregate the sumcheck claims
         let zero_closure = |_: &[E::ScalarField]| -> Result<<E as Pairing>::ScalarField, PolyIOPErrors> {Ok(E::ScalarField::zero())};
         let mut sumcheck_comm = self.track_virtual_comm(Box::new(zero_closure));
+        let mut sc_sum = E::ScalarField::zero();
         for claim in self.sum_check_claims.clone().iter() {
             let challenge = self.get_and_append_challenge(b"sumcheck challenge").unwrap();
             let claim_times_challenge_id = self.mul_scalar(claim.label.clone(), challenge);
             sumcheck_comm = self.add_comms(sumcheck_comm, claim_times_challenge_id);
+            sc_sum += claim.claimed_sum * challenge;
         };
 
         // verify the sumcheck proof
