@@ -25,7 +25,7 @@ use crate::tracker::dmle_utils::eq_eval;
 use derivative::Derivative;
 use displaydoc::Display;
 
-use subroutines::{PolyIOP, PolynomialCommitmentScheme};
+use subroutines::{pcs, PolyIOP, PolynomialCommitmentScheme};
 use subroutines::poly_iop::prelude::SumCheck;
 
 use transcript::{IOPTranscript, TranscriptError};
@@ -344,6 +344,19 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTracker<E, PCS> {
         if iop_verify_res.is_err() {
             return Err(PolyIOPErrors::InvalidVerifier(iop_verify_res.err().unwrap().to_string()));
         }
+
+        // verify the batch pcs proof
+        let sumcheck_point = self.proof.sc_proof.point.clone();
+        let mut comm_ids = self.proof.comms.keys().cloned().collect::<Vec<TrackerID>>();
+        comm_ids.sort();
+        println!("comm_ids: {:?}", comm_ids);
+        let comms = comm_ids.iter().map(|id| self.get_mat_comm(*id).unwrap().clone()).collect::<Vec<PCS::Commitment>>();
+        // let evals = comm_ids.iter().map(|(id)| self.proof.query_map.get(&(id.clone(), sumcheck_point.clone())).unwrap().clone()).collect::<Vec<E::ScalarField>>();
+        let points = vec![sumcheck_point.clone(); self.proof.comms.len()];
+        let batch_proof = self.proof.pcs_proof[0].clone();
+        let pcs_verify_res = PCS::batch_verify(&self.pcs_params, &comms, points.as_slice(), &batch_proof, &mut self.transcript);
+        pcs_verify_res?;
+        // todo!("change sumchek point to be something the verifier decides instead of the prover?");
 
         Ok(())
     }

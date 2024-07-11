@@ -537,7 +537,9 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
         // 3) create a batch opening proofs for the sumcheck point
         //      iterate over sc_avp, grab comms, run PCS batch open, get the proofs
         let sumcheck_point = sc_proof.point.clone();
-        let mat_poly_ids = self.materialized_polys.keys().cloned().collect::<Vec<TrackerID>>();
+        let mut mat_poly_ids = self.materialized_polys.keys().cloned().collect::<Vec<TrackerID>>();
+        mat_poly_ids.sort();
+        println!("mat_poly_ids: {:?}", mat_poly_ids);
         let mut mat_polys = Vec::with_capacity(mat_poly_ids.len());
         let mut points = Vec::with_capacity(mat_poly_ids.len());
         let mut evals = Vec::with_capacity(mat_poly_ids.len());

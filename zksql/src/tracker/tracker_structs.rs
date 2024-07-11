@@ -9,7 +9,7 @@ use derivative::Derivative;
 use arithmetic::VPAuxInfo;
 use subroutines::{IOPProof, PolynomialCommitmentScheme};
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd,Ord)]
 pub struct TrackerID(pub usize);
 impl TrackerID {
     pub fn to_int(self) -> usize {
