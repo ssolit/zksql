@@ -1,6 +1,10 @@
+use arithmetic::ArithErrors;
+use arithmetic::build_eq_x_r_vec;
 use std::sync::Arc;
 use ark_poly::DenseMultilinearExtension;
 use ark_ff::Field;
+use ark_ff::PrimeField;
+
 
 
 /// Decompose an integer into a binary vector in little endian.
@@ -41,6 +45,37 @@ pub fn dmle_increase_nv<F: Field>(
         evals[i] = evals[i % ratio];
     }
     Arc::new(DenseMultilinearExtension::from_evaluations_vec(new_nv, evals))
+}
+
+/// This function build the eq(x, r) polynomial for any given r.
+/// Used in ZeroCheck when converting from zerocheck to sumcheck
+/// 
+/// Evaluate
+///      eq(x,y) = \prod_i=1^num_var (x_i * y_i + (1-x_i)*(1-y_i))
+/// over r, which is
+///      eq(x,y) = \prod_i=1^num_var (x_i * r_i + (1-x_i)*(1-r_i))
+pub fn build_eq_x_r<F: PrimeField>(
+    r: &[F],
+) -> Result<DenseMultilinearExtension<F>, ArithErrors> {
+    let evals = build_eq_x_r_vec(r)?;
+    let mle = DenseMultilinearExtension::from_evaluations_vec(r.len(), evals);
+
+    Ok(mle)
+}
+
+/// Evaluate eq polynomial.
+pub fn eq_eval<F: PrimeField>(x: &[F], y: &[F]) -> Result<F, ArithErrors> {
+    if x.len() != y.len() {
+        return Err(ArithErrors::InvalidParameters(
+            "x and y have different length".to_string(),
+        ));
+    }
+    let mut res = F::one();
+    for (&xi, &yi) in x.iter().zip(y.iter()) {
+        let xi_yi = xi * yi;
+        res *= xi_yi + xi_yi - xi - yi + F::one();
+    }
+    Ok(res)
 }
 
 

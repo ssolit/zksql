@@ -20,6 +20,7 @@ use ark_std::Zero;
 
 use crate::tracker::errors::PolyIOPErrors;
 use crate::tracker::tracker_structs::{TrackerID, CompiledZKSQLProof, TrackerSumcheckClaim, TrackerZerocheckClaim};
+use crate::tracker::dmle_utils::eq_eval;
 
 use derivative::Derivative;
 use displaydoc::Display;
@@ -296,10 +297,36 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTracker<E, PCS> {
         }
     }
 
+    fn convert_zerocheck_claims_to_sumcheck_claim(&mut self, nv: usize) -> TrackerID {
+        // 1)   aggregate the zerocheck claims into a single MLE
+        let zero_closure = |_: &[E::ScalarField]| -> Result<<E as Pairing>::ScalarField, PolyIOPErrors> {Ok(E::ScalarField::zero())};
+        let mut zerocheck_agg_comm = self.track_virtual_comm(Box::new(zero_closure));
+        let zero_check_claims = self.zero_check_claims.clone();
+        for claim in zero_check_claims {
+            let challenge = self.get_and_append_challenge(b"zerocheck challenge").unwrap();
+            let claim_poly_id = self.mul_scalar(claim.label.clone(), challenge);
+            zerocheck_agg_comm = self.add_comms(zerocheck_agg_comm, claim_poly_id);
+        }
+
+        // sample r
+        let r = self.transcript.get_and_append_challenge_vectors(b"0check r", nv).unwrap();
+        
+        // create the succint eq(x, r) closure and virtual comm
+        let eq_x_r_closure = move |pt: &[E::ScalarField]| -> Result<<E as Pairing>::ScalarField, PolyIOPErrors> {
+            Ok(eq_eval(pt, r.as_ref())?)
+        };
+        let eq_x_r_comm = self.track_virtual_comm(Box::new(eq_x_r_closure));
+
+        // create the relevant sumcheck claim
+        let new_sc_claim_comm = self.mul_comms(zerocheck_agg_comm, eq_x_r_comm); // Note: SumCheck val should be zero
+        new_sc_claim_comm
+    }
+
     pub fn verify_claims(&mut self) -> Result<(), PolyIOPErrors> {
 
-        let zero_closure = |_: &[E::ScalarField]| -> Result<<E as Pairing>::ScalarField, PolyIOPErrors> {Ok(E::ScalarField::zero())};
-        let mut sumcheck_comm = self.track_virtual_comm(Box::new(zero_closure));
+        let nv = self.proof.sc_aux_info.num_variables;
+        // aggregate zerocheck and sumcheck claim comms
+        let mut sumcheck_comm = self.convert_zerocheck_claims_to_sumcheck_claim(nv); // Note: SumCheck val should be zero
         let sumcheck_claims = self.sum_check_claims.clone();
         for claim in sumcheck_claims.iter() {
             let challenge = self.get_and_append_challenge(b"sumcheck challenge").unwrap();
@@ -307,22 +334,7 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTracker<E, PCS> {
             sumcheck_comm = self.add_comms(sumcheck_comm, claim_poly_id);
         };
 
-        
-        let zero_closure = |_: &[E::ScalarField]| -> Result<<E as Pairing>::ScalarField, PolyIOPErrors> {Ok(E::ScalarField::zero())};
-        let mut zerocheck_comm = self.track_virtual_comm(Box::new(zero_closure));
-        let zero_check_claims = self.zero_check_claims.clone();
-        for claim in zero_check_claims {
-            let challenge = self.get_and_append_challenge(b"zerocheck challenge").unwrap();
-            let claim_poly_id = self.mul_scalar(claim.label.clone(), challenge);
-            zerocheck_comm = self.add_comms(zerocheck_comm, claim_poly_id);
-        }
-
-        
-
-        let iop_verify_res = <PolyIOP<E::ScalarField> as ZeroCheck<E::ScalarField>>::verify(&self.proof.zc_proof, &self.proof.zc_aux_info, &mut self.transcript);
-        if iop_verify_res.is_err() {
-            return Err(PolyIOPErrors::InvalidVerifier(iop_verify_res.err().unwrap().to_string()));
-        }
+        // verify the sumcheck proof
         let iop_verify_res = <PolyIOP<E::ScalarField> as SumCheck<E::ScalarField>>::verify(self.proof.sc_sum, &self.proof.sc_proof, &self.proof.sc_aux_info, &mut self.transcript);
         if iop_verify_res.is_err() {
             return Err(PolyIOPErrors::InvalidVerifier(iop_verify_res.err().unwrap().to_string()));
