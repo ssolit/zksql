@@ -23,6 +23,7 @@ use arithmetic::VirtualPolynomial;
 use crate::tracker::{
     dmle_utils::dmle_increase_nv,
     tracker_structs::{TrackerID, TrackerSumcheckClaim, TrackerZerocheckClaim, CompiledZKSQLProof},
+    pcs_acumulator::PcsAccumulator,
 };
 
 use derivative::Derivative;
@@ -36,6 +37,7 @@ use subroutines::{
 };
 
 use transcript::{IOPTranscript, TranscriptError};
+
 
 
 
