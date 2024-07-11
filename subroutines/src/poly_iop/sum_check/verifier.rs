@@ -162,7 +162,7 @@ impl<F: PrimeField> SumCheckVerifier<F> for IOPVerifierState<F> {
             // 1. check if the received 'P(0) + P(1) = expected`.
             if evaluations[0] + evaluations[1] != expected {
                 return Err(PolyIOPErrors::InvalidProof(
-                    "Prover message is not consistent with the claim.".to_string(),
+                    "Sumcheck's deferred checks failed. Prover message is not consistent with the claim.".to_string(),
                 ));
             }
         }

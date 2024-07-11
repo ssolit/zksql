@@ -344,7 +344,7 @@ fn test_eval_comm() -> Result<(), PolyIOPErrors> {
     let mut prover_tracker: ProverTrackerRef<Bls12_381, MultilinearKzgPCS<Bls12_381>> = ProverTrackerRef::new_from_pcs_params(pcs_prover_param);
     prover_tracker.track_and_commit_poly(poly1.clone())?;
     prover_tracker.track_and_commit_poly(poly2.clone())?;
-    let mut proof = prover_tracker.compile_proof();
+    let mut proof = prover_tracker.compile_proof()?;
     proof.query_map.insert((TrackerID(0), point.clone()), eval1.clone());
     proof.query_map.insert((TrackerID(1), point.clone()), eval2.clone());
 

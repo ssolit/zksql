@@ -21,9 +21,9 @@ use ark_std::{One, Zero};
 use arithmetic::VirtualPolynomial;
 
 use crate::tracker::{
-    dmle_utils::dmle_increase_nv,
+    dmle_utils::{dmle_increase_nv, build_eq_x_r},
     tracker_structs::{TrackerID, TrackerSumcheckClaim, TrackerZerocheckClaim, CompiledZKSQLProof},
-    pcs_acumulator::PcsAccumulator,
+    errors::PolyIOPErrors,
 };
 
 use derivative::Derivative;
@@ -452,15 +452,52 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
     // iterates through the materialized polynomials and increases the number of variables
     // to the max number of variables in the tracker
     // Used as a preprocessing step before batching polynomials
-    pub fn equalize_materialized_poly_nv(&mut self) -> usize {
+    fn equalize_materialized_poly_nv(&mut self) -> usize {
         let nv: usize = self.materialized_polys.iter().map(|(_, p)| p.num_vars()).max().ok_or(1).unwrap();
         for (_, poly) in self.materialized_polys.iter_mut() {
-            *poly = dmle_increase_nv(poly, nv);
+            let old_nv = poly.num_vars();
+            if old_nv != nv {
+                *poly = dmle_increase_nv(poly, nv);
+            }
         }
+
+        // need to update the claims because resizing messes stuff up
+        let true_sums: Vec<E::ScalarField> = self.sum_check_claims.iter()
+            .map(|claim| {
+                self.evaluations(claim.label.clone()).iter().sum::<E::ScalarField>()
+            })
+            .collect();
+        for (claim, &true_sum) in self.sum_check_claims.iter_mut().zip(true_sums.iter()) {
+            claim.claimed_sum = true_sum;
+        }
+
         nv
     }
 
-    pub fn compile_proof(&mut self) -> CompiledZKSQLProof<E, PCS> {
+    fn convert_zerocheck_claims_to_sumcheck_claim(&mut self, nv: usize) {
+        // 1)   aggregate the zerocheck claims into a single MLE
+        let mut zerocheck_agg_poly = self.track_mat_poly(DenseMultilinearExtension::<E::ScalarField>::from_evaluations_vec(nv, vec![E::ScalarField::zero(); 2_usize.pow(nv as u32)]));
+        let zero_check_claims = self.zero_check_claims.clone();
+        for claim in zero_check_claims {
+            let challenge = self.get_and_append_challenge(b"zerocheck challenge").unwrap();
+            let claim_poly_id = self.mul_scalar(claim.label.clone(), challenge);
+            zerocheck_agg_poly = self.add_polys(zerocheck_agg_poly, claim_poly_id);
+        }
+
+        // sample r
+        let r = self.transcript.get_and_append_challenge_vectors(b"0check r", nv).unwrap();
+        
+        // build the eq(x, r) polynomial
+        let eq_x_r = build_eq_x_r(r.as_ref()).unwrap();
+        let eq_x_r_id = self.track_mat_poly(eq_x_r); // do not need to commit, verifier builds their own
+
+        // create the relevant sumcheck claim
+        let new_sc_claim_poly = self.mul_polys(zerocheck_agg_poly, eq_x_r_id); // Note: SumCheck val should be zero
+        self.add_sumcheck_claim(new_sc_claim_poly, E::ScalarField::zero());
+    }
+
+
+    pub fn compile_proof(&mut self) -> Result<CompiledZKSQLProof<E, PCS>, PolyIOPErrors> {
         // creates a finished proof based off the subclaims that have been recorded
         // 1) aggregates the subclaims into a single MLE
         // 2) generates a sumcheck proof
@@ -469,39 +506,42 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
 
         let nv = self.equalize_materialized_poly_nv();
 
+        // 1)   aggregate the zerocheck claims into a single MLE
+        //      Then convert the zerocheck_agg_poly to a sumcheck
+        self.convert_zerocheck_claims_to_sumcheck_claim(nv); // Note: SumCheck val should be zero
+        // let sc_sum = self.evaluations(sumcheck_poly).iter().sum::<E::ScalarField>();
 
-        // // 1) aggregate the subclaims into a single MLE
-        // //    start with zero checks, then sumchecks
-
-        let mut zerocheck_poly = self.track_mat_poly(DenseMultilinearExtension::<E::ScalarField>::from_evaluations_vec(nv, vec![E::ScalarField::zero(); 2_usize.pow(nv as u32)]));
-        let zero_check_claims = self.zero_check_claims.clone();
-        for claim in zero_check_claims {
-            let challenge = self.get_and_append_challenge(b"zerocheck challenge").unwrap();
-            let claim_poly_id = self.mul_scalar(claim.label.clone(), challenge);
-            // let claim_poly_raw_evals = self.evaluations(claim_poly_id);
-            // let claim_mle = DenseMultilinearExtension::<E::ScalarField>::from_evaluations_vec(log2(claim_poly_raw_evals.len()) as usize, claim_poly_raw_evals);
-            // let claim_mle = dmle_increase_nv(&claim_mle, nv);
-            zerocheck_poly = self.add_polys(zerocheck_poly, claim_poly_id);
-        }
-
+        // 1.5) aggregate the sumcheck claims
         let mut sumcheck_poly = self.track_mat_poly(DenseMultilinearExtension::<E::ScalarField>::from_evaluations_vec(nv, vec![E::ScalarField::zero(); 2_usize.pow(nv as u32)]));
-        let sumcheck_claims = self.sum_check_claims.clone();
-        for claim in sumcheck_claims.iter() {
+        let mut sc_sum = E::ScalarField::zero();
+        for claim in self.sum_check_claims.clone().iter() {
             let challenge = self.get_and_append_challenge(b"sumcheck challenge").unwrap();
-            let claim_poly_id = self.mul_scalar(claim.label.clone(), challenge);
-            sumcheck_poly = self.add_polys(zerocheck_poly, claim_poly_id);
+            let claim_times_challenge_id = self.mul_scalar(claim.label.clone(), challenge);
+            sumcheck_poly = self.add_polys(sumcheck_poly, claim_times_challenge_id);
+            sc_sum += claim.claimed_sum * challenge;
         };
 
-        // // 2) generate a sumcheck proof
-        let avp = self.to_arithmatic_virtual_poly(zerocheck_poly);
-        let zc_aux_info = avp.aux_info.clone();
-        let zc_proof = <PolyIOP<E::ScalarField> as ZeroCheck<E::ScalarField>>::prove(&avp, &mut self.transcript).unwrap();
-        let sc_sum = self.evaluations(sumcheck_poly).iter().sum::<E::ScalarField>();
-        let avp = self.to_arithmatic_virtual_poly(sumcheck_poly);
-        let sc_aux_info = avp.aux_info.clone();
-        let sc_proof = <PolyIOP<E::ScalarField> as SumCheck<E::ScalarField>>::prove(&avp, &mut self.transcript).unwrap();
+        // 2) generate a sumcheck proof
+        #[cfg(debug_assertions)] {
+            let true_agg_sum: E::ScalarField = self.evaluations(sumcheck_poly.clone()).iter().sum::<E::ScalarField>();
+            if true_agg_sum != sc_sum {
+                let err_msg = "prover_tracker::compile_proof error: true_agg_sum != sc_sum";
+                return Err(PolyIOPErrors::InvalidVerifier(err_msg.to_string()));
+            }
+        }
+        let sc_avp = self.to_arithmatic_virtual_poly(sumcheck_poly);
+        let sc_aux_info = sc_avp.aux_info.clone();
+        let sc_proof = <PolyIOP<E::ScalarField> as SumCheck<E::ScalarField>>::prove(&sc_avp, &mut self.transcript).unwrap();
         
         // 3) create a batch opening proofs for the sumcheck point
+        //      iterate over sc_avp, grab comms, run PCS batch open, get the proofs
+        // let sumcheck_point = sc_proof.point;
+        // let mut pcs_acc = PcsAccumulator::<E, PCS>::new(nv);
+        // pcs_acc.insert_poly_and_points(&sumcheck_poly, &sumcheck_comm, &sumcheck_point);
+        // pcs_acc.insert_poly_and_points(&zerocheck_poly, &zerocheck_comm, &zerocheck_point);
+        // let batch_openings = pcs_acc.multi_open(&pk.pcs_param, &mut transcript)?;
+
+
         // let eval_pt = sumcheck_proof.point.clone();
         // let mut polynomials: Vec<DenseMultilinearExtension<E::ScalarField>> = Vec::new();
         // let mut points: Vec<Vec<E::ScalarField>> = Vec::new();
@@ -532,16 +572,13 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
         }
 
         let placeholder_opening_proof = PCS::open(&self.pcs_param, &DenseMultilinearExtension::<E::ScalarField>::from_evaluations_vec(nv, vec![E::ScalarField::zero(); 2_usize.pow(nv as u32)]), &placeholder_opening_point).unwrap().0;
-        CompiledZKSQLProof {
+        Ok(CompiledZKSQLProof {
             sum_check_claims: sumcheck_val_map,
             sc_proof,
-            sc_sum,
             sc_aux_info,
-            zc_proof,
-            zc_aux_info,
             query_map: placeholder_query_map,
             comms: self.materialized_comms.clone(),
             opening_proof: vec![placeholder_opening_proof],
-        }
+        })
     }
 }

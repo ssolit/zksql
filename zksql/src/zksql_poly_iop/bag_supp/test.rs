@@ -3,6 +3,7 @@
 mod test {
     use ark_ec::pairing::Pairing;
     use ark_poly::DenseMultilinearExtension;
+    use rayon::range;
     
     use std::collections::HashSet;
     use subroutines::{
@@ -145,11 +146,14 @@ mod test {
     E: Pairing,
     PCS: PolynomialCommitmentScheme<E>,
     {
+        let range_nv = range_poly.num_vars;
         let bag = Bag::new(prover_tracker.track_and_commit_poly(bag_poly.clone())?, prover_tracker.track_and_commit_poly(bag_sel.clone())?);
         let common_mset_bag_m = prover_tracker.track_and_commit_poly(common_mset_bag_m.clone())?;
         let supp = Bag::new(prover_tracker.track_and_commit_poly(supp_poly.clone())?, prover_tracker.track_and_commit_poly(supp_sel.clone())?);
         let common_mset_supp_m = prover_tracker.track_and_commit_poly(common_mset_supp_m.clone())?;
         let range_poly = prover_tracker.track_and_commit_poly(range_poly.clone())?;
+        let range_sel = prover_tracker.track_mat_poly(DenseMultilinearExtension::from_evaluations_vec(range_nv, vec![E::ScalarField::one(); 2_usize.pow(range_nv as u32)]));
+        let range_bag = Bag::new(range_poly.clone(), range_sel);
         let supp_range_m = prover_tracker.track_and_commit_poly(supp_range_m.clone())?;
 
         BagSuppIOP::<E, PCS>::prove(
@@ -158,18 +162,21 @@ mod test {
             &common_mset_bag_m,
             &supp,
             &common_mset_supp_m,
-            &range_poly,
+            &range_bag,
             &supp_range_m,
         )?;
-        let proof = prover_tracker.compile_proof();
+        let proof = prover_tracker.compile_proof()?;
         
         // set up verifier tracker, create subclaims, and verify IOPProofs
+        let one_closure = |_: &[E::ScalarField]| -> Result<<E as Pairing>::ScalarField, PolyIOPErrors> {Ok(E::ScalarField::one())};
         verifier_tracker.set_compiled_proof(proof);
-        let bag_comm = BagComm::new(verifier_tracker.transfer_prover_comm(bag.poly.id), verifier_tracker.transfer_prover_comm(bag.selector.id).clone());
+        let bag_comm = BagComm::new(verifier_tracker.transfer_prover_comm(bag.poly.id), verifier_tracker.transfer_prover_comm(bag.selector.id).clone(), bag.num_vars());
         let common_mset_bag_m_comm = verifier_tracker.transfer_prover_comm(common_mset_bag_m.id);
-        let supp_comm = BagComm::new(verifier_tracker.transfer_prover_comm(supp.poly.id), verifier_tracker.transfer_prover_comm(supp.selector.id).clone());
+        let supp_comm = BagComm::new(verifier_tracker.transfer_prover_comm(supp.poly.id), verifier_tracker.transfer_prover_comm(supp.selector.id).clone(), supp.num_vars());
         let common_mset_supp_m_comm = verifier_tracker.transfer_prover_comm(common_mset_supp_m.id);
         let range_comm = verifier_tracker.transfer_prover_comm(range_poly.id).clone();
+        let range_sel_comm = verifier_tracker.track_virtual_comm(Box::new(one_closure));
+        let range_bag_comm = BagComm::new(range_comm.clone(), range_sel_comm, range_nv);
         let supp_range_m_comm = verifier_tracker.transfer_prover_comm(supp_range_m.id);
         BagSuppIOP::<E, PCS>::verify(
             verifier_tracker,
@@ -177,7 +184,7 @@ mod test {
             &common_mset_bag_m_comm,
             &supp_comm,
             &common_mset_supp_m_comm,
-            &range_comm,
+            &range_bag_comm,
             &supp_range_m_comm,
         )?;
         verifier_tracker.verify_claims()?;

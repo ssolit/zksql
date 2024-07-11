@@ -25,7 +25,7 @@ where PCS: PolynomialCommitmentScheme<E> {
         common_mset_bag_m: &TrackedPoly<E, PCS>,
         supp: &Bag<E, PCS>,
         common_mset_supp_m: &TrackedPoly<E, PCS>,
-        range_poly: &TrackedPoly<E, PCS>,
+        range_bag: &Bag<E, PCS>,
         supp_range_m: &TrackedPoly<E, PCS>,
     ) -> Result<(), PolyIOPErrors> {
     
@@ -58,7 +58,7 @@ where PCS: PolynomialCommitmentScheme<E> {
         BagStrictSortIOP::<E, PCS>::prove(
             prover_tracker,
             supp,
-            range_poly,
+            range_bag,
             supp_range_m,
         )?;
     
@@ -71,7 +71,7 @@ where PCS: PolynomialCommitmentScheme<E> {
         common_mset_bag_m: &TrackedComm<E, PCS>,
         supp: &BagComm<E, PCS>,
         common_mset_supp_m: &TrackedComm<E, PCS>,
-        range_comm: &TrackedComm<E, PCS>,
+        range_bag_comm: &BagComm<E, PCS>,
         supp_range_m: &TrackedComm<E, PCS>,
     ) -> Result<(), PolyIOPErrors> {
         // Use BagMultitool PIOP to show bag and supp share a Common Multiset
@@ -86,13 +86,13 @@ where PCS: PolynomialCommitmentScheme<E> {
         // bag and supp are subsets of each other by showing multiplicity polys have no zeros
         let one_closure = |_: &[E::ScalarField]| -> Result<<E as Pairing>::ScalarField, PolyIOPErrors> {Ok(E::ScalarField::one())};
         let bag_one_comm = verifier_tracker.track_virtual_comm(Box::new(one_closure));
-        let bag_no_dups_checker = BagComm::new(common_mset_bag_m.clone(), bag_one_comm.clone());
+        let bag_no_dups_checker = BagComm::new(common_mset_bag_m.clone(), bag_one_comm.clone(), bag.num_vars());
         BagNoZerosIOP::<E, PCS>::verify(
             verifier_tracker,
             &bag_no_dups_checker,
         )?;
         let supp_one_comm = verifier_tracker.track_virtual_comm(Box::new(one_closure));
-        let supp_no_dups_checker = BagComm::new(common_mset_supp_m.clone(), supp_one_comm.clone());
+        let supp_no_dups_checker = BagComm::new(common_mset_supp_m.clone(), supp_one_comm.clone(), supp.num_vars());
         BagNoZerosIOP::<E, PCS>::verify(
             verifier_tracker,
             &supp_no_dups_checker,
@@ -102,7 +102,7 @@ where PCS: PolynomialCommitmentScheme<E> {
         BagStrictSortIOP::<E, PCS>::verify(
             verifier_tracker,
             supp,
-            range_comm,
+            range_bag_comm,
             supp_range_m,
         )?;
 

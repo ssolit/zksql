@@ -1,3 +1,5 @@
+use core::num;
+
 use derivative::Derivative;
 use subroutines::PolynomialCommitmentScheme;
 use ark_ec::pairing::Pairing;
@@ -43,12 +45,18 @@ impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> Bag<E, PCS> {
 pub struct BagComm<E: Pairing, PCS: PolynomialCommitmentScheme<E>> {
     pub poly: TrackedComm<E, PCS>,
     pub selector: TrackedComm<E, PCS>,
+    num_vars: usize,
 }
+
 impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> BagComm<E, PCS> {
-    pub fn new(poly: TrackedComm<E, PCS>, selector: TrackedComm<E, PCS>) -> Self {
+    pub fn new(poly: TrackedComm<E, PCS>, selector: TrackedComm<E, PCS>, num_vars: usize) -> Self {
         Self {
             poly,
             selector,
+            num_vars
         }
+    }
+    pub fn num_vars(&self) -> usize {
+        self.num_vars
     }
 }

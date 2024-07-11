@@ -141,16 +141,23 @@ where PCS: PolynomialCommitmentScheme<E>
         let gamma = tracker.get_and_append_challenge(b"gamma")?;
 
         // iterate over vector elements and generate subclaims:
+        let max_nv_f = fxs.iter().map(|x| x.num_vars()).max().unwrap();
+        let max_nv_g = gxs.iter().map(|x| x.num_vars()).max().unwrap();
+        let max_nv = max_nv_f.max(max_nv_g);
         let mut lhs_v: E::ScalarField = E::ScalarField::zero();
         let mut rhs_v: E::ScalarField = E::ScalarField::zero();
         for i in 0..fxs.len() {
             let sum_claim_v = Self::verify_generate_subclaims(tracker, fxs[i].clone(), mfxs[i].clone(), gamma)?;
-            lhs_v += sum_claim_v;
+            let ratio = 2_usize.pow((max_nv - fxs[i].num_vars()) as u32);
+            let sum_claim_v_adj = sum_claim_v / E::ScalarField::from(ratio as u64);
+            lhs_v += sum_claim_v_adj;
         }   
 
         for i in 0..gxs.len() {
             let sum_claim_v = Self::verify_generate_subclaims(tracker, gxs[i].clone(), mgxs[i].clone(), gamma)?;
-            rhs_v += sum_claim_v;
+            let ratio = 2_usize.pow((max_nv - gxs[i].num_vars()) as u32);
+            let sum_claim_v_adj = sum_claim_v / E::ScalarField::from(ratio as u64);
+            rhs_v += sum_claim_v_adj;
         } 
 
         // check that the values of claimed sums are equal
