@@ -1,18 +1,15 @@
 use ark_ec::pairing::Pairing;
-use ark_ff::batch_inversion;
 use ark_poly::DenseMultilinearExtension;
-use ark_poly::MultilinearExtension;
-use ark_std::{end_timer, One, start_timer, Zero};
+use ark_std::One;
 use std::marker::PhantomData;
 
 use subroutines::pcs::PolynomialCommitmentScheme;
-use crate::zksql_poly_iop::bag_multitool::bag_subset::BagSubsetIOP;
-use crate::zksql_poly_iop::bag_no_zeros::BagNoZerosIOP;
 use crate::{
     tracker::prelude::*,
     zksql_poly_iop::{
+        bag_multitool::bag_subset::BagSubsetIOP,
+        bag_no_zeros::BagNoZerosIOP,
         bag_sort::bag_sort::BagStrictSortIOP,
-        bag_multitool::bag_multitool::BagMultiToolIOP,
     },
 };
 
@@ -89,6 +86,4 @@ where PCS: PolynomialCommitmentScheme<E> {
         Ok(())
 
     }
-
-
 }

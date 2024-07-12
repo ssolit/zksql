@@ -6,7 +6,7 @@ use ark_ec::pairing::Pairing;
 use ark_ff::batch_inversion;
 use ark_poly::DenseMultilinearExtension;
 use ark_poly::MultilinearExtension;
-use ark_std::{end_timer, One, start_timer, Zero};
+use ark_std::{One, Zero};
 use std::marker::PhantomData;
 
 use subroutines::pcs::PolynomialCommitmentScheme;

@@ -100,16 +100,6 @@ mod test {
         bad2_common_mset_bag_m_nums[0] = Fr::zero(); 
         bad2_common_mset_bag_m_nums[1] = Fr::from(3u64);
         bad2_common_mset_bag_m_nums[2_usize.pow(supp_nv as u32)] = Fr::zero();
-        // let bad2_common_mset_bag_m = DenseMultilinearExtension::from_evaluations_vec(orig_nv, bad2_common_mset_bag_m_nums);
-        // let mut m_range_nums = m_range_nums.clone();
-        // let diff_nums = (1..2_usize.pow(supp_nv as u32)).map(
-        //     |i| supp_nums[i] - supp_nums[i - 1]
-        // ).collect::<Vec<_>>();
-        // for i in 0..diff_nums.len() {
-        //     m_range_nums[diff_nums[i] as usize] += 1;
-        // }
-        // let m_range_evals = m_range_nums.iter().map(|x| Fr::from(*x as u64)).collect();
-        // let m_range = DenseMultilinearExtension::from_evaluations_vec(num_range_pow, m_range_evals);
         let bad_result3 = test_bag_supp_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&mut prover_tracker.deep_copy(), &mut verifier_tracker.deep_copy(), &orig_poly.clone(), &orig_sel.clone(),  &bad_supp_3.clone(), &supp_sel.clone(), &common_mset_supp_m, &range_poly.clone());
         assert!(bad_result3.is_err());
         println!("BagSuppIOP bad path 3 test passed");

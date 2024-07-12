@@ -1,21 +1,14 @@
 use ark_ec::pairing::Pairing;
-use ark_ff::batch_inversion;
 use ark_poly::DenseMultilinearExtension;
-use ark_poly::MultilinearExtension;
-use ark_std::{end_timer, One, start_timer, Zero};
 use std::marker::PhantomData;
 use std::collections::HashMap;
 
 use subroutines::pcs::PolynomialCommitmentScheme;
-use crate::zksql_poly_iop::bag_multitool::bag_sum;
-use crate::zksql_poly_iop::bag_multitool::bag_sum::BagSumIOP;
-use crate::zksql_poly_iop::bag_no_zeros::BagNoZerosIOP;
-use crate::zksql_poly_iop::bag_supp::bag_supp::BagSuppIOP;
 use crate::{
     tracker::prelude::*,
     zksql_poly_iop::{
-        bag_sort::bag_sort::BagStrictSortIOP,
-        bag_multitool::bag_multitool::BagMultiToolIOP,
+        bag_multitool::bag_sum::BagSumIOP,
+        bag_supp::bag_supp::BagSuppIOP,
     },
 };
 
@@ -72,16 +65,32 @@ where PCS: PolynomialCommitmentScheme<E> {
 
     pub fn verify(
         verifier_tracker: &mut VerifierTrackerRef<E, PCS>,
-        bag_a: &Bag<E, PCS>,
-        bag_b: &Bag<E, PCS>,
-        sum_bag: &Bag<E, PCS>,
-        union_bag: &Bag<E, PCS>,
-        range_bag: &Bag<E, PCS>,
+        bag_a: &BagComm<E, PCS>,
+        bag_b: &BagComm<E, PCS>,
+        sum_bag: &BagComm<E, PCS>,
+        union_bag: &BagComm<E, PCS>,
+        range_bag: &BagComm<E, PCS>,
     ) -> Result<(), PolyIOPErrors> {
 
-        
+        // verify a + b = sum_bag
+        BagSumIOP::<E, PCS>::verify(
+            verifier_tracker,
+            bag_a,
+            bag_b, 
+            sum_bag,
+        )?;
+
+        // prove union bag is the supp of sum bag
+        let m_supp_id = verifier_tracker.get_next_id();
+        let m_supp = verifier_tracker.transfer_prover_comm(m_supp_id);
+        BagSuppIOP::<E, PCS>::verify(
+            verifier_tracker,
+            union_bag,
+            sum_bag,
+            &m_supp,
+            range_bag,
+        )?;
 
         Ok(())
-
     }
 }
