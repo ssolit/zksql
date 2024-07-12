@@ -3,11 +3,11 @@ use ark_ff::batch_inversion;
 use ark_poly::DenseMultilinearExtension;
 use ark_poly::MultilinearExtension;
 use ark_std::{end_timer, One, start_timer, Zero};
-use rayon::range;
-use rayon::range_inclusive;
 use std::marker::PhantomData;
+use std::collections::HashMap;
 
 use subroutines::pcs::PolynomialCommitmentScheme;
+use crate::zksql_poly_iop::bag_multitool::bag_sum;
 use crate::zksql_poly_iop::bag_multitool::bag_sum::BagSumIOP;
 use crate::zksql_poly_iop::bag_no_zeros::BagNoZerosIOP;
 use crate::zksql_poly_iop::bag_supp::bag_supp::BagSuppIOP;
@@ -31,6 +31,8 @@ where PCS: PolynomialCommitmentScheme<E> {
         union_bag: &Bag<E, PCS>,
         range_bag: &Bag<E, PCS>,
     ) -> Result<(), PolyIOPErrors> {
+
+        // prove a + b = sum_bag
         BagSumIOP::<E, PCS>::prove(
             prover_tracker,
             bag_a,
@@ -38,12 +40,28 @@ where PCS: PolynomialCommitmentScheme<E> {
             sum_bag,
         )?;
 
-        
+        // prove union bag is the supp of sum bag
+        let mut m_counts = HashMap::<E::ScalarField, usize>::new();
+        let sum_evals = sum_bag.poly.evaluations();
+        for i in 0..sum_bag.poly.evaluations().len() {
+            let eval = sum_evals[i];
+            if m_counts.contains_key(&eval) {
+                m_counts.insert(eval, m_counts.get(&eval).unwrap() + 1);
+            } else {
+                m_counts.insert(eval, 1);
+            }
+        }
+        let m_supp_evals = union_bag.poly.evaluations().iter().map(
+            |x| E::ScalarField::from(m_counts.get(&x).unwrap().clone() as u64)
+        ).collect::<Vec<E::ScalarField>>();
+        let m_supp_mle = DenseMultilinearExtension::from_evaluations_vec(union_bag.num_vars(), m_supp_evals);
 
         BagSuppIOP::<E, PCS>::prove(
             prover_tracker,
             union_bag,
             sum_bag,
+            &m_supp_mle,
+            range_bag,
         )?;
         
     
