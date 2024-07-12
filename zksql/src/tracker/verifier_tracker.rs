@@ -344,17 +344,17 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTracker<E, PCS> {
         if iop_verify_res.is_err() {
             return Err(PolyIOPErrors::InvalidVerifier(iop_verify_res.err().unwrap().to_string()));
         }
+        let iop_verify_subclaim = iop_verify_res.unwrap();
 
         // verify the batch pcs proof
-        let sumcheck_point = self.proof.sc_proof.point.clone();
+        let sumcheck_point = iop_verify_subclaim.point.clone();
         let mut comm_ids = self.proof.comms.keys().cloned().collect::<Vec<TrackerID>>();
         comm_ids.sort(); // sort so the transcript is generated consistently
         let comms = comm_ids.iter().map(|id| self.get_mat_comm(*id).unwrap().clone()).collect::<Vec<PCS::Commitment>>();
-        let points = vec![sumcheck_point.clone(); self.proof.comms.len()];
+        let points = vec![sumcheck_point.clone(); comm_ids.len()];
         let batch_proof = self.proof.pcs_proof[0].clone();
         let pcs_verify_res = PCS::batch_verify(&self.pcs_params, &comms, points.as_slice(), &batch_proof, &mut self.transcript);
         pcs_verify_res?;
-        todo!("change sumchek point to be something the verifier decides instead of the prover?");
 
         Ok(())
     }
