@@ -98,11 +98,12 @@ where PCS: PolynomialCommitmentScheme<E>
         // construct the full challenge polynomial by taking phat and multiplying by the selector and multiplicities
         let phat = tracker.track_and_commit_poly(phat_mle)?;
         let sumcheck_challenge_poly = phat.mul_poly(&m).mul_poly(&bag.selector);
+        // println!("prove sumcheck_challenge_poly id: {:?}", sumcheck_challenge_poly.id);
        
         // Create Zerocheck claim for procing phat(x) is created correctly, 
         // i.e. ZeroCheck [(p(x)-gamma) * phat(x)  - 1] = [(p * phat) - gamma * phat - 1]
         let phat_check_poly = (p.mul_poly(&phat)).sub_poly(&phat.mul_scalar(gamma)).add_scalar(E::ScalarField::one().neg());
-        
+
         // add the delayed prover claims to the tracker
         tracker.add_sumcheck_claim(sumcheck_challenge_poly.id, v);
         tracker.add_zerocheck_claim(phat_check_poly.id);
@@ -180,9 +181,11 @@ where PCS: PolynomialCommitmentScheme<E>
         // get phat mat comm from proof and add it to the tracker
         let phat_id: TrackerID = tracker.get_next_id();
         let phat = tracker.transfer_prover_comm(phat_id);
+        // println!("verify phat_id: {:?}", phat_id);
         
         // make the virtual comms as prover does
         let sumcheck_challenge_comm = phat.mul_comms(&m).mul_comms(&bag.selector);
+        // println!("verify sumcheck_challenge_comm id: {:?}", sumcheck_challenge_comm.id);
         let phat_check_poly = (p.mul_comms(&phat)).sub_comms(&phat.mul_scalar(gamma)).add_scalar(E::ScalarField::one().neg());
        
 

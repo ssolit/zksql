@@ -537,13 +537,12 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
         // 3) create a batch opening proofs for the sumcheck point
         //      iterate over sc_avp, grab comms, run PCS batch open, get the proofs
         let sumcheck_point = sc_proof.point.clone();
-        let mut mat_poly_ids = self.materialized_polys.keys().cloned().collect::<Vec<TrackerID>>();
-        mat_poly_ids.sort();
-        println!("mat_poly_ids: {:?}", mat_poly_ids);
-        let mut mat_polys = Vec::with_capacity(mat_poly_ids.len());
-        let mut points = Vec::with_capacity(mat_poly_ids.len());
-        let mut evals = Vec::with_capacity(mat_poly_ids.len());
-        mat_poly_ids.iter().for_each(|id| {
+        let mut mat_comm_ids = self.materialized_comms.keys().cloned().collect::<Vec<TrackerID>>();
+        mat_comm_ids.sort(); // sort so the transcript is generated consistently
+        let mut mat_polys = Vec::with_capacity(mat_comm_ids.len());
+        let mut points = Vec::with_capacity(mat_comm_ids.len());
+        let mut evals = Vec::with_capacity(mat_comm_ids.len());
+        mat_comm_ids.iter().for_each(|id| {
             let poly = self.get_mat_poly(id.clone()).unwrap().clone();
             let eval = poly.evaluate(&sumcheck_point).unwrap();
             mat_polys.push(poly);
@@ -558,7 +557,7 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
             sumcheck_val_map.insert(claim.label.clone(), claim.claimed_sum);
         }
         let mut query_map: HashMap<(TrackerID, Vec<E::ScalarField>), E::ScalarField> = HashMap::new();
-        mat_poly_ids.iter().for_each(|id| {
+        mat_comm_ids.iter().for_each(|id| {
             query_map.insert((id.clone(), sumcheck_point.clone()), E::ScalarField::zero());
         });
 
