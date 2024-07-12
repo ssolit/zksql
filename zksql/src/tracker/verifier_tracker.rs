@@ -25,7 +25,7 @@ use crate::tracker::dmle_utils::eq_eval;
 use derivative::Derivative;
 use displaydoc::Display;
 
-use subroutines::{pcs, PolyIOP, PolynomialCommitmentScheme};
+use subroutines::{PolyIOP, PolynomialCommitmentScheme};
 use subroutines::poly_iop::prelude::SumCheck;
 
 use transcript::{IOPTranscript, TranscriptError};
