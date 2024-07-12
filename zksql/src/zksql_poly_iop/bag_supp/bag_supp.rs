@@ -26,7 +26,6 @@ where PCS: PolynomialCommitmentScheme<E> {
         supp: &Bag<E, PCS>,
         common_mset_supp_m: &TrackedPoly<E, PCS>,
         range_bag: &Bag<E, PCS>,
-        supp_range_m: &TrackedPoly<E, PCS>,
     ) -> Result<(), PolyIOPErrors> {
     
         // Use BagMultitool PIOP to show bag and supp share a Common Multiset
@@ -51,7 +50,6 @@ where PCS: PolynomialCommitmentScheme<E> {
             prover_tracker,
             supp,
             range_bag,
-            supp_range_m,
         )?;
     
         Ok(())
@@ -63,7 +61,6 @@ where PCS: PolynomialCommitmentScheme<E> {
         supp: &BagComm<E, PCS>,
         common_mset_supp_m: &TrackedComm<E, PCS>,
         range_bag_comm: &BagComm<E, PCS>,
-        supp_range_m: &TrackedComm<E, PCS>,
     ) -> Result<(), PolyIOPErrors> {
         // Use BagMultitool PIOP to show bag and supp share a Common Multiset
         BagSubsetIOP::<E, PCS>::verify(
@@ -87,7 +84,6 @@ where PCS: PolynomialCommitmentScheme<E> {
             verifier_tracker,
             supp,
             range_bag_comm,
-            supp_range_m,
         )?;
 
         Ok(())

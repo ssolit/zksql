@@ -27,7 +27,6 @@ where PCS: PolynomialCommitmentScheme<E> {
         prover_tracker: &mut ProverTrackerRef<E, PCS>,
         sorted_bag: &Bag<E, PCS>,
         range_bag: &Bag<E, PCS>,
-        m_range: &TrackedPoly<E, PCS>,
     ) -> Result<(), PolyIOPErrors> {
         // retrieve some useful values from the inputs
         let range_poly = range_bag.poly.clone();
@@ -64,11 +63,26 @@ where PCS: PolynomialCommitmentScheme<E> {
         ).collect::<Vec<_>>();
         let diff_range_sel_mle = DenseMultilinearExtension::from_evaluations_vec(sorted_nv, diff_range_sel_evals);
 
+        // get the multiplicity vector for the range check
+        let mut m_range_nums = vec![0; 2_usize.pow(range_nv as u32)];
+        for i in 0..(diff_evals.len()-1) {
+            let mut elem_string = diff_evals[i].to_string();
+            if elem_string.len() == 0 {
+                elem_string = "0".to_string();
+            }
+            let elem_usize_convert_res = elem_string.parse::<usize>();
+            if elem_usize_convert_res.is_ok() {
+                let elem_usize = elem_usize_convert_res.unwrap();
+                m_range_nums[elem_usize] += 1;
+            }
+        }
+        let m_range_evals = m_range_nums.iter().map(|x| E::ScalarField::from(*x as u64)).collect();
+        let m_range_mle = DenseMultilinearExtension::from_evaluations_vec(range_nv, m_range_evals);
+
         // Get inverses of diff_evals for the product check, which shows
         // the bag is strictly sorted (rather than just sorted) since no elements are zero
         let mut diff_eval_inverses = diff_evals.clone();
         batch_inversion(&mut diff_eval_inverses);
-
 
         // Set up the tracker and prove the prescribed permutation check
         let one_mle = DenseMultilinearExtension::from_evaluations_vec(sorted_nv, vec![E::ScalarField::one(); sorted_len]);
@@ -95,6 +109,7 @@ where PCS: PolynomialCommitmentScheme<E> {
         let range_sel_mle = DenseMultilinearExtension::from_evaluations_vec(range_nv, vec![E::ScalarField::one(); range_len]);
         let range_sel = prover_tracker.track_mat_poly(range_sel_mle); // note: is a precomputedone-poly
         let range_bag = Bag::new(range_poly.clone(), range_sel);
+        let m_range = prover_tracker.track_and_commit_poly(m_range_mle)?;
         BagSubsetIOP::<E, PCS>::prove(
             prover_tracker,
             &diff_range_bag.clone(),
@@ -116,7 +131,6 @@ where PCS: PolynomialCommitmentScheme<E> {
         verifier_tracker: &mut VerifierTrackerRef<E, PCS>,
         sorted_bag_comm: &BagComm<E, PCS>,
         range_bag: &BagComm<E, PCS>,
-        m_range_comm: &TrackedComm<E, PCS>,
     ) -> Result<(), PolyIOPErrors> {
         let sorted_nv = sorted_bag_comm.num_vars();
         let sorted_len = 2_usize.pow(sorted_nv as u32);
@@ -160,6 +174,8 @@ where PCS: PolynomialCommitmentScheme<E> {
         let range_sel_closure = one_closure.clone();
         let range_sel = verifier_tracker.track_virtual_comm(Box::new(range_sel_closure));
         let range_bag = BagComm::new(range_comm.clone(), range_sel, range_nv);
+        let m_range_id = verifier_tracker.get_next_id();
+        let m_range_comm = verifier_tracker.transfer_prover_comm(m_range_id);
         BagSubsetIOP::<E, PCS>::verify(
             verifier_tracker,
             &diff_bag.clone(),

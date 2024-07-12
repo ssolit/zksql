@@ -32,15 +32,7 @@ where PCS: PolynomialCommitmentScheme<E> {
         range_bag: &Bag<E, PCS>,
     ) -> Result<(), PolyIOPErrors> {
 
-        // prove a + b = sum_bag
-        BagSumIOP::<E, PCS>::prove(
-            prover_tracker,
-            bag_a,
-            bag_b, 
-            sum_bag,
-        )?;
-
-        // prove union bag is the supp of sum bag
+        // calculate the multiplicity vector for union_bag vs sum_bag
         let mut m_counts = HashMap::<E::ScalarField, usize>::new();
         let sum_evals = sum_bag.poly.evaluations();
         for i in 0..sum_bag.poly.evaluations().len() {
@@ -56,11 +48,21 @@ where PCS: PolynomialCommitmentScheme<E> {
         ).collect::<Vec<E::ScalarField>>();
         let m_supp_mle = DenseMultilinearExtension::from_evaluations_vec(union_bag.num_vars(), m_supp_evals);
 
+        // prove a + b = sum_bag
+        BagSumIOP::<E, PCS>::prove(
+            prover_tracker,
+            bag_a,
+            bag_b, 
+            sum_bag,
+        )?;
+
+        // prove union bag is the supp of sum bag
+        let m_supp = prover_tracker.track_and_commit_poly(m_supp_mle)?;
         BagSuppIOP::<E, PCS>::prove(
             prover_tracker,
             union_bag,
             sum_bag,
-            &m_supp_mle,
+            &m_supp,
             range_bag,
         )?;
         
