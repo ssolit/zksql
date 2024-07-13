@@ -2,12 +2,13 @@
 use ark_ec::pairing::Pairing;
 use ark_poly::DenseMultilinearExtension;
 use ark_std::{One, Zero};
+use std::iter::Sum;
 use std::ops::Neg;
 use std::marker::PhantomData;
 use subroutines::pcs::PolynomialCommitmentScheme;
 
 use crate::tracker::prelude::*;
-
+use ark_std::num::ParseIntError;
 
 pub struct BagMultiToolIOP<E: Pairing, PCS: PolynomialCommitmentScheme<E>>(PhantomData<E>, PhantomData<PCS>);
 impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> BagMultiToolIOP<E, PCS> 
@@ -33,7 +34,7 @@ where PCS: PolynomialCommitmentScheme<E>
         for i in 0..fxs.len() {
             if fxs[i].poly.num_vars() != mfxs[i].num_vars() {
                 return Err(PolyIOPErrors::InvalidParameters(
-                    "BagMultiToolIOP Error: fxs[i] and mfxs[i] have different number of polynomials".to_string(),
+                    "BagMultiToolIOP Error: fxs[i] and mfxs[i] have different number of variables".to_string(),
                 ));
             }
         }
@@ -44,13 +45,13 @@ where PCS: PolynomialCommitmentScheme<E>
        
         if gxs.len() != mgxs.len() {
             return Err(PolyIOPErrors::InvalidParameters(
-                "BagMultiToolIOP Error: fxs and mf have different number of polynomials".to_string(),
+                "BagMultiToolIOP Error: gxs and mg have different number of polynomials".to_string(),
             ));
         }
         for i in 0..gxs.len() {
             if gxs[i].num_vars() != mgxs[i].num_vars() {
                 return Err(PolyIOPErrors::InvalidParameters(
-                    "BagMultiToolIOP Error: gxs[i] and mgxs[i] have different number of polynomials".to_string(),
+                    "BagMultiToolIOP Error: gxs[i] and mgxs[i] have different number of variables".to_string(),
                 ));
             }
         }
@@ -98,7 +99,6 @@ where PCS: PolynomialCommitmentScheme<E>
         // construct the full challenge polynomial by taking phat and multiplying by the selector and multiplicities
         let phat = tracker.track_and_commit_poly(phat_mle)?;
         let sumcheck_challenge_poly = phat.mul_poly(&m).mul_poly(&bag.selector);
-        // println!("prove sumcheck_challenge_poly id: {:?}", sumcheck_challenge_poly.id);
        
         // Create Zerocheck claim for procing phat(x) is created correctly, 
         // i.e. ZeroCheck [(p(x)-gamma) * phat(x)  - 1] = [(p * phat) - gamma * phat - 1]
@@ -181,11 +181,9 @@ where PCS: PolynomialCommitmentScheme<E>
         // get phat mat comm from proof and add it to the tracker
         let phat_id: TrackerID = tracker.get_next_id();
         let phat = tracker.transfer_prover_comm(phat_id);
-        // println!("verify phat_id: {:?}", phat_id);
         
         // make the virtual comms as prover does
         let sumcheck_challenge_comm = phat.mul_comms(&m).mul_comms(&bag.selector);
-        // println!("verify sumcheck_challenge_comm id: {:?}", sumcheck_challenge_comm.id);
         let phat_check_poly = (p.mul_comms(&phat)).sub_comms(&phat.mul_scalar(gamma)).add_scalar(E::ScalarField::one().neg());
        
 

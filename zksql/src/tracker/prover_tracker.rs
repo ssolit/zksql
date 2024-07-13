@@ -454,6 +454,15 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
     // to the max number of variables in the tracker
     // Used as a preprocessing step before batching polynomials
     fn equalize_materialized_poly_nv(&mut self) -> usize {
+
+        // let orig_sums: Vec<E::ScalarField> = self.sum_check_claims.iter()
+        //     .map(|claim| {
+        //         self.evaluations(claim.label.clone()).iter().sum::<E::ScalarField>()
+        //     })
+        //     .collect();
+        // println!("orig_sums: {:?}", orig_sums);
+        // println!();
+
         let nv: usize = self.materialized_polys.iter().map(|(_, p)| p.num_vars()).max().ok_or(1).unwrap();
         for (_, poly) in self.materialized_polys.iter_mut() {
             let old_nv = poly.num_vars();
@@ -526,8 +535,9 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
         #[cfg(debug_assertions)] {
             let true_agg_sum: E::ScalarField = self.evaluations(sumcheck_poly.clone()).iter().sum::<E::ScalarField>();
             if true_agg_sum != sc_sum {
+                // this usually happens becuase of a bug related to equalizing the nv
                 let err_msg = "prover_tracker::compile_proof error: true_agg_sum != sc_sum";
-                return Err(PolyIOPErrors::InvalidVerifier(err_msg.to_string()));
+                return Err(PolyIOPErrors::InvalidProver(err_msg.to_string()));
             }
         }
         let sc_avp = self.to_arithmatic_virtual_poly(sumcheck_poly);

@@ -15,11 +15,7 @@ mod test {
     use crate::{
         tracker::prelude::*,
         zksql_poly_iop::bag_multitool::{
-            bag_multitool::BagMultiToolIOP,
-            bag_eq::BagEqIOP,
-            bag_subset::BagSubsetIOP,
-            bag_sum::BagSumIOP,
-            bag_presc_perm::BagPrescPermIOP,
+            bag_eq::BagEqIOP, bag_multitool::BagMultiToolIOP, bag_presc_perm::BagPrescPermIOP, bag_subset::BagSubsetIOP, bag_sum::BagSumIOP, test
         },
     };
 
@@ -57,7 +53,7 @@ mod test {
         test_bag_multitool_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&mut prover_tracker, &mut verifier_tracker, &[f.clone()], &[f_sel.clone()], &[mf.clone()], &[g.clone()], &[g_sel.clone()], &[mg.clone()])?;
         println!("passed");
 
-        // // Good Path 2: selector includes zeros
+        // Good Path 2: selector includes zeros
         print!("test_bag_multitool Good path 2 (selector includes zeros): ");
         let f2_evals = f_evals.clone();
         let mut f2_sel_evals = vec![Fr::one(); f_evals.len()];
@@ -88,6 +84,23 @@ mod test {
         let f3b = DenseMultilinearExtension::from_evaluations_vec(nv-1, f3b_evals.clone());
         let mf3b = DenseMultilinearExtension::from_evaluations_vec(nv-1, mf3b_evals.clone());
         test_bag_multitool_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&mut prover_tracker, &mut verifier_tracker, &[f3a, f3b], &[half_one_poly.clone(), half_one_poly.clone()], &[mf3a.clone(), mf3b.clone()], &[g.clone()], &[g_sel.clone()], &[mg.clone()])?;
+        println!("passed");
+
+        // gopd path 4: multiplivities include zeros and twos instead of just ones
+        print!("test_bag_multitool Good path 4: ");
+        let f_nums      = vec![0, 1, 2, 3, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        let f_sel_nums  = vec![1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        let mf_nums     = vec![1; 16];
+        let g_nums      = vec![0, 1, 2, 3, 4, 0, 0, 0];
+        let g_sel_nums  = vec![1, 1, 1, 1, 1, 0, 0, 0];
+        let mg_nums     = vec![2, 1, 1, 1, 1, 0, 0, 0];
+        let f4_mle = DenseMultilinearExtension::from_evaluations_vec(4, f_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+        let f4_sel_mle = DenseMultilinearExtension::from_evaluations_vec(4, f_sel_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+        let mf4_mle = DenseMultilinearExtension::from_evaluations_vec(4, mf_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+        let g4_mle = DenseMultilinearExtension::from_evaluations_vec(3, g_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+        let g4_sel_mle = DenseMultilinearExtension::from_evaluations_vec(3, g_sel_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+        let mg4_mle = DenseMultilinearExtension::from_evaluations_vec(3, mg_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+        test_bag_multitool_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&mut prover_tracker, &mut verifier_tracker, &[f4_mle.clone()], &[f4_sel_mle.clone()], &[mf4_mle.clone()], &[g4_mle.clone()], &[g4_sel_mle.clone()], &[mg4_mle.clone()])?;
         println!("passed");
 
         // good paths passed. Now check bad paths

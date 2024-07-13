@@ -59,9 +59,9 @@ mod test {
         let mut prover_tracker: ProverTrackerRef<Bls12_381, MultilinearKzgPCS<Bls12_381>> = ProverTrackerRef::new_from_pcs_params(pcs_prover_param);
         let mut verifier_tracker: VerifierTrackerRef<Bls12_381, MultilinearKzgPCS<Bls12_381>> = VerifierTrackerRef::new_from_pcs_params(pcs_verifier_param);
 
-        // test good path
+        // test good path 1: no use of selectors
         test_bag_supp_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&mut prover_tracker, &mut verifier_tracker, &orig_poly.clone(), &orig_sel.clone(),  &supp.clone(), &supp_sel.clone(), &common_mset_supp_m, &range_poly.clone())?;
-        println!("BagSuppIOP good path test passed");
+        println!("BagSuppIOP good path 1 test passed");
 
         // test bad path 1: supp contains a duplicate (i.e. supp is not strictly sorted), but otherwise would pass
         let mut bad1_supp_nums = supp_nums.clone();

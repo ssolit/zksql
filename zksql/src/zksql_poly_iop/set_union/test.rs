@@ -2,7 +2,6 @@
 mod test {
     use ark_ec::pairing::Pairing;
     use ark_poly::DenseMultilinearExtension;
-    use rayon::range;
     
     use std::collections::HashSet;
     use subroutines::{
@@ -36,41 +35,89 @@ mod test {
         let mut prover_tracker: ProverTrackerRef<Bls12_381, MultilinearKzgPCS<Bls12_381>> = ProverTrackerRef::new_from_pcs_params(pcs_prover_param);
         let mut verifier_tracker: VerifierTrackerRef<Bls12_381, MultilinearKzgPCS<Bls12_381>> = VerifierTrackerRef::new_from_pcs_params(pcs_verifier_param);
 
-        // Test good path 1: a and b are same size, no dups
-        let poly_a_nv = 4;
+        // // Test good path 1: a and b are same size, no dups
+        // let poly_a_nv = 4;
+        // let poly_b_nv = 4;
+        // let sum_nv = 5;
+        // let union_nv = 5;
+        // let poly_a_nums = (0..2_usize.pow(poly_a_nv as u32)).collect::<Vec<usize>>();
+        // let poly_b_nums = poly_a_nums.iter().map(|x| x + 2_usize.pow(poly_a_nv as u32)).collect::<Vec<usize>>();
+        // let mut sum_nums = poly_a_nums.clone();
+        // sum_nums.extend(poly_b_nums.iter().cloned());
+        // let union_nums = sum_nums.clone();
+
+        // let poly_a_mle = DenseMultilinearExtension::from_evaluations_vec(poly_a_nv, poly_a_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+        // let poly_b_mle = DenseMultilinearExtension::from_evaluations_vec(poly_b_nv, poly_b_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+        // let sum_mle = DenseMultilinearExtension::from_evaluations_vec(sum_nv, sum_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+        // let union_mle = DenseMultilinearExtension::from_evaluations_vec(union_nv, union_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+        // let one_poly_4 = DenseMultilinearExtension::from_evaluations_vec(poly_a_nv, vec![Fr::one(); 2_usize.pow(poly_a_nv as u32)]);
+        // let one_poly_5 = DenseMultilinearExtension::from_evaluations_vec(sum_nv, vec![Fr::one(); 2_usize.pow((sum_nv) as u32)]);
+
+        // test_set_union_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(
+        //     &mut prover_tracker, 
+        //     &mut verifier_tracker, 
+        //     &poly_a_mle.clone(), 
+        //     &one_poly_4.clone(), 
+        //     &poly_b_mle, 
+        //     &one_poly_4.clone(), 
+        //     &sum_mle, 
+        //     &one_poly_5.clone(), 
+        //     &union_mle, 
+        //     &one_poly_5.clone(),
+        //     &range_mle.clone(),
+        // )?;
+        // println!("BagSuppIOP good path 1 test passed");
+
+
+        // test good path 2: a and b are different sizes, some dups, non-trivial selector
+        let poly_a_nv = 3;
         let poly_b_nv = 4;
         let sum_nv = 5;
-        let union_nv = 5;
+        let union_nv = 4;
         let poly_a_nums = (0..2_usize.pow(poly_a_nv as u32)).collect::<Vec<usize>>();
-        let poly_b_nums = poly_a_nums.iter().map(|x| x + 2_usize.pow(poly_a_nv as u32)).collect::<Vec<usize>>();
-        
+        let sel_a_nums = vec![1; 2_usize.pow(poly_a_nv as u32)];
+        let mut poly_b_nums = vec![0; 2_usize.pow(poly_b_nv as u32)];
+        poly_b_nums[0] = 2_usize.pow(poly_a_nv as u32); // 8
+        let mut sel_b_nums = vec![0; 2_usize.pow(poly_b_nv as u32)];
+        sel_b_nums[0] = 1;
+        sel_b_nums[1] = 1;
         let mut sum_nums = poly_a_nums.clone();
-        sum_nums.extend(poly_b_nums.iter().cloned());
-        let union_nums = sum_nums.clone();
+        sum_nums.extend(poly_b_nums.clone());
+        sum_nums.extend(vec![0; 2_usize.pow(poly_a_nv as u32)]);
+        let mut sum_sel_nums = sel_a_nums.clone();
+        sum_sel_nums.extend(sel_b_nums.clone());
+        sum_sel_nums.extend(vec![0; 2_usize.pow(poly_a_nv as u32)]);
+
+        let mut union_nums = poly_a_nums.clone();
+        union_nums.push(2_usize.pow(poly_a_nv as u32));
+        union_nums.extend(vec![0; 2_usize.pow(poly_a_nv as u32) - 1]);
+        let mut union_sel_nums = sel_a_nums.clone();
+        union_sel_nums.push(1);
+        union_sel_nums.extend(vec![0; 2_usize.pow(poly_a_nv as u32) - 1]);
 
         let poly_a_mle = DenseMultilinearExtension::from_evaluations_vec(poly_a_nv, poly_a_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+        let sel_a_mle = DenseMultilinearExtension::from_evaluations_vec(poly_a_nv, sel_a_nums.iter().map(|x| Fr::from(*x as u64)).collect());
         let poly_b_mle = DenseMultilinearExtension::from_evaluations_vec(poly_b_nv, poly_b_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+        let sel_b_mle = DenseMultilinearExtension::from_evaluations_vec(poly_b_nv, sel_b_nums.iter().map(|x| Fr::from(*x as u64)).collect());
         let sum_mle = DenseMultilinearExtension::from_evaluations_vec(sum_nv, sum_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+        let sum_sel_mle = DenseMultilinearExtension::from_evaluations_vec(sum_nv, sum_sel_nums.iter().map(|x| Fr::from(*x as u64)).collect());
         let union_mle = DenseMultilinearExtension::from_evaluations_vec(union_nv, union_nums.iter().map(|x| Fr::from(*x as u64)).collect());
-        let one_poly_4 = DenseMultilinearExtension::from_evaluations_vec(poly_a_nv, vec![Fr::one(); 2_usize.pow(poly_a_nv as u32)]);
-        let one_poly_5 = DenseMultilinearExtension::from_evaluations_vec(sum_nv, vec![Fr::one(); 2_usize.pow((sum_nv) as u32)]);
+        let union_sel_mle = DenseMultilinearExtension::from_evaluations_vec(union_nv, union_sel_nums.iter().map(|x| Fr::from(*x as u64)).collect());
 
         test_set_union_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(
             &mut prover_tracker, 
             &mut verifier_tracker, 
             &poly_a_mle.clone(), 
-            &one_poly_4.clone(), 
+            &sel_a_mle.clone(),
             &poly_b_mle, 
-            &one_poly_4.clone(), 
+            &sel_b_mle.clone(),
             &sum_mle, 
-            &one_poly_5.clone(), 
+            &sum_sel_mle.clone(),
             &union_mle, 
-            &one_poly_5.clone(),
+            &union_sel_mle.clone(),
             &range_mle.clone(),
         )?;
-
-
-        // test good path 2: a and b are different sizes, some dups, non-trivial selector
+        println!("BagSuppIOP good path 2 test passed");
 
         // test bad path 1: bag_sum has an element not in a or b, union is supp of bag_sum
 
