@@ -2,22 +2,19 @@
 mod test {
     use ark_ec::pairing::Pairing;
     use ark_poly::DenseMultilinearExtension;
-    
-    use std::collections::HashSet;
+
     use subroutines::{
         pcs::PolynomialCommitmentScheme,
         MultilinearKzgPCS
     };
 
     use ark_bls12_381::{Bls12_381, Fr};
+    use ark_std::One;
     use ark_std::test_rng;
-    use ark_std::{One, Zero, rand::Rng};
 
-    use crate::zksql_poly_iop::set_union::set_union::SetUnionIOP;
-    use crate::zksql_poly_iop::set_union::test;
     use crate::{
         tracker::prelude::*,
-        zksql_poly_iop::bag_supp::bag_supp::BagSuppIOP,
+        zksql_poly_iop::set_union::set_union::SetUnionIOP,
     };
 
     fn test_set_union() -> Result<(), PolyIOPErrors> {
@@ -35,38 +32,38 @@ mod test {
         let mut prover_tracker: ProverTrackerRef<Bls12_381, MultilinearKzgPCS<Bls12_381>> = ProverTrackerRef::new_from_pcs_params(pcs_prover_param);
         let mut verifier_tracker: VerifierTrackerRef<Bls12_381, MultilinearKzgPCS<Bls12_381>> = VerifierTrackerRef::new_from_pcs_params(pcs_verifier_param);
 
-        // // Test good path 1: a and b are same size, no dups
-        // let poly_a_nv = 4;
-        // let poly_b_nv = 4;
-        // let sum_nv = 5;
-        // let union_nv = 5;
-        // let poly_a_nums = (0..2_usize.pow(poly_a_nv as u32)).collect::<Vec<usize>>();
-        // let poly_b_nums = poly_a_nums.iter().map(|x| x + 2_usize.pow(poly_a_nv as u32)).collect::<Vec<usize>>();
-        // let mut sum_nums = poly_a_nums.clone();
-        // sum_nums.extend(poly_b_nums.iter().cloned());
-        // let union_nums = sum_nums.clone();
+        // Test good path 1: a and b are same size, no dups
+        let poly_a_nv = 4;
+        let poly_b_nv = 4;
+        let sum_nv = 5;
+        let union_nv = 5;
+        let poly_a_nums = (0..2_usize.pow(poly_a_nv as u32)).collect::<Vec<usize>>();
+        let poly_b_nums = poly_a_nums.iter().map(|x| x + 2_usize.pow(poly_a_nv as u32)).collect::<Vec<usize>>();
+        let mut sum_nums = poly_a_nums.clone();
+        sum_nums.extend(poly_b_nums.iter().cloned());
+        let union_nums = sum_nums.clone();
 
-        // let poly_a_mle = DenseMultilinearExtension::from_evaluations_vec(poly_a_nv, poly_a_nums.iter().map(|x| Fr::from(*x as u64)).collect());
-        // let poly_b_mle = DenseMultilinearExtension::from_evaluations_vec(poly_b_nv, poly_b_nums.iter().map(|x| Fr::from(*x as u64)).collect());
-        // let sum_mle = DenseMultilinearExtension::from_evaluations_vec(sum_nv, sum_nums.iter().map(|x| Fr::from(*x as u64)).collect());
-        // let union_mle = DenseMultilinearExtension::from_evaluations_vec(union_nv, union_nums.iter().map(|x| Fr::from(*x as u64)).collect());
-        // let one_poly_4 = DenseMultilinearExtension::from_evaluations_vec(poly_a_nv, vec![Fr::one(); 2_usize.pow(poly_a_nv as u32)]);
-        // let one_poly_5 = DenseMultilinearExtension::from_evaluations_vec(sum_nv, vec![Fr::one(); 2_usize.pow((sum_nv) as u32)]);
+        let poly_a_mle = DenseMultilinearExtension::from_evaluations_vec(poly_a_nv, poly_a_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+        let poly_b_mle = DenseMultilinearExtension::from_evaluations_vec(poly_b_nv, poly_b_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+        let sum_mle = DenseMultilinearExtension::from_evaluations_vec(sum_nv, sum_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+        let union_mle = DenseMultilinearExtension::from_evaluations_vec(union_nv, union_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+        let one_poly_4 = DenseMultilinearExtension::from_evaluations_vec(poly_a_nv, vec![Fr::one(); 2_usize.pow(poly_a_nv as u32)]);
+        let one_poly_5 = DenseMultilinearExtension::from_evaluations_vec(sum_nv, vec![Fr::one(); 2_usize.pow((sum_nv) as u32)]);
 
-        // test_set_union_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(
-        //     &mut prover_tracker, 
-        //     &mut verifier_tracker, 
-        //     &poly_a_mle.clone(), 
-        //     &one_poly_4.clone(), 
-        //     &poly_b_mle, 
-        //     &one_poly_4.clone(), 
-        //     &sum_mle, 
-        //     &one_poly_5.clone(), 
-        //     &union_mle, 
-        //     &one_poly_5.clone(),
-        //     &range_mle.clone(),
-        // )?;
-        // println!("BagSuppIOP good path 1 test passed");
+        test_set_union_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(
+            &mut prover_tracker, 
+            &mut verifier_tracker, 
+            &poly_a_mle.clone(), 
+            &one_poly_4.clone(), 
+            &poly_b_mle, 
+            &one_poly_4.clone(), 
+            &sum_mle, 
+            &one_poly_5.clone(), 
+            &union_mle, 
+            &one_poly_5.clone(),
+            &range_mle.clone(),
+        )?;
+        println!("BagSuppIOP good path 1 test passed");
 
 
         // test good path 2: a and b are different sizes, some dups, non-trivial selector
@@ -88,12 +85,15 @@ mod test {
         sum_sel_nums.extend(sel_b_nums.clone());
         sum_sel_nums.extend(vec![0; 2_usize.pow(poly_a_nv as u32)]);
 
-        let mut union_nums = poly_a_nums.clone();
-        union_nums.push(2_usize.pow(poly_a_nv as u32));
+        let mut union_nums = Vec::<usize>::with_capacity(2_usize.pow(union_nv as u32));
         union_nums.extend(vec![0; 2_usize.pow(poly_a_nv as u32) - 1]);
-        let mut union_sel_nums = sel_a_nums.clone();
-        union_sel_nums.push(1);
+        union_nums.extend(poly_a_nums.clone());
+        union_nums.push(2_usize.pow(poly_a_nv as u32));
+        let mut union_sel_nums = Vec::<usize>::with_capacity(2_usize.pow(union_nv as u32));
         union_sel_nums.extend(vec![0; 2_usize.pow(poly_a_nv as u32) - 1]);
+        union_sel_nums.extend(sel_a_nums.clone());
+        union_sel_nums.push(1);
+        
 
         let poly_a_mle = DenseMultilinearExtension::from_evaluations_vec(poly_a_nv, poly_a_nums.iter().map(|x| Fr::from(*x as u64)).collect());
         let sel_a_mle = DenseMultilinearExtension::from_evaluations_vec(poly_a_nv, sel_a_nums.iter().map(|x| Fr::from(*x as u64)).collect());

@@ -2,13 +2,11 @@
 use ark_ec::pairing::Pairing;
 use ark_poly::DenseMultilinearExtension;
 use ark_std::{One, Zero};
-use std::iter::Sum;
 use std::ops::Neg;
 use std::marker::PhantomData;
 use subroutines::pcs::PolynomialCommitmentScheme;
 
 use crate::tracker::prelude::*;
-use ark_std::num::ParseIntError;
 
 pub struct BagMultiToolIOP<E: Pairing, PCS: PolynomialCommitmentScheme<E>>(PhantomData<E>, PhantomData<PCS>);
 impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> BagMultiToolIOP<E, PCS> 
