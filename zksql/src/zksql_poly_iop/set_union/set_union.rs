@@ -59,7 +59,6 @@ where PCS: PolynomialCommitmentScheme<E> {
         for i in 0..m_supp_evals.len() {
             m_supp_evals[i] += E::ScalarField::one() - union_sel_evals[i];
         }
-
         let m_supp_mle = DenseMultilinearExtension::from_evaluations_vec(union_bag.num_vars(), m_supp_evals);
 
         // prove a + b = sum_bag
@@ -80,7 +79,6 @@ where PCS: PolynomialCommitmentScheme<E> {
             range_bag,
         )?;
         
-    
         Ok(())
     }
 

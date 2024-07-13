@@ -94,7 +94,6 @@ mod test {
         union_sel_nums.extend(sel_a_nums.clone());
         union_sel_nums.push(1);
         
-
         let poly_a_mle = DenseMultilinearExtension::from_evaluations_vec(poly_a_nv, poly_a_nums.iter().map(|x| Fr::from(*x as u64)).collect());
         let sel_a_mle = DenseMultilinearExtension::from_evaluations_vec(poly_a_nv, sel_a_nums.iter().map(|x| Fr::from(*x as u64)).collect());
         let poly_b_mle = DenseMultilinearExtension::from_evaluations_vec(poly_b_nv, poly_b_nums.iter().map(|x| Fr::from(*x as u64)).collect());
@@ -120,13 +119,144 @@ mod test {
         println!("BagSuppIOP good path 2 test passed");
 
         // test bad path 1: bag_sum has an element not in a or b, union is supp of bag_sum
+        let poly_a_nums = vec![0, 1];
+        let poly_b_nums = vec![1, 2];
+        let sel_a_nums = vec![1, 1];
+        let sel_b_nums = vec![1, 1];
+        let sum_nums = vec![0, 1, 2, 3];
+        let sum_sel_nums = vec![1, 1, 1, 1];
+        let union_nums = vec![0, 1, 2, 3];
+        let union_sel_nums = vec![1, 1, 1, 1];
+
+        let poly_a_mle = DenseMultilinearExtension::from_evaluations_vec(1, poly_a_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+        let sel_a_mle = DenseMultilinearExtension::from_evaluations_vec(1, sel_a_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+        let poly_b_mle = DenseMultilinearExtension::from_evaluations_vec(1, poly_b_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+        let sel_b_mle = DenseMultilinearExtension::from_evaluations_vec(1, sel_b_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+        let sum_mle = DenseMultilinearExtension::from_evaluations_vec(2, sum_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+        let sum_sel_mle = DenseMultilinearExtension::from_evaluations_vec(2, sum_sel_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+        let union_mle = DenseMultilinearExtension::from_evaluations_vec(2, union_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+        let union_sel_mle = DenseMultilinearExtension::from_evaluations_vec(2, union_sel_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+
+        let bad_res1 = test_set_union_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(
+            &mut prover_tracker.deep_copy(), 
+            &mut verifier_tracker.deep_copy(), 
+            &poly_a_mle.clone(), 
+            &sel_a_mle.clone(),
+            &poly_b_mle, 
+            &sel_b_mle.clone(),
+            &sum_mle, 
+            &sum_sel_mle.clone(),
+            &union_mle, 
+            &union_sel_mle.clone(),
+            &range_mle.clone(),
+        );
+        assert!(bad_res1.is_err());
+        println!("BagSuppIOP bad path 1 test passed");
 
         // test bad path 2: bag_sum is missing an element in a or b, union is supp of bag_sum
+        let poly_a_nums = vec![0, 1];
+        let poly_b_nums = vec![1, 2];
+        let sel_a_nums = vec![1, 1];
+        let sel_b_nums = vec![1, 1];
+        let sum_nums = vec![0, 1];
+        let sum_sel_nums = vec![1, 1];
+        let union_nums = vec![0, 1];
+        let union_sel_nums = vec![1, 1];
+
+        let poly_a_mle = DenseMultilinearExtension::from_evaluations_vec(1, poly_a_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+        let sel_a_mle = DenseMultilinearExtension::from_evaluations_vec(1, sel_a_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+        let poly_b_mle = DenseMultilinearExtension::from_evaluations_vec(1, poly_b_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+        let sel_b_mle = DenseMultilinearExtension::from_evaluations_vec(1, sel_b_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+        let sum_mle = DenseMultilinearExtension::from_evaluations_vec(1, sum_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+        let sum_sel_mle = DenseMultilinearExtension::from_evaluations_vec(1, sum_sel_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+        let union_mle = DenseMultilinearExtension::from_evaluations_vec(1, union_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+        let union_sel_mle = DenseMultilinearExtension::from_evaluations_vec(1, union_sel_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+
+        let bad_res2 = test_set_union_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(
+            &mut prover_tracker.deep_copy(), 
+            &mut verifier_tracker.deep_copy(), 
+            &poly_a_mle.clone(), 
+            &sel_a_mle.clone(),
+            &poly_b_mle, 
+            &sel_b_mle.clone(),
+            &sum_mle, 
+            &sum_sel_mle.clone(),
+            &union_mle, 
+            &union_sel_mle.clone(),
+            &range_mle.clone(),
+        );
+        assert!(bad_res2.is_err());
+        println!("BagSuppIOP bad path 2 test passed");
 
         // test bad path 3: bag_sum is correct, but union is missing an element
+        let poly_a_nums = vec![0, 1];
+        let poly_b_nums = vec![2, 3];
+        let sel_a_nums = vec![1, 1];
+        let sel_b_nums = vec![1, 1];
+        let sum_nums = vec![0, 1, 2, 3];
+        let sum_sel_nums = vec![1, 1, 1, 1];
+        let union_nums = vec![0, 1, 2, 0];
+        let union_sel_nums = vec![1, 1, 1, 0];
 
-        // test bad path 4: bag_sum is correct, but union has a duplicate element 
+        let poly_a_mle = DenseMultilinearExtension::from_evaluations_vec(1, poly_a_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+        let sel_a_mle = DenseMultilinearExtension::from_evaluations_vec(1, sel_a_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+        let poly_b_mle = DenseMultilinearExtension::from_evaluations_vec(1, poly_b_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+        let sel_b_mle = DenseMultilinearExtension::from_evaluations_vec(1, sel_b_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+        let sum_mle = DenseMultilinearExtension::from_evaluations_vec(2, sum_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+        let sum_sel_mle = DenseMultilinearExtension::from_evaluations_vec(2, sum_sel_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+        let union_mle = DenseMultilinearExtension::from_evaluations_vec(2, union_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+        let union_sel_mle = DenseMultilinearExtension::from_evaluations_vec(2, union_sel_nums.iter().map(|x| Fr::from(*x as u64)).collect());
 
+        let bad_res3 = test_set_union_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(
+            &mut prover_tracker.deep_copy(), 
+            &mut verifier_tracker.deep_copy(), 
+            &poly_a_mle.clone(), 
+            &sel_a_mle.clone(),
+            &poly_b_mle, 
+            &sel_b_mle.clone(),
+            &sum_mle, 
+            &sum_sel_mle.clone(),
+            &union_mle, 
+            &union_sel_mle.clone(),
+            &range_mle.clone(),
+        );
+        assert!(bad_res3.is_err());
+        println!("BagSuppIOP bad path 3 test passed");
+
+        // test bad path 4: bag_sum is correct, but union has a duplicate element
+        let poly_a_nums = vec![0, 1];
+        let poly_b_nums = vec![1, 2];
+        let sel_a_nums = vec![1, 1];
+        let sel_b_nums = vec![1, 1];
+        let sum_nums = vec![0, 1, 1, 2];
+        let sum_sel_nums = vec![1, 1, 1, 1];
+        let union_nums = vec![0, 1, 1, 2];
+        let union_sel_nums = vec![1, 1, 1, 1];
+
+        let poly_a_mle = DenseMultilinearExtension::from_evaluations_vec(1, poly_a_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+        let sel_a_mle = DenseMultilinearExtension::from_evaluations_vec(1, sel_a_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+        let poly_b_mle = DenseMultilinearExtension::from_evaluations_vec(1, poly_b_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+        let sel_b_mle = DenseMultilinearExtension::from_evaluations_vec(1, sel_b_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+        let sum_mle = DenseMultilinearExtension::from_evaluations_vec(2, sum_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+        let sum_sel_mle = DenseMultilinearExtension::from_evaluations_vec(2, sum_sel_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+        let union_mle = DenseMultilinearExtension::from_evaluations_vec(2, union_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+        let union_sel_mle = DenseMultilinearExtension::from_evaluations_vec(2, union_sel_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+
+        let bad_res4 = test_set_union_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(
+            &mut prover_tracker.deep_copy(), 
+            &mut verifier_tracker.deep_copy(), 
+            &poly_a_mle.clone(), 
+            &sel_a_mle.clone(),
+            &poly_b_mle, 
+            &sel_b_mle.clone(),
+            &sum_mle, 
+            &sum_sel_mle.clone(),
+            &union_mle, 
+            &union_sel_mle.clone(),
+            &range_mle.clone(),
+        );
+        assert!(bad_res4.is_err());
+        println!("BagSuppIOP bad path 4 test passed"); 
 
         Ok(())
     }
