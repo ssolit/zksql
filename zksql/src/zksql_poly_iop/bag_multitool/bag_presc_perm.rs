@@ -34,7 +34,7 @@ where PCS: PolynomialCommitmentScheme<E> {
         // note: fx, gx, perm are already committed to, so ordered_mle, fhat, ghat, etc are fixed
         let gamma = tracker.get_and_append_challenge(b"gamma")?;
 
-         // create "prespecified" polynomials: one_mle and ordered_mle (0, 1, 2, 3, ..)
+         // create "pre-specified" polynomials: one_mle and ordered_mle (0, 1, 2, 3, ..)
         let one_mle = DenseMultilinearExtension::from_evaluations_vec(nv, vec![E::ScalarField::one(); 2_usize.pow(nv as u32)]);
         let ordered_evals: Vec<E::ScalarField> = (0..2_usize.pow(nv as u32)).map(|x| E::ScalarField::from(x as u64)).collect();
         let ordered_mle = DenseMultilinearExtension::from_evaluations_vec(nv, ordered_evals);
