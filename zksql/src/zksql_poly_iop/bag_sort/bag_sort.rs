@@ -79,11 +79,6 @@ where PCS: PolynomialCommitmentScheme<E> {
         let m_range_evals = m_range_nums.iter().map(|x| E::ScalarField::from(*x as u64)).collect();
         let m_range_mle = DenseMultilinearExtension::from_evaluations_vec(range_nv, m_range_evals);
 
-        // Get inverses of diff_evals for the product check, which shows
-        // the bag is strictly sorted (rather than just sorted) since no elements are zero
-        let mut diff_eval_inverses = diff_evals.clone();
-        batch_inversion(&mut diff_eval_inverses);
-
         // Set up the tracker and prove the prescribed permutation check
         let one_mle = DenseMultilinearExtension::from_evaluations_vec(sorted_nv, vec![E::ScalarField::one(); sorted_len]);
         let shift_perm_mle = DenseMultilinearExtension::from_evaluations_vec(sorted_nv, shift_perm_evals);
