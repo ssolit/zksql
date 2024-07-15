@@ -35,9 +35,8 @@ where PCS: PolynomialCommitmentScheme<E> {
     
         // Show supp includes at least one copy of every element in bag
         // by showing the multiplicity poly has no zeros
-        let supp_one_mle = DenseMultilinearExtension::from_evaluations_vec(common_mset_supp_m.num_vars(), vec![E::ScalarField::one(); 2_usize.pow(common_mset_supp_m.num_vars() as u32)]);
-        let supp_one_poly = prover_tracker.track_mat_poly(supp_one_mle);
-        let supp_no_dups_checker = Bag::new(common_mset_supp_m.clone(), supp_one_poly.clone());
+        // Note: can resuse the supp.selector as the supp_m.selector
+        let supp_no_dups_checker = Bag::new(common_mset_supp_m.clone(), supp.selector.clone());
         BagNoZerosIOP::<E, PCS>::prove(
             prover_tracker,
             &supp_no_dups_checker,
@@ -69,9 +68,7 @@ where PCS: PolynomialCommitmentScheme<E> {
         )?;
     
         // bag and supp are subsets of each other by showing multiplicity polys have no zeros
-        let one_closure = |_: &[E::ScalarField]| -> Result<<E as Pairing>::ScalarField, PolyIOPErrors> {Ok(E::ScalarField::one())};
-        let supp_one_comm = verifier_tracker.track_virtual_comm(Box::new(one_closure));
-        let supp_no_dups_checker = BagComm::new(common_mset_supp_m.clone(), supp_one_comm.clone(), supp.num_vars());
+        let supp_no_dups_checker = BagComm::new(common_mset_supp_m.clone(), supp.selector.clone(), supp.num_vars());
         BagNoZerosIOP::<E, PCS>::verify(
             verifier_tracker,
             &supp_no_dups_checker,
