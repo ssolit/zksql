@@ -33,6 +33,7 @@ mod test {
         let mut verifier_tracker: VerifierTrackerRef<Bls12_381, MultilinearKzgPCS<Bls12_381>> = VerifierTrackerRef::new_from_pcs_params(pcs_verifier_param);
 
         // Test good path 1: a and b are same size, no dups
+        print!("BagSuppIOP good path 1 test: ");
         let poly_a_nv = 4;
         let poly_b_nv = 4;
         let sum_nv = 5;
@@ -45,7 +46,6 @@ mod test {
 
         let poly_a_mle = DenseMultilinearExtension::from_evaluations_vec(poly_a_nv, poly_a_nums.iter().map(|x| Fr::from(*x as u64)).collect());
         let poly_b_mle = DenseMultilinearExtension::from_evaluations_vec(poly_b_nv, poly_b_nums.iter().map(|x| Fr::from(*x as u64)).collect());
-        let sum_mle = DenseMultilinearExtension::from_evaluations_vec(sum_nv, sum_nums.iter().map(|x| Fr::from(*x as u64)).collect());
         let union_mle = DenseMultilinearExtension::from_evaluations_vec(union_nv, union_nums.iter().map(|x| Fr::from(*x as u64)).collect());
         let one_poly_4 = DenseMultilinearExtension::from_evaluations_vec(poly_a_nv, vec![Fr::one(); 2_usize.pow(poly_a_nv as u32)]);
         let one_poly_5 = DenseMultilinearExtension::from_evaluations_vec(sum_nv, vec![Fr::one(); 2_usize.pow((sum_nv) as u32)]);
@@ -57,19 +57,17 @@ mod test {
             &one_poly_4.clone(), 
             &poly_b_mle, 
             &one_poly_4.clone(), 
-            &sum_mle, 
-            &one_poly_5.clone(), 
             &union_mle, 
             &one_poly_5.clone(),
             &range_mle.clone(),
         )?;
-        println!("BagSuppIOP good path 1 test passed");
+        println!("passed");
 
 
         // test good path 2: a and b are different sizes, some dups, non-trivial selector
+        print!("BagSuppIOP good path 2 test: ");
         let poly_a_nv = 3;
         let poly_b_nv = 4;
-        let sum_nv = 5;
         let union_nv = 4;
         let poly_a_nums = (0..2_usize.pow(poly_a_nv as u32)).collect::<Vec<usize>>();
         let sel_a_nums = vec![1; 2_usize.pow(poly_a_nv as u32)];
@@ -98,8 +96,6 @@ mod test {
         let sel_a_mle = DenseMultilinearExtension::from_evaluations_vec(poly_a_nv, sel_a_nums.iter().map(|x| Fr::from(*x as u64)).collect());
         let poly_b_mle = DenseMultilinearExtension::from_evaluations_vec(poly_b_nv, poly_b_nums.iter().map(|x| Fr::from(*x as u64)).collect());
         let sel_b_mle = DenseMultilinearExtension::from_evaluations_vec(poly_b_nv, sel_b_nums.iter().map(|x| Fr::from(*x as u64)).collect());
-        let sum_mle = DenseMultilinearExtension::from_evaluations_vec(sum_nv, sum_nums.iter().map(|x| Fr::from(*x as u64)).collect());
-        let sum_sel_mle = DenseMultilinearExtension::from_evaluations_vec(sum_nv, sum_sel_nums.iter().map(|x| Fr::from(*x as u64)).collect());
         let union_mle = DenseMultilinearExtension::from_evaluations_vec(union_nv, union_nums.iter().map(|x| Fr::from(*x as u64)).collect());
         let union_sel_mle = DenseMultilinearExtension::from_evaluations_vec(union_nv, union_sel_nums.iter().map(|x| Fr::from(*x as u64)).collect());
 
@@ -110,91 +106,18 @@ mod test {
             &sel_a_mle.clone(),
             &poly_b_mle, 
             &sel_b_mle.clone(),
-            &sum_mle, 
-            &sum_sel_mle.clone(),
             &union_mle, 
             &union_sel_mle.clone(),
             &range_mle.clone(),
         )?;
-        println!("BagSuppIOP good path 2 test passed");
+        println!("passed");
 
-        // test bad path 1: bag_sum has an element not in a or b, union is supp of bag_sum
-        let poly_a_nums = vec![0, 1];
-        let poly_b_nums = vec![1, 2];
-        let sel_a_nums = vec![1, 1];
-        let sel_b_nums = vec![1, 1];
-        let sum_nums = vec![0, 1, 2, 3];
-        let sum_sel_nums = vec![1, 1, 1, 1];
-        let union_nums = vec![0, 1, 2, 3];
-        let union_sel_nums = vec![1, 1, 1, 1];
-
-        let poly_a_mle = DenseMultilinearExtension::from_evaluations_vec(1, poly_a_nums.iter().map(|x| Fr::from(*x as u64)).collect());
-        let sel_a_mle = DenseMultilinearExtension::from_evaluations_vec(1, sel_a_nums.iter().map(|x| Fr::from(*x as u64)).collect());
-        let poly_b_mle = DenseMultilinearExtension::from_evaluations_vec(1, poly_b_nums.iter().map(|x| Fr::from(*x as u64)).collect());
-        let sel_b_mle = DenseMultilinearExtension::from_evaluations_vec(1, sel_b_nums.iter().map(|x| Fr::from(*x as u64)).collect());
-        let sum_mle = DenseMultilinearExtension::from_evaluations_vec(2, sum_nums.iter().map(|x| Fr::from(*x as u64)).collect());
-        let sum_sel_mle = DenseMultilinearExtension::from_evaluations_vec(2, sum_sel_nums.iter().map(|x| Fr::from(*x as u64)).collect());
-        let union_mle = DenseMultilinearExtension::from_evaluations_vec(2, union_nums.iter().map(|x| Fr::from(*x as u64)).collect());
-        let union_sel_mle = DenseMultilinearExtension::from_evaluations_vec(2, union_sel_nums.iter().map(|x| Fr::from(*x as u64)).collect());
-
-        let bad_res1 = test_set_union_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(
-            &mut prover_tracker.deep_copy(), 
-            &mut verifier_tracker.deep_copy(), 
-            &poly_a_mle.clone(), 
-            &sel_a_mle.clone(),
-            &poly_b_mle, 
-            &sel_b_mle.clone(),
-            &sum_mle, 
-            &sum_sel_mle.clone(),
-            &union_mle, 
-            &union_sel_mle.clone(),
-            &range_mle.clone(),
-        );
-        assert!(bad_res1.is_err());
-        println!("BagSuppIOP bad path 1 test passed");
-
-        // test bad path 2: bag_sum is missing an element in a or b, union is supp of bag_sum
-        let poly_a_nums = vec![0, 1];
-        let poly_b_nums = vec![1, 2];
-        let sel_a_nums = vec![1, 1];
-        let sel_b_nums = vec![1, 1];
-        let sum_nums = vec![0, 1];
-        let sum_sel_nums = vec![1, 1];
-        let union_nums = vec![0, 1];
-        let union_sel_nums = vec![1, 1];
-
-        let poly_a_mle = DenseMultilinearExtension::from_evaluations_vec(1, poly_a_nums.iter().map(|x| Fr::from(*x as u64)).collect());
-        let sel_a_mle = DenseMultilinearExtension::from_evaluations_vec(1, sel_a_nums.iter().map(|x| Fr::from(*x as u64)).collect());
-        let poly_b_mle = DenseMultilinearExtension::from_evaluations_vec(1, poly_b_nums.iter().map(|x| Fr::from(*x as u64)).collect());
-        let sel_b_mle = DenseMultilinearExtension::from_evaluations_vec(1, sel_b_nums.iter().map(|x| Fr::from(*x as u64)).collect());
-        let sum_mle = DenseMultilinearExtension::from_evaluations_vec(1, sum_nums.iter().map(|x| Fr::from(*x as u64)).collect());
-        let sum_sel_mle = DenseMultilinearExtension::from_evaluations_vec(1, sum_sel_nums.iter().map(|x| Fr::from(*x as u64)).collect());
-        let union_mle = DenseMultilinearExtension::from_evaluations_vec(1, union_nums.iter().map(|x| Fr::from(*x as u64)).collect());
-        let union_sel_mle = DenseMultilinearExtension::from_evaluations_vec(1, union_sel_nums.iter().map(|x| Fr::from(*x as u64)).collect());
-
-        let bad_res2 = test_set_union_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(
-            &mut prover_tracker.deep_copy(), 
-            &mut verifier_tracker.deep_copy(), 
-            &poly_a_mle.clone(), 
-            &sel_a_mle.clone(),
-            &poly_b_mle, 
-            &sel_b_mle.clone(),
-            &sum_mle, 
-            &sum_sel_mle.clone(),
-            &union_mle, 
-            &union_sel_mle.clone(),
-            &range_mle.clone(),
-        );
-        assert!(bad_res2.is_err());
-        println!("BagSuppIOP bad path 2 test passed");
-
-        // test bad path 3: bag_sum is correct, but union is missing an element
+        // test bad path 1: but union is missing an element
+        print!("BagSuppIOP bad path 1 test: ");
         let poly_a_nums = vec![0, 1];
         let poly_b_nums = vec![2, 3];
         let sel_a_nums = vec![1, 1];
         let sel_b_nums = vec![1, 1];
-        let sum_nums = vec![0, 1, 2, 3];
-        let sum_sel_nums = vec![1, 1, 1, 1];
         let union_nums = vec![0, 1, 2, 0];
         let union_sel_nums = vec![1, 1, 1, 0];
 
@@ -202,8 +125,6 @@ mod test {
         let sel_a_mle = DenseMultilinearExtension::from_evaluations_vec(1, sel_a_nums.iter().map(|x| Fr::from(*x as u64)).collect());
         let poly_b_mle = DenseMultilinearExtension::from_evaluations_vec(1, poly_b_nums.iter().map(|x| Fr::from(*x as u64)).collect());
         let sel_b_mle = DenseMultilinearExtension::from_evaluations_vec(1, sel_b_nums.iter().map(|x| Fr::from(*x as u64)).collect());
-        let sum_mle = DenseMultilinearExtension::from_evaluations_vec(2, sum_nums.iter().map(|x| Fr::from(*x as u64)).collect());
-        let sum_sel_mle = DenseMultilinearExtension::from_evaluations_vec(2, sum_sel_nums.iter().map(|x| Fr::from(*x as u64)).collect());
         let union_mle = DenseMultilinearExtension::from_evaluations_vec(2, union_nums.iter().map(|x| Fr::from(*x as u64)).collect());
         let union_sel_mle = DenseMultilinearExtension::from_evaluations_vec(2, union_sel_nums.iter().map(|x| Fr::from(*x as u64)).collect());
 
@@ -214,22 +135,19 @@ mod test {
             &sel_a_mle.clone(),
             &poly_b_mle, 
             &sel_b_mle.clone(),
-            &sum_mle, 
-            &sum_sel_mle.clone(),
             &union_mle, 
             &union_sel_mle.clone(),
             &range_mle.clone(),
         );
         assert!(bad_res3.is_err());
-        println!("BagSuppIOP bad path 3 test passed");
+        println!("passed");
 
-        // test bad path 4: bag_sum is correct, but union has a duplicate element
+        // test bad path 2: union has a duplicate element
+        print!("BagSuppIOP bad path 2 test: ");
         let poly_a_nums = vec![0, 1];
         let poly_b_nums = vec![1, 2];
         let sel_a_nums = vec![1, 1];
         let sel_b_nums = vec![1, 1];
-        let sum_nums = vec![0, 1, 1, 2];
-        let sum_sel_nums = vec![1, 1, 1, 1];
         let union_nums = vec![0, 1, 1, 2];
         let union_sel_nums = vec![1, 1, 1, 1];
 
@@ -237,8 +155,6 @@ mod test {
         let sel_a_mle = DenseMultilinearExtension::from_evaluations_vec(1, sel_a_nums.iter().map(|x| Fr::from(*x as u64)).collect());
         let poly_b_mle = DenseMultilinearExtension::from_evaluations_vec(1, poly_b_nums.iter().map(|x| Fr::from(*x as u64)).collect());
         let sel_b_mle = DenseMultilinearExtension::from_evaluations_vec(1, sel_b_nums.iter().map(|x| Fr::from(*x as u64)).collect());
-        let sum_mle = DenseMultilinearExtension::from_evaluations_vec(2, sum_nums.iter().map(|x| Fr::from(*x as u64)).collect());
-        let sum_sel_mle = DenseMultilinearExtension::from_evaluations_vec(2, sum_sel_nums.iter().map(|x| Fr::from(*x as u64)).collect());
         let union_mle = DenseMultilinearExtension::from_evaluations_vec(2, union_nums.iter().map(|x| Fr::from(*x as u64)).collect());
         let union_sel_mle = DenseMultilinearExtension::from_evaluations_vec(2, union_sel_nums.iter().map(|x| Fr::from(*x as u64)).collect());
 
@@ -249,14 +165,12 @@ mod test {
             &sel_a_mle.clone(),
             &poly_b_mle, 
             &sel_b_mle.clone(),
-            &sum_mle, 
-            &sum_sel_mle.clone(),
             &union_mle, 
             &union_sel_mle.clone(),
             &range_mle.clone(),
         );
         assert!(bad_res4.is_err());
-        println!("BagSuppIOP bad path 4 test passed"); 
+        println!("passed"); 
 
         Ok(())
     }
@@ -268,8 +182,6 @@ mod test {
         bag_a_sel: &DenseMultilinearExtension<E::ScalarField>,
         bag_b_poly: &DenseMultilinearExtension<E::ScalarField>,
         bag_b_sel: &DenseMultilinearExtension<E::ScalarField>,
-        sum_bag_poly: &DenseMultilinearExtension<E::ScalarField>,
-        sum_bag_sel: &DenseMultilinearExtension<E::ScalarField>,
         union_bag_poly: &DenseMultilinearExtension<E::ScalarField>,
         union_bag_sel: &DenseMultilinearExtension<E::ScalarField>,
         range_poly: &DenseMultilinearExtension<E::ScalarField>,
@@ -280,7 +192,6 @@ mod test {
     {
         let bag_a = Bag::new(prover_tracker.track_and_commit_poly(bag_a_poly.clone())?, prover_tracker.track_and_commit_poly(bag_a_sel.clone())?);
         let bag_b = Bag::new(prover_tracker.track_and_commit_poly(bag_b_poly.clone())?, prover_tracker.track_and_commit_poly(bag_b_sel.clone())?);
-        let sum_bag = Bag::new(prover_tracker.track_and_commit_poly(sum_bag_poly.clone())?, prover_tracker.track_and_commit_poly(sum_bag_sel.clone())?);
         let union_bag = Bag::new(prover_tracker.track_and_commit_poly(union_bag_poly.clone())?, prover_tracker.track_and_commit_poly(union_bag_sel.clone())?);
         let range_bag = Bag::new(prover_tracker.track_and_commit_poly(range_poly.clone())?, prover_tracker.track_and_commit_poly(range_poly.clone())?);
 
@@ -288,7 +199,6 @@ mod test {
             prover_tracker,
             &bag_a,
             &bag_b,
-            &sum_bag,
             &union_bag,
             &range_bag,
         )?;
@@ -299,14 +209,12 @@ mod test {
         // let one_closure = |_: &[E::ScalarField]| -> Result<<E as Pairing>::ScalarField, PolyIOPErrors> {Ok(E::ScalarField::one())};
         let bag_a_comm = BagComm::new(verifier_tracker.transfer_prover_comm(bag_a.poly.id), verifier_tracker.transfer_prover_comm(bag_a.selector.id), bag_a.num_vars());
         let bag_b_comm = BagComm::new(verifier_tracker.transfer_prover_comm(bag_b.poly.id), verifier_tracker.transfer_prover_comm(bag_b.selector.id), bag_b.num_vars());
-        let sum_bag_comm = BagComm::new(verifier_tracker.transfer_prover_comm(sum_bag.poly.id), verifier_tracker.transfer_prover_comm(sum_bag.selector.id), sum_bag.num_vars());
         let union_bag_comm = BagComm::new(verifier_tracker.transfer_prover_comm(union_bag.poly.id), verifier_tracker.transfer_prover_comm(union_bag.selector.id), union_bag.num_vars());
         let range_bag_comm = BagComm::new(verifier_tracker.transfer_prover_comm(range_bag.poly.id), verifier_tracker.transfer_prover_comm(range_bag.selector.id), range_bag.num_vars());
         SetUnionIOP::<E, PCS>::verify(
             verifier_tracker,
             &bag_a_comm,
             &bag_b_comm,
-            &sum_bag_comm,
             &union_bag_comm,
             &range_bag_comm,
         )?;

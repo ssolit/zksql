@@ -99,7 +99,7 @@ where PCS: PolynomialCommitmentScheme<E>
         let sumcheck_challenge_poly = phat.mul_poly(&m).mul_poly(&bag.selector);
        
         // Create Zerocheck claim for procing phat(x) is created correctly, 
-        // i.e. ZeroCheck [(p(x)-gamma) * phat(x)  - 1] = [(p * phat) - gamma * phat - 1]
+        // i.e. ZeroCheck [(p(x)-gamma) * phat(x) - 1] = [(p * phat) - gamma * phat - 1]
         let phat_check_poly = (p.mul_poly(&phat)).sub_poly(&phat.mul_scalar(gamma)).add_scalar(E::ScalarField::one().neg());
 
         // add the delayed prover claims to the tracker
