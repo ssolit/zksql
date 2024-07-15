@@ -34,9 +34,7 @@ where PCS: PolynomialCommitmentScheme<E> {
         // note: fx, gx, perm are already committed to, so ordered_mle, fhat, ghat, etc are fixed
         let gamma = tracker.get_and_append_challenge(b"gamma")?;
 
-        // create "constant" polynomials: one_mle and shifted permutation poly
-        // 	    create first vector s=(0, 1, ..) and another that is the permuted version of it t=(2^{nv}, 0, 1, ..)
-        // 	    (p,q) are p is orig, q is p offset by 1 with wraparound
+         // create "prespecified" polynomials: one_mle and ordered_mle (0, 1, 2, 3, ..)
         let one_mle = DenseMultilinearExtension::from_evaluations_vec(nv, vec![E::ScalarField::one(); 2_usize.pow(nv as u32)]);
         let ordered_evals: Vec<E::ScalarField> = (0..2_usize.pow(nv as u32)).map(|x| E::ScalarField::from(x as u64)).collect();
         let ordered_mle = DenseMultilinearExtension::from_evaluations_vec(nv, ordered_evals);
@@ -45,8 +43,8 @@ where PCS: PolynomialCommitmentScheme<E> {
         let fx_evals = fx.poly.evaluations();
         let gx_evals = gx.poly.evaluations();
         let perm_evals = perm.evaluations();
-        let fhat_evals = (0..2_usize.pow(fx.num_vars() as u32)).map(|i| (ordered_mle[i] + gamma) * fx_evals[i]).collect::<Vec<_>>();
-        let ghat_evals = (0..2_usize.pow(gx.num_vars() as u32)).map(|i| (perm_evals[i] + gamma) * gx_evals[i]).collect::<Vec<_>>();
+        let fhat_evals = (0..2_usize.pow(fx.num_vars() as u32)).map(|i| ordered_mle[i] + (gamma * fx_evals[i])).collect::<Vec<_>>();
+        let ghat_evals = (0..2_usize.pow(gx.num_vars() as u32)).map(|i| perm_evals[i] + (gamma * gx_evals[i])).collect::<Vec<_>>();
         let fhat_mle = DenseMultilinearExtension::from_evaluations_vec(fx.num_vars(), fhat_evals);
         let ghat_mle = DenseMultilinearExtension::from_evaluations_vec(gx.num_vars(), ghat_evals);
 
@@ -59,9 +57,8 @@ where PCS: PolynomialCommitmentScheme<E> {
         let ghat_bag = Bag::new(ghat, one_poly.clone());
 
         // create polynomials for checking fhat and ghat were created correctly
-        // ((o + gamma) * fx) - fhat = (o * fx) + (gamma * fx) - fhat
-        let fhat_check_poly = (ordered_poly.mul_poly(&fx.poly)).add_poly(&fx.poly.mul_scalar(gamma)).sub_poly(&fhat_bag.poly);
-        let ghat_check_poly = (perm.mul_poly(&gx.poly)).add_poly(&gx.poly.mul_scalar(gamma)).sub_poly(&ghat_bag.poly);
+        let fhat_check_poly = ordered_poly.add_poly(&fx.poly.mul_scalar(gamma)).sub_poly(&fhat_bag.poly);
+        let ghat_check_poly = perm.add_poly(&gx.poly.mul_scalar(gamma)).sub_poly(&ghat_bag.poly);
         
         // add the delayed prover claims to the tracker
         BagEqIOP::<E, PCS>::prove(tracker, &fhat_bag, &ghat_bag)?;
@@ -98,8 +95,8 @@ where PCS: PolynomialCommitmentScheme<E> {
         let ghat_comm = tracker.transfer_prover_comm(ghat_id);
         let fhat_comm_bag = BagComm::new(fhat_comm, one_comm.clone(), fx.num_vars());
         let ghat_comm_bag = BagComm::new(ghat_comm, one_comm, gx.num_vars());
-        let fhat_check_poly = (ordered_comm.mul_comms(&fx.poly)).add_comms(&fx.poly.mul_scalar(gamma)).sub_comms(&fhat_comm_bag.poly);
-        let ghat_check_poly = (perm.mul_comms(&gx.poly)).add_comms(&gx.poly.mul_scalar(gamma)).sub_comms(&ghat_comm_bag.poly);
+        let fhat_check_poly = ordered_comm.add_comms(&fx.poly.mul_scalar(gamma)).sub_comms(&fhat_comm_bag.poly);
+        let ghat_check_poly = perm.add_comms(&gx.poly.mul_scalar(gamma)).sub_comms(&ghat_comm_bag.poly);
         
 
         BagEqIOP::<E, PCS>::verify(tracker, &fhat_comm_bag, &ghat_comm_bag)?;
