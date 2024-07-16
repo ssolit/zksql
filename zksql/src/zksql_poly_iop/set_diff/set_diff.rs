@@ -13,14 +13,16 @@ use crate::{
 };
 use ark_std::Zero;
 
-pub struct SetDisjointIOP<E: Pairing, PCS: PolynomialCommitmentScheme<E>>(PhantomData<E>, PhantomData<PCS>);
+pub struct SetDiffIOP<E: Pairing, PCS: PolynomialCommitmentScheme<E>>(PhantomData<E>, PhantomData<PCS>);
 
-impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> SetDisjointIOP<E, PCS> 
+impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> SetDiffIOP<E, PCS> 
 where PCS: PolynomialCommitmentScheme<E> {
     pub fn prove(
         prover_tracker: &mut ProverTrackerRef<E, PCS>,
         bag_a: &Bag<E, PCS>,
         bag_b: &Bag<E, PCS>,
+        bag_l: &Bag<E, PCS>,
+        bag_m: &Bag<E, PCS>,
         range_bag: &Bag<E, PCS>,
     ) -> Result<(), PolyIOPErrors> {
 
