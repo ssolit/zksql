@@ -35,7 +35,6 @@ where
     let mut ma_evals = Vec::with_capacity(ma_len);
     let mut mb_evals = Vec::with_capacity(mb_len);
     let mut r_evals = Vec::with_capacity(r_len);
-    println!("l_evals.len(): {}", l_evals.len());
 
     // get the sorted elements of bag_a and bag_b
     let mut sorted_a_evals = Vec::with_capacity(l_len);
@@ -47,7 +46,6 @@ where
         }
     }
     sorted_a_evals.sort();
-    println!("sorted_a_evals: {:?}", sorted_a_evals);
     let mut sorted_b_evals = Vec::with_capacity(r_len);
     let b_evals = bag_b.poly.evaluations();
     let b_sel_evals = bag_b.selector.evaluations();
@@ -57,7 +55,6 @@ where
         }
     }
     sorted_b_evals.sort();
-    println!("sorted_b_evals: {:?}", sorted_b_evals);
 
     // itereate through the sorted elements of bag_a and bag_b
     // and create the intermediate bags
@@ -65,7 +62,6 @@ where
     let mut b_counter = 0;
     while a_counter < sorted_a_evals.len() && b_counter < sorted_b_evals.len() {
         if a_evals[a_counter] < b_evals[b_counter] {
-            println!("pushing {} to l_evals", a_evals[a_counter]);
             l_evals.push(a_evals[a_counter]);
             a_counter += 1;
         } else if a_evals[a_counter] > b_evals[b_counter] {
@@ -83,9 +79,6 @@ where
             }
         }
     }
-    println!("here1");
-    println!("l_evals: {:?}", l_evals);
-    println!("r_evals: {:?}", r_evals);
     for i in a_counter..a_len {
         if !a_sel_evals[i].is_zero() {
             l_evals.push(a_evals[i]);
@@ -96,9 +89,6 @@ where
             r_evals.push(b_evals[i]);
         }
     }
-    println!("here2");
-    println!("l_evals: {:?}", l_evals);
-    println!("r_evals: {:?}", r_evals);
 
     // create selectors for the intermediate bags and extend things to the correct length
     let mut l_sel_evals = vec![E::ScalarField::one(); l_evals.len()];
@@ -160,7 +150,6 @@ mod test {
     use subroutines::MultilinearKzgPCS;
     use ark_bls12_381::{Bls12_381, Fr};
     use ark_std::test_rng;
-    use ark_std::One;
 
     #[test]
     pub fn test_bag_lmr_split() -> Result<(), PolyIOPErrors> {
@@ -174,7 +163,7 @@ mod test {
         // PCS params
         let mut rng = test_rng();
         let srs = MultilinearKzgPCS::<Bls12_381>::gen_srs_for_testing(&mut rng, 10)?;
-        let (pcs_prover_param, pcs_verifier_param) = MultilinearKzgPCS::<Bls12_381>::trim(&srs, None, Some(10))?;
+        let (pcs_prover_param, _) = MultilinearKzgPCS::<Bls12_381>::trim(&srs, None, Some(10))?;
 
         // create trackers
         let mut prover_tracker: ProverTrackerRef<Bls12_381, MultilinearKzgPCS<Bls12_381>> = ProverTrackerRef::new_from_pcs_params(pcs_prover_param);
@@ -192,14 +181,31 @@ mod test {
 
         let (l_bag, ma_bag, mb_bag, r_bag) = bag_lmr_split(&mut prover_tracker, &a_bag, &b_bag)?;
     
-        println!("l_bag poly: {:?}", l_bag.poly.evaluations());
-        println!("l_bag sel: {:?}\n", l_bag.selector.evaluations());
-        println!("ma_bag poly: {:?}", ma_bag.poly.evaluations());
-        println!("ma_bag sel: {:?}\n", ma_bag.selector.evaluations());
-        println!("mb_bag poly: {:?}", mb_bag.poly.evaluations());
-        println!("mb_bag sel: {:?}\n", mb_bag.selector.evaluations());
-        println!("r_bag poly: {:?}", r_bag.poly.evaluations());
-        println!("r_bag sel: {:?}", r_bag.selector.evaluations());
+        let exp_l_poly_nums = vec![1, 2, 3, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        let exp_l_poly_sel_nums = vec![1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        let exp_ma_poly_nums = vec![5, 6, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        let exp_ma_poly_sel_nums = vec![1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        let exp_mb_poly_nums = vec![5, 5, 6, 0, 0, 0, 0, 0];
+        let exp_mb_poly_sel_nums = vec![1, 1, 1, 0, 0, 0, 0, 0];
+        let exp_r_poly_nums = vec![16, 17, 18, 0, 0, 0, 0, 0];
+        let exp_r_poly_sel_nums = vec![1, 1, 1, 0, 0, 0, 0, 0];
+        let exp_l_evals = exp_l_poly_nums.iter().map(|x| Fr::from(*x as u64)).collect::<Vec<Fr>>();
+        let exp_l_sel_evals = exp_l_poly_sel_nums.iter().map(|x| Fr::from(*x as u64)).collect::<Vec<Fr>>();
+        let exp_ma_evals = exp_ma_poly_nums.iter().map(|x| Fr::from(*x as u64)).collect::<Vec<Fr>>();
+        let exp_ma_sel_evals = exp_ma_poly_sel_nums.iter().map(|x| Fr::from(*x as u64)).collect::<Vec<Fr>>();
+        let exp_mb_evals = exp_mb_poly_nums.iter().map(|x| Fr::from(*x as u64)).collect::<Vec<Fr>>();
+        let exp_mb_sel_evals = exp_mb_poly_sel_nums.iter().map(|x| Fr::from(*x as u64)).collect::<Vec<Fr>>();
+        let exp_r_evals = exp_r_poly_nums.iter().map(|x| Fr::from(*x as u64)).collect::<Vec<Fr>>();
+        let exp_r_sel_evals = exp_r_poly_sel_nums.iter().map(|x| Fr::from(*x as u64)).collect::<Vec<Fr>>();
+
+        assert_eq!(l_bag.poly.evaluations(), exp_l_evals);
+        assert_eq!(l_bag.selector.evaluations(), exp_l_sel_evals);
+        assert_eq!(ma_bag.poly.evaluations(), exp_ma_evals);
+        assert_eq!(ma_bag.selector.evaluations(), exp_ma_sel_evals);
+        assert_eq!(mb_bag.poly.evaluations(), exp_mb_evals);
+        assert_eq!(mb_bag.selector.evaluations(), exp_mb_sel_evals);
+        assert_eq!(r_bag.poly.evaluations(), exp_r_evals);
+        assert_eq!(r_bag.selector.evaluations(), exp_r_sel_evals);
 
         Ok(())
     }
@@ -216,7 +222,7 @@ mod test {
         // PCS params
         let mut rng = test_rng();
         let srs = MultilinearKzgPCS::<Bls12_381>::gen_srs_for_testing(&mut rng, 10)?;
-        let (pcs_prover_param, pcs_verifier_param) = MultilinearKzgPCS::<Bls12_381>::trim(&srs, None, Some(10))?;
+        let (pcs_prover_param, _) = MultilinearKzgPCS::<Bls12_381>::trim(&srs, None, Some(10))?;
 
         // create trackers
         let mut prover_tracker: ProverTrackerRef<Bls12_381, MultilinearKzgPCS<Bls12_381>> = ProverTrackerRef::new_from_pcs_params(pcs_prover_param);
