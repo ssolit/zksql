@@ -12,6 +12,7 @@ use crate::{
     },
 };
 use ark_std::Zero;
+use ark_std::One;
 
 pub struct SetDisjointIOP<E: Pairing, PCS: PolynomialCommitmentScheme<E>>(PhantomData<E>, PhantomData<PCS>);
 
@@ -42,7 +43,7 @@ where PCS: PolynomialCommitmentScheme<E> {
                 sum_evals[*i] = E::ScalarField::zero();
             }
         }
-        indices.sort_by(|&i, &j| sum_evals[i].cmp(&sum_evals[j]));
+        indices.sort_by(|&i, &j| (sum_evals[i], sum_sel_evals[i]).cmp(&(sum_evals[j], sum_sel_evals[j])));
         let sum_evals: Vec<E::ScalarField> = indices.iter().map(|&i| sum_evals[i]).collect();
         let sum_sel_evals: Vec<E::ScalarField> = indices.iter().map(|&i| sum_sel_evals[i]).collect();
         let sum_mle = DenseMultilinearExtension::from_evaluations_vec(bag_sum_nv, sum_evals);
@@ -67,7 +68,6 @@ where PCS: PolynomialCommitmentScheme<E> {
             sum_bag,
             range_bag,
         )?;
-
         
         Ok(())
     }
