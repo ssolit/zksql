@@ -5,9 +5,7 @@ use subroutines::pcs::PolynomialCommitmentScheme;
 use crate::{
     tracker::prelude::*,
     zksql_poly_iop::{
-        set_union::set_union::SetUnionIOP,
-        bag_multitool::bag_subset::BagSubsetIOP,
-        set_disjoint::set_disjoint::SetDisjointIOP,
+        bag_multitool::{bag_subset::BagSubsetIOP, bag_sum::BagSumIOP}, set_disjoint::set_disjoint::SetDisjointIOP, set_union::set_union::SetUnionIOP
     },
 };
 
@@ -34,12 +32,11 @@ where PCS: PolynomialCommitmentScheme<E> {
         )?;
 
         // prove L \union M = A
-        SetUnionIOP::<E, PCS>::prove(
+        BagSumIOP::<E, PCS>::prove(
             prover_tracker,
             bag_l,
             bag_m,
             bag_a,
-            range_bag,
         )?;
 
         // prove M \subseteq B
@@ -72,12 +69,11 @@ where PCS: PolynomialCommitmentScheme<E> {
         )?;
 
         // veruft L \union M = A
-        SetUnionIOP::<E, PCS>::verify(
+        BagSumIOP::<E, PCS>::verify(
             verifier_tracker,
             bag_l,
             bag_m,
             bag_a,
-            range_bag,
         )?;
 
         // verify M \subseteq B

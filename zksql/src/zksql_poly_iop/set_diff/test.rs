@@ -109,51 +109,43 @@ mod test {
         )?;
         println!("passed");
 
-        // // test good path 3: inputs are not sorted
-        // print!("BagSuppIOP good path 3 test: \n");
-        // // let poly_a_nums =   vec![0, 0, 0, 1, 2, 3, 4, 5];
-        // // let a_sel_nums =    vec![0, 0, 1, 1, 1, 1, 1, 1];
-        // // let poly_a_nums =   vec![0, 1, 2, 4, 3, 0, 5, 0];
-        // // let a_sel_nums =    vec![1, 1, 1, 1, 1, 0, 1, 0];
-        
-        // // note: even this will fail rn because zeros are at the end instead of the start
-        // // triggers issue in set_union -> bag_supp -> bag_sort
-        // let poly_a_nums =   vec![0, 1, 2, 3, 4, 5, 0, 0];  
-        // let a_sel_nums =    vec![1, 1, 1, 1, 1, 1, 0, 0];
-        
-        // let poly_b_nums =   vec![0, 2, 3, 1]; 
-        // let b_sel_nums =    vec![0, 1, 1, 1];
-        // let l_nums =        vec![0, 4, 5, 0];
-        // let l_sel_nums =    vec![1, 1, 1, 0];
-        // let mid_nums =      vec![1, 2, 3, 0];
-        // let mid_sel_nums =  vec![1, 1, 1, 0];
-        // let bm_multiplicities = vec![0, 1, 1, 1];
+        // test good path 3: inputs are not sorted
+        print!("BagSuppIOP good path 3 test: ");
+        let poly_a_nums =   vec![0, 1, 2, 4, 3, 0, 5, 0];
+        let a_sel_nums =    vec![1, 1, 1, 1, 1, 0, 1, 0];
+        let poly_b_nums =   vec![0, 2, 3, 1]; 
+        let b_sel_nums =    vec![0, 1, 1, 1];
+        let l_nums =        vec![0, 4, 5, 0];
+        let l_sel_nums =    vec![1, 1, 1, 0];
+        let mid_nums =      vec![1, 2, 3, 0];
+        let mid_sel_nums =  vec![1, 1, 1, 0];
+        let bm_multiplicities = vec![0, 1, 1, 1];
 
-        // let poly_a_mle = DenseMultilinearExtension::from_evaluations_vec(3, poly_a_nums.iter().map(|x| Fr::from(*x as u64)).collect());
-        // let a_sel_mle = DenseMultilinearExtension::from_evaluations_vec(3, a_sel_nums.iter().map(|x| Fr::from(*x as u64)).collect());
-        // let poly_b_mle = DenseMultilinearExtension::from_evaluations_vec(2, poly_b_nums.iter().map(|x| Fr::from(*x as u64)).collect());
-        // let b_sel_mle = DenseMultilinearExtension::from_evaluations_vec(2, b_sel_nums.iter().map(|x| Fr::from(*x as u64)).collect());
-        // let l_mle = DenseMultilinearExtension::from_evaluations_vec(2, l_nums.iter().map(|x| Fr::from(*x as u64)).collect());
-        // let l_sel_mle = DenseMultilinearExtension::from_evaluations_vec(2, l_sel_nums.iter().map(|x| Fr::from(*x as u64)).collect());
-        // let mid_mle = DenseMultilinearExtension::from_evaluations_vec(2, mid_nums.iter().map(|x| Fr::from(*x as u64)).collect());        
-        // let mid_sel_mle = DenseMultilinearExtension::from_evaluations_vec(2, mid_sel_nums.iter().map(|x| Fr::from(*x as u64)).collect());
-        // let bm_multiplicities_mle = DenseMultilinearExtension::from_evaluations_vec(2, bm_multiplicities.iter().map(|x| Fr::from(*x as u64)).collect());
+        let poly_a_mle = DenseMultilinearExtension::from_evaluations_vec(3, poly_a_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+        let a_sel_mle = DenseMultilinearExtension::from_evaluations_vec(3, a_sel_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+        let poly_b_mle = DenseMultilinearExtension::from_evaluations_vec(2, poly_b_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+        let b_sel_mle = DenseMultilinearExtension::from_evaluations_vec(2, b_sel_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+        let l_mle = DenseMultilinearExtension::from_evaluations_vec(2, l_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+        let l_sel_mle = DenseMultilinearExtension::from_evaluations_vec(2, l_sel_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+        let mid_mle = DenseMultilinearExtension::from_evaluations_vec(2, mid_nums.iter().map(|x| Fr::from(*x as u64)).collect());        
+        let mid_sel_mle = DenseMultilinearExtension::from_evaluations_vec(2, mid_sel_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+        let bm_multiplicities_mle = DenseMultilinearExtension::from_evaluations_vec(2, bm_multiplicities.iter().map(|x| Fr::from(*x as u64)).collect());
 
-        // test_set_diff_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(
-        //     &mut prover_tracker, 
-        //     &mut verifier_tracker, 
-        //     &poly_a_mle, 
-        //     &a_sel_mle,
-        //     &poly_b_mle,
-        //     &b_sel_mle,
-        //     &l_mle,
-        //     &l_sel_mle,
-        //     &mid_mle,
-        //     &mid_sel_mle,
-        //     &bm_multiplicities_mle,
-        //     &range_mle.clone(),
-        // )?;
-        // println!("passed");
+        test_set_diff_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(
+            &mut prover_tracker, 
+            &mut verifier_tracker, 
+            &poly_a_mle, 
+            &a_sel_mle,
+            &poly_b_mle,
+            &b_sel_mle,
+            &l_mle,
+            &l_sel_mle,
+            &mid_mle,
+            &mid_sel_mle,
+            &bm_multiplicities_mle,
+            &range_mle.clone(),
+        )?;
+        println!("passed");
 
         // test bad path 1: diff (l) is missing an element
         print!("BagSuppIOP bad path 1 test: ");
