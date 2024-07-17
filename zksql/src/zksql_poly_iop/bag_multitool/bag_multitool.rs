@@ -161,6 +161,8 @@ where PCS: PolynomialCommitmentScheme<E>
 
         // check that the values of claimed sums are equal
         if lhs_v != rhs_v {
+            // println!("ratio1: {}", lhs_v/rhs_v);
+            // println!("ratio2: {}", rhs_v/lhs_v);
             let mut err_msg = "BagMutltiTool Verify Error: LHS and RHS have different sums".to_string();
             err_msg.push_str(&format!(" LHS: {}, RHS: {}", lhs_v, rhs_v));
             return Err(PolyIOPErrors::InvalidVerifier(err_msg));

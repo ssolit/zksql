@@ -54,9 +54,15 @@ where PCS: PolynomialCommitmentScheme<E> {
                 m_counts.insert(eval, 1);
             }
         }
-        let m_supp_nums = union_bag.poly.evaluations().iter().map(
-            |x| m_counts.get(&x).unwrap().clone() as u64
-        ).collect::<Vec<u64>>();
+        let mut m_supp_nums = Vec::<u64>::with_capacity(union_bag.poly.evaluations().len());
+        for x in union_bag.poly.evaluations() {
+            let get_res = m_counts.get(&x);
+            if get_res.is_none() {
+                m_supp_nums.push(0);
+            } else {
+                m_supp_nums.push(get_res.unwrap().clone() as u64);
+            }
+        }
         let mut m_supp_evals = m_supp_nums.iter().map(
             |x| E::ScalarField::from(*x)
         ).collect::<Vec<E::ScalarField>>();
