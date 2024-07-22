@@ -1,5 +1,4 @@
 use ark_ec::pairing::Pairing;
-use rayon::vec;
 use std::marker::PhantomData;
 
 use subroutines::pcs::PolynomialCommitmentScheme;
