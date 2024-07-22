@@ -3,7 +3,7 @@
 
 pub mod prelude;
 
-mod join;
+mod join_reduction;
 mod bag_multitool;
 mod bag_no_zeros;
 mod bag_sort;
