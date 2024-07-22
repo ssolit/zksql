@@ -15,6 +15,7 @@ use ark_std::Zero;
 
 /// Assumption: bag_a and bag_b already contain no duplicate elements
 /// This should be checked during preprocessing or an earlier step of the zql proving protocol
+/// If A or B has duplicates, the IOP is not complete. The sort sub-IOP will fail. 
 pub struct SetDisjointIOP<E: Pairing, PCS: PolynomialCommitmentScheme<E>>(PhantomData<E>, PhantomData<PCS>);
 
 impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> SetDisjointIOP<E, PCS> 

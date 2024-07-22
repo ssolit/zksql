@@ -17,6 +17,8 @@ use ark_std::One;
 
 /// Assumption: bag_a and bag_b already contain no duplicate elements
 /// This should be checked during preprocessing or an earlier step of the zql proving protocol
+/// If A or B has duplicates, the result is not the "Bag Union", 
+/// which takes the max multiplicity for each element rather than a sum of multiplicities.
 pub struct SetUnionIOP<E: Pairing, PCS: PolynomialCommitmentScheme<E>>(PhantomData<E>, PhantomData<PCS>);
 
 impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> SetUnionIOP<E, PCS> 
