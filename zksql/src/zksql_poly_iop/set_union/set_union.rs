@@ -15,6 +15,8 @@ use crate::{
 use ark_std::Zero;
 use ark_std::One;
 
+/// Assumption: bag_a and bag_b already contain no duplicate elements
+/// This should be checked during preprocessing or an earlier step of the zql proving protocol
 pub struct SetUnionIOP<E: Pairing, PCS: PolynomialCommitmentScheme<E>>(PhantomData<E>, PhantomData<PCS>);
 
 impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> SetUnionIOP<E, PCS> 

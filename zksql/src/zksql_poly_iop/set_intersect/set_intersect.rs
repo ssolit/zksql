@@ -9,6 +9,8 @@ use crate::{
     },
 };
 
+/// Assumption: bag_a and bag_b already contain no duplicate elements
+/// This should be checked during preprocessing or an earlier step of the zql proving protocol
 pub struct SetIntersectIOP<E: Pairing, PCS: PolynomialCommitmentScheme<E>>(PhantomData<E>, PhantomData<PCS>);
 
 impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> SetIntersectIOP<E, PCS> 
