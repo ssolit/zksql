@@ -9,9 +9,6 @@ mod bag_no_zeros;
 mod bag_sort;
 mod bag_supp;
 
-
-mod select;
-
 mod set_diff;
 mod set_disjoint;
 mod set_union;

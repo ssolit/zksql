@@ -1,9 +1,9 @@
 // Prove a bag is strictly sorted 
 // by showing it's elements are a subset of [0, 2^n] 
 // and the product of its elements is non-zero
+// This code as written only proves that the bag is strictly sorted ascending. To prove descending or non-strict requires edits
 
 use ark_ec::pairing::Pairing;
-use ark_ff::batch_inversion;
 use ark_poly::DenseMultilinearExtension;
 use ark_poly::MultilinearExtension;
 use ark_std::{One, Zero};
@@ -54,8 +54,9 @@ where PCS: PolynomialCommitmentScheme<E> {
         // the bag is sorted since the differences are in the correct range 
         //      sorted_bag = [a_0, a_1, ..] from the input
         //      selector = [1, .., 1, 1, 0]
-        //      diff_evals = [selector * (p - q) + (1 - selector)] 
-        // recall (1 - selector) = [1, 0, 0, ..], makes first element non-zero for the product check
+        //      diff_evals = [selector * (q - p) + (1 - selector)] 
+        // recall (1 - selector) = [0, 0, .., 0, 1]. Adding it makes the last element of diff_evals non-zero
+        // git so we can pass the BagNoZerosIOP check for strictness
         let mut diff_range_sel_evals = vec![E::ScalarField::one(); sorted_len];
         diff_range_sel_evals[sorted_len - 1] = E::ScalarField::zero(); // the last element is allowed to be out of range because of the wraparound
         let diff_evals = (0..sorted_len).map(
@@ -112,7 +113,8 @@ where PCS: PolynomialCommitmentScheme<E> {
             &m_range.clone(),
         )?;
 
-        // prove diff contains no zeros by showing diff * diff_inverse - 1 = 0
+        // prove diff contains no zeros
+        // TODO: make this an optional check. Sometimes we don't care about strictness 
         let dups_check_bag = Bag::new(diff_range_poly.clone(), p_sel.clone()); // use p_sel instead of diff_range_sel to ignore stuff
         BagNoZerosIOP::<E, PCS>::prove(
             prover_tracker,

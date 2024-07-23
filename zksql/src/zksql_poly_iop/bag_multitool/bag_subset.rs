@@ -5,7 +5,7 @@ use std::marker::PhantomData;
 use subroutines::pcs::PolynomialCommitmentScheme;
 use crate::tracker::prelude::*;
 
-use super::bag_multitool::BagMultiToolIOP;
+use super::bag_multitool::BagMultitoolIOP;
 
 pub struct BagSubsetIOP<E: Pairing, PCS: PolynomialCommitmentScheme<E>>(PhantomData<E>, PhantomData<PCS>);
 
@@ -25,7 +25,7 @@ where PCS: PolynomialCommitmentScheme<E> {
         let mf = tracker.track_mat_poly(one_const_mle);
 
         // call the bag_multitool prover
-        BagMultiToolIOP::<E, PCS>::prove(tracker, &[fx.clone()], &[gx.clone()], &[mf.clone()], &[mg.clone()])?;    
+        BagMultitoolIOP::<E, PCS>::prove(tracker, &[fx.clone()], &[gx.clone()], &[mf.clone()], &[mg.clone()])?;    
         
         end_timer!(start);
         Ok(())
@@ -41,7 +41,7 @@ where PCS: PolynomialCommitmentScheme<E> {
 
         let one_closure = |_: &[E::ScalarField]| -> Result<<E as Pairing>::ScalarField, PolyIOPErrors> {Ok(E::ScalarField::one())};
         let one_comm = tracker.track_virtual_comm(Box::new(one_closure));
-        BagMultiToolIOP::verify(tracker, &[fx.clone()], &[gx.clone()], &[one_comm.clone()], &[mg.clone()])?;
+        BagMultitoolIOP::verify(tracker, &[fx.clone()], &[gx.clone()], &[one_comm.clone()], &[mg.clone()])?;
  
         end_timer!(start);
         Ok(())

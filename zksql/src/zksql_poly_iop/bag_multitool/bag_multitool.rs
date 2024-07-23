@@ -8,8 +8,8 @@ use subroutines::pcs::PolynomialCommitmentScheme;
 
 use crate::tracker::prelude::*;
 
-pub struct BagMultiToolIOP<E: Pairing, PCS: PolynomialCommitmentScheme<E>>(PhantomData<E>, PhantomData<PCS>);
-impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> BagMultiToolIOP<E, PCS> 
+pub struct BagMultitoolIOP<E: Pairing, PCS: PolynomialCommitmentScheme<E>>(PhantomData<E>, PhantomData<PCS>);
+impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> BagMultitoolIOP<E, PCS> 
 where PCS: PolynomialCommitmentScheme<E>
 {
     pub fn prove(
@@ -21,35 +21,35 @@ where PCS: PolynomialCommitmentScheme<E>
     ) -> Result<(),PolyIOPErrors> {
         // check input shapes are correct
         if fxs.is_empty() {
-            return Err(PolyIOPErrors::InvalidParameters("BagMultiToolIOP Error: fxs is empty".to_string()));
+            return Err(PolyIOPErrors::InvalidParameters("BagMultitoolIOP Error: fxs is empty".to_string()));
         }
         if fxs.len() != mfxs.len() {
             return Err(PolyIOPErrors::InvalidParameters(
-                "BagMultiToolIOP Error: fxs and mf have different number of polynomials".to_string(),
+                "BagMultitoolIOP Error: fxs and mf have different number of polynomials".to_string(),
             ));
         }
 
         for i in 0..fxs.len() {
             if fxs[i].poly.num_vars() != mfxs[i].num_vars() {
                 return Err(PolyIOPErrors::InvalidParameters(
-                    "BagMultiToolIOP Error: fxs[i] and mfxs[i] have different number of variables".to_string(),
+                    "BagMultitoolIOP Error: fxs[i] and mfxs[i] have different number of variables".to_string(),
                 ));
             }
         }
 
         if gxs.is_empty() {
-            return Err(PolyIOPErrors::InvalidParameters("BagMultiToolIOP Error: fxs is empty".to_string()));
+            return Err(PolyIOPErrors::InvalidParameters("BagMultitoolIOP Error: fxs is empty".to_string()));
         }
        
         if gxs.len() != mgxs.len() {
             return Err(PolyIOPErrors::InvalidParameters(
-                "BagMultiToolIOP Error: gxs and mg have different number of polynomials".to_string(),
+                "BagMultitoolIOP Error: gxs and mg have different number of polynomials".to_string(),
             ));
         }
         for i in 0..gxs.len() {
             if gxs[i].num_vars() != mgxs[i].num_vars() {
                 return Err(PolyIOPErrors::InvalidParameters(
-                    "BagMultiToolIOP Error: gxs[i] and mgxs[i] have different number of variables".to_string(),
+                    "BagMultitoolIOP Error: gxs[i] and mgxs[i] have different number of variables".to_string(),
                 ));
             }
         }
@@ -118,20 +118,20 @@ where PCS: PolynomialCommitmentScheme<E>
     ) -> Result<(), PolyIOPErrors> {
         // check input shapes are correct
         if fxs.is_empty() {
-            return Err(PolyIOPErrors::InvalidParameters("BagMultiToolIOP Error: fxs is empty".to_string()));
+            return Err(PolyIOPErrors::InvalidParameters("BagMultitoolIOP Error: fxs is empty".to_string()));
         }
         if fxs.len() != mfxs.len() {
             return Err(PolyIOPErrors::InvalidParameters(
-                "BagMultiToolIOP Error: fxs and mf have different number of polynomials".to_string(),
+                "BagMultitoolIOP Error: fxs and mf have different number of polynomials".to_string(),
             ));
         }
         if gxs.is_empty() {
-            return Err(PolyIOPErrors::InvalidParameters("BagMultiToolIOP Error: fxs is empty".to_string()));
+            return Err(PolyIOPErrors::InvalidParameters("BagMultitoolIOP Error: fxs is empty".to_string()));
         }
        
         if gxs.len() != mgxs.len() {
             return Err(PolyIOPErrors::InvalidParameters(
-                "BagMultiToolIOP Error: fxs and mf have different number of polynomials".to_string(),
+                "BagMultitoolIOP Error: fxs and mf have different number of polynomials".to_string(),
             ));
         }
 

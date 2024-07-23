@@ -15,11 +15,11 @@ mod test {
     use crate::{
         tracker::prelude::*,
         zksql_poly_iop::bag_multitool::{
-            bag_eq::BagEqIOP, bag_multitool::BagMultiToolIOP, bag_presc_perm::BagPrescPermIOP, bag_subset::BagSubsetIOP, bag_sum::BagSumIOP, test
+            bag_eq::BagEqIOP, bag_multitool::BagMultitoolIOP, bag_presc_perm::BagPrescPermIOP, bag_subset::BagSubsetIOP, bag_sum::BagSumIOP, test
         },
     };
 
-    // Sets up randomized inputs for testing BagMultiToolCheck
+    // Sets up randomized inputs for testing BagMultitoolCheck
     fn test_bag_multitool() -> Result<(), PolyIOPErrors> {
         // testing params
         let nv = 4;
@@ -125,7 +125,7 @@ mod test {
         Ok(())
     }
 
-        // Given inputs, calls and verifies BagMultiToolCheck
+        // Given inputs, calls and verifies BagMultitoolCheck
         fn test_bag_multitool_helper<E: Pairing, PCS> (
         prover_tracker: &mut ProverTrackerRef<E, PCS>,
         verifier_tracker: &mut VerifierTrackerRef<E, PCS>,
@@ -158,7 +158,7 @@ mod test {
             .collect();
         let g_bags: &[Bag<E, PCS>] = &g_bags_vec;
 
-        BagMultiToolIOP::<E, PCS>::prove(
+        BagMultitoolIOP::<E, PCS>::prove(
             prover_tracker,
             f_bags,
             g_bags,
@@ -188,7 +188,7 @@ mod test {
             .map(|(g, g_sel)| BagComm::new(g.clone(), g_sel.clone(), gs[0].num_vars))
             .collect();
         let g_bags: &[BagComm<E, PCS>] = &g_bags_vec;
-        BagMultiToolIOP::<E, PCS>::verify(verifier_tracker, f_bags, g_bags, &mf_comms_vec, &mg_comms_vec)?;
+        BagMultitoolIOP::<E, PCS>::verify(verifier_tracker, f_bags, g_bags, &mf_comms_vec, &mg_comms_vec)?;
         verifier_tracker.verify_claims()?;
 
         // check that the ProverTracker and VerifierTracker are in the same state at completion
