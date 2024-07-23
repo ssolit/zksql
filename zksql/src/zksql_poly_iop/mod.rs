@@ -8,6 +8,7 @@ mod bag_multitool;
 mod bag_no_zeros;
 mod bag_sort;
 mod bag_supp;
+mod bag_disjoint;
 
 mod set_diff;
 mod set_disjoint;
