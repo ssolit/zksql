@@ -82,6 +82,5 @@ where PCS: PolynomialCommitmentScheme<E> {
         )?;
 
         Ok(())
-
     }
 }
