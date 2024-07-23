@@ -7,7 +7,7 @@ use subroutines::pcs::PolynomialCommitmentScheme;
 use crate::{
     tracker::prelude::*,
     zksql_poly_iop::{
-        bag_multitool::bag_subset::BagSubsetIOP,
+        bag_multitool::bag_inclusion::BagInclusionIOP,
         bag_no_zeros::BagNoZerosIOP,
         bag_sort::bag_sort::BagStrictSortIOP,
     },
@@ -25,8 +25,8 @@ where PCS: PolynomialCommitmentScheme<E> {
         range_bag: &Bag<E, PCS>,
     ) -> Result<(), PolyIOPErrors> {
     
-        // How supp is a subset of bag
-        BagSubsetIOP::<E, PCS>::prove(
+        // Show supp \subseteq bag
+        BagInclusionIOP::<E, PCS>::prove(
             prover_tracker,
             &bag.clone(),
             &supp.clone(),
@@ -60,7 +60,7 @@ where PCS: PolynomialCommitmentScheme<E> {
         range_bag_comm: &BagComm<E, PCS>,
     ) -> Result<(), PolyIOPErrors> {
         // Use BagMultitool PIOP to show bag and supp share a Common Multiset
-        BagSubsetIOP::<E, PCS>::verify(
+        BagInclusionIOP::<E, PCS>::verify(
             verifier_tracker,
             &bag.clone(),
             &supp.clone(),

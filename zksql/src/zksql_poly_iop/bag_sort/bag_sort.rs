@@ -15,7 +15,7 @@ use crate::{
     tracker::prelude::*,
     zksql_poly_iop::bag_multitool::{
         bag_presc_perm::BagPrescPermIOP, 
-        bag_subset::BagSubsetIOP,
+        bag_inclusion::BagInclusionIOP,
     },
 };
 
@@ -95,7 +95,7 @@ where PCS: PolynomialCommitmentScheme<E> {
             &shift_perm_poly.clone(),
         )?;
 
-        // Set up the tracker and prove the range/subset check
+        // Set up the tracker and prove the range/inclusion check
         let diff_range_sel = prover_tracker.track_mat_poly(diff_range_sel_mle); // note: is a precomputed one-poly
         let diff_range_poly = diff_range_sel.mul_poly(&q_poly.sub_poly(&p_poly)).add_scalar(E::ScalarField::one()).sub_poly(&diff_range_sel);
         #[cfg(debug_assertions)] {
@@ -106,7 +106,7 @@ where PCS: PolynomialCommitmentScheme<E> {
         let range_sel = prover_tracker.track_mat_poly(range_sel_mle); // note: is a precomputedone-poly
         let range_bag = Bag::new(range_poly.clone(), range_sel);
         let m_range = prover_tracker.track_and_commit_poly(m_range_mle)?;
-        BagSubsetIOP::<E, PCS>::prove(
+        BagInclusionIOP::<E, PCS>::prove(
             prover_tracker,
             &diff_range_bag.clone(),
             &range_bag.clone(),
@@ -173,7 +173,7 @@ where PCS: PolynomialCommitmentScheme<E> {
         let range_bag = BagComm::new(range_comm.clone(), range_sel, range_nv);
         let m_range_id = verifier_tracker.get_next_id();
         let m_range_comm = verifier_tracker.transfer_prover_comm(m_range_id);
-        BagSubsetIOP::<E, PCS>::verify(
+        BagInclusionIOP::<E, PCS>::verify(
             verifier_tracker,
             &diff_bag.clone(),
             &range_bag.clone(),

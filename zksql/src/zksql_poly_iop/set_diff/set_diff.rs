@@ -5,7 +5,7 @@ use subroutines::pcs::PolynomialCommitmentScheme;
 use crate::{
     tracker::prelude::*,
     zksql_poly_iop::{
-        bag_multitool::{bag_subset::BagSubsetIOP, bag_sum::BagSumIOP}, set_disjoint::set_disjoint::SetDisjointIOP, set_union::set_union::SetUnionIOP
+        bag_multitool::{bag_inclusion::BagInclusionIOP, bag_sum::BagSumIOP}, set_disjoint::set_disjoint::SetDisjointIOP, set_union::set_union::SetUnionIOP
     },
 };
 /// Assumption: bag_a and bag_b already contain no duplicate elements
@@ -42,7 +42,7 @@ where PCS: PolynomialCommitmentScheme<E> {
         )?;
 
         // prove M \subseteq B
-        BagSubsetIOP::<E, PCS>::prove(
+        BagInclusionIOP::<E, PCS>::prove(
             prover_tracker,
             bag_m,
             bag_b,
@@ -79,7 +79,7 @@ where PCS: PolynomialCommitmentScheme<E> {
         )?;
 
         // verify M \subseteq B
-        BagSubsetIOP::<E, PCS>::verify(
+        BagInclusionIOP::<E, PCS>::verify(
             verifier_tracker,
             bag_m,
             bag_b,

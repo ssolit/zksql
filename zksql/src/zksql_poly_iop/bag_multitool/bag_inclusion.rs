@@ -7,9 +7,9 @@ use crate::tracker::prelude::*;
 
 use super::bag_multitool::BagMultitoolIOP;
 
-pub struct BagSubsetIOP<E: Pairing, PCS: PolynomialCommitmentScheme<E>>(PhantomData<E>, PhantomData<PCS>);
+pub struct BagInclusionIOP<E: Pairing, PCS: PolynomialCommitmentScheme<E>>(PhantomData<E>, PhantomData<PCS>);
 
-impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> BagSubsetIOP<E, PCS> 
+impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> BagInclusionIOP<E, PCS> 
 where PCS: PolynomialCommitmentScheme<E> {
     pub fn prove(
         tracker: &mut ProverTrackerRef<E, PCS>,
@@ -17,7 +17,7 @@ where PCS: PolynomialCommitmentScheme<E> {
         gx: &Bag<E, PCS>,
         mg: &TrackedPoly<E, PCS>,
     ) -> Result<(), PolyIOPErrors> {
-        let start = start_timer!(|| "BagSubsetIOP prove");
+        let start = start_timer!(|| "BagInclusionIOP prove");
         let nv = fx.num_vars();
 
         // initialize multiplicity vector
@@ -37,7 +37,7 @@ where PCS: PolynomialCommitmentScheme<E> {
         gx: &BagComm<E, PCS>,
         mg: &TrackedComm<E, PCS>,
     ) -> Result<(), PolyIOPErrors> {
-        let start = start_timer!(|| "BagSubsetCheck verify");
+        let start = start_timer!(|| "BagInclusionIOP verify");
 
         let one_closure = |_: &[E::ScalarField]| -> Result<<E as Pairing>::ScalarField, PolyIOPErrors> {Ok(E::ScalarField::one())};
         let one_comm = tracker.track_virtual_comm(Box::new(one_closure));

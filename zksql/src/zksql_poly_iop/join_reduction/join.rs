@@ -5,7 +5,7 @@
 // use crate::{
 //     tracker::prelude::*,
 //     zksql_poly_iop::{
-//         bag_multitool::{bag_multitool::BagMultitoolIOP, bag_subset::BagSubsetIOP, bag_sum::BagSumIOP}, bag_no_zeros::BagNoZerosIOP, set_disjoint::set_disjoint::SetDisjointIOP, set_union::set_union::SetUnionIOP
+//         bag_multitool::{bag_multitool::BagMultitoolIOP, bag_inclusion::BagInclusionIOP, bag_sum::BagSumIOP}, bag_no_zeros::BagNoZerosIOP, set_disjoint::set_disjoint::SetDisjointIOP, set_union::set_union::SetUnionIOP
 //     },
 // };
 // use crate::zksql_poly_iop::join_reduction::util::bag_lmr_split;
@@ -51,13 +51,13 @@
 //         )?;
 
 //         // prove mid_a and mid_b have the same support
-//         BagSubsetIOP::<E, PCS>::prove(
+//         BagInclusionIOP::<E, PCS>::prove(
 //             prover_tracker,
 //             bag_mid_a,
 //             bag_mid_b,
 //             mid_b_mult
 //         )?;
-//        BagSubsetIOP::<E, PCS>::prove(
+//        BagInclusionIOP::<E, PCS>::prove(
 //             prover_tracker,
 //             bag_mid_b,
 //             bag_mid_a,
@@ -107,13 +107,13 @@
 //         )?;
 
 //         // verify mid_a and mid_b have the same support
-//         BagSubsetIOP::<E, PCS>::verify(
+//         BagInclusionIOP::<E, PCS>::verify(
 //             verifier_tracker,
 //             bag_mid_a,
 //             bag_mid_b,
 //             mid_b_mult
 //         )?;
-//         BagSubsetIOP::<E, PCS>::verify(
+//         BagInclusionIOP::<E, PCS>::verify(
 //             verifier_tracker,
 //             bag_mid_b,
 //             bag_mid_a,
