@@ -5,3 +5,4 @@ pub mod bag_sum;
 pub mod bag_presc_perm;
 
 mod test;
+pub mod utils;

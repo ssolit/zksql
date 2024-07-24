@@ -1,8 +1,4 @@
 use ark_ec::pairing::Pairing;
-use std::collections::HashMap;
-use std::collections::HashSet;
-use std::vec;
-use std::cmp::max;
 use ark_std::{Zero, One};
 use ark_poly::DenseMultilinearExtension;
 
@@ -10,14 +6,15 @@ use subroutines::pcs::PolynomialCommitmentScheme;
 use crate::{
     tracker::prelude::*,
     zksql_poly_iop::{
-        util::prelude::multiplicity_count,
+        bag_multitool::utils::calc_bag_inclusion_advice, 
+        util::prelude::multiplicity_count
     },
 };
 
-pub fn calc_join_reduction_advice<E, PCS>(
+pub fn calc_join_reduction_lr_sel_advice<E, PCS>(
     bag_a: &Bag<E, PCS>,
     bag_b: &Bag<E, PCS>,
-) -> Result<(), PolyIOPErrors> 
+) ->  (DenseMultilinearExtension<E::ScalarField>, DenseMultilinearExtension<E::ScalarField>)
 where
     E: Pairing,
     PCS: PolynomialCommitmentScheme<E>,
@@ -59,9 +56,23 @@ where
        }
    }
 
-   // figure out the multiplicity vectors for the subset checks
-   
+   // create the mles from the evaluation vectors
+   let l_sel_mle = DenseMultilinearExtension::from_evaluations_vec(bag_a.num_vars(), l_sel_evals);
+   let r_sel_mle = DenseMultilinearExtension::from_evaluations_vec(bag_b.num_vars(), r_sel_evals);
 
-   Ok(())
-   
+   (l_sel_mle, r_sel_mle)
+}
+
+pub fn calc_join_reduction_mid_inclusion_advice<E, PCS>(
+    bag_mid_a: &Bag<E, PCS>,
+    bag_mid_b: &Bag<E, PCS>,
+) -> (DenseMultilinearExtension<E::ScalarField>, DenseMultilinearExtension<E::ScalarField>)
+where
+    E: Pairing,
+    PCS: PolynomialCommitmentScheme<E>,
+{
+    let mid_a_inclusion_m = calc_bag_inclusion_advice(bag_mid_b, bag_mid_a);
+    let mid_b_inclusion_m = calc_bag_inclusion_advice(bag_mid_a, bag_mid_b);
+
+    (mid_a_inclusion_m, mid_b_inclusion_m)
 }

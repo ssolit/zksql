@@ -15,7 +15,11 @@ mod test {
     use crate::{
         tracker::prelude::*,
         zksql_poly_iop::bag_multitool::{
-            bag_eq::BagEqIOP, bag_multitool::BagMultitoolIOP, bag_presc_perm::BagPrescPermIOP, bag_inclusion::BagInclusionIOP, bag_sum::BagSumIOP,
+            bag_eq::BagEqIOP, 
+            bag_inclusion::BagInclusionIOP, 
+            bag_multitool::BagMultitoolIOP, 
+            bag_presc_perm::BagPrescPermIOP, 
+            bag_sum::BagSumIOP, 
         },
     };
 
@@ -285,7 +289,7 @@ mod test {
     }
 
     // // Sets up randomized inputs for testing BagInclusionIOP
-    fn test_baginclusion() -> Result<(), PolyIOPErrors> {
+    fn test_bag_inclusion() -> Result<(), PolyIOPErrors> {
         // testing params
         let nv = 8;
         let mut rng = test_rng();
@@ -320,12 +324,12 @@ mod test {
         let mut verifier_tracker: VerifierTrackerRef<Bls12_381, MultilinearKzgPCS<Bls12_381>> = VerifierTrackerRef::new_from_pcs_params(pcs_verifier_param);
 
         // Good path 1: described above
-        print!("test_baginclusion_helper good path 1:");
-        test_baginclusion_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&mut prover_tracker, &mut verifier_tracker, &f.clone(), &f_sel.clone(),  &g.clone(), &g_sel.clone(), &mg.clone())?;
+        print!("test_bag_inclusion_helper good path 1:");
+        test_bag_inclusion_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&mut prover_tracker, &mut verifier_tracker, &f.clone(), &f_sel.clone(),  &g.clone(), &g_sel.clone(), &mg.clone())?;
         println!("passed");
 
         // Good path 2: f and g are different sized
-        print!("test_baginclusion_helper good path 2 (f and g are different sized): ");
+        print!("test_bag_inclusion_helper good path 2 (f and g are different sized): ");
         let f_small_evals = [g.evaluations[0], g.evaluations[1]].to_vec();
         let f_small = DenseMultilinearExtension::from_evaluations_vec(1, f_small_evals.clone());
         let f_small_sel = DenseMultilinearExtension::from_evaluations_vec(1, vec![Fr::one(); 2_usize.pow(1 as u32)]);
@@ -333,14 +337,14 @@ mod test {
         mg_small_evals[0] = Fr::one();
         mg_small_evals[1] = Fr::one();
         let mg_small = DenseMultilinearExtension::from_evaluations_vec(nv, mg_small_evals.clone());
-        test_baginclusion_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&mut prover_tracker, &mut verifier_tracker, &f_small.clone(), &f_small_sel.clone(),  &g.clone(), &g_sel.clone(), &mg_small.clone())?;
+        test_bag_inclusion_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&mut prover_tracker, &mut verifier_tracker, &f_small.clone(), &f_small_sel.clone(),  &g.clone(), &g_sel.clone(), &mg_small.clone())?;
         println!("passed");
 
         // bad path
-        print!("test_baginclusion_helper bad path 1: ");
+        print!("test_bag_inclusion_helper bad path 1: ");
         mg_evals[0] = Fr::one();
         let bad_mg = DenseMultilinearExtension::from_evaluations_vec(nv, mg_evals.clone());
-        let bad_result1 = test_baginclusion_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&mut prover_tracker.deep_copy(), &mut verifier_tracker.deep_copy(), &f.clone(), &f_sel.clone(), &g.clone(), &g_sel.clone(), &bad_mg.clone());
+        let bad_result1 = test_bag_inclusion_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&mut prover_tracker.deep_copy(), &mut verifier_tracker.deep_copy(), &f.clone(), &f_sel.clone(), &g.clone(), &g_sel.clone(), &bad_mg.clone());
         assert!(bad_result1.is_err());
         println!("passed");
 
@@ -349,7 +353,7 @@ mod test {
     }
 
         // Given inputs, calls and verifies BagInclusionIOP
-    fn test_baginclusion_helper<E, PCS>(
+    fn test_bag_inclusion_helper<E, PCS>(
         prover_tracker: &mut ProverTrackerRef<E, PCS>,
         verifier_tracker: &mut VerifierTrackerRef<E, PCS>,
         f: &DenseMultilinearExtension<E::ScalarField>,
@@ -641,8 +645,8 @@ mod test {
     }
 
     #[test]
-    fn baginclusion_test() {
-        let res = test_baginclusion();
+    fn bag_inclusion_test() {
+        let res = test_bag_inclusion();
         res.unwrap();
     }
 
