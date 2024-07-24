@@ -87,10 +87,10 @@ mod test {
         print!("BagSuppIOP good path 3 test: ");
         let poly_a_nv = 3;
         let poly_b_nv = 3;
-        let poly_a_nums = [1, 1, 2, 5, 5, 6, 0, 0];
-        let sel_a_nums = [1, 1, 1, 1, 1, 1, 0, 0];
-        let poly_b_nums = [5, 6, 6, 8, 9, 9, 0, 0];
-        let sel_b_nums = [1, 1, 1, 1, 1, 1, 0, 0];
+        let poly_a_nums = [1, 1, 2, 0, 0, 0, 0, 0];
+        let sel_a_nums = [1, 1, 1, 0, 0, 0, 0, 0];
+        let poly_b_nums = [0, 0, 0, 8, 9, 9, 0, 0];
+        let sel_b_nums = [0, 0, 0, 1, 1, 1, 0, 0];
         let poly_a_mle = DenseMultilinearExtension::from_evaluations_vec(poly_a_nv, poly_a_nums.iter().map(|x| Fr::from(*x as u64)).collect());
         let sel_a_mle = DenseMultilinearExtension::from_evaluations_vec(poly_a_nv, sel_a_nums.iter().map(|x| Fr::from(*x as u64)).collect());
         let poly_b_mle = DenseMultilinearExtension::from_evaluations_vec(poly_b_nv, poly_b_nums.iter().map(|x| Fr::from(*x as u64)).collect());
@@ -130,6 +130,30 @@ mod test {
         assert!(bad_res.is_err());
         println!("passed"); 
 
+        // test bad path 2: a and b are bags, there are shared elements
+        print!("BagSuppIOP bad path 2 test: ");
+        let poly_a_nv = 3;
+        let poly_b_nv = 3;
+        let poly_a_nums = [1, 1, 2, 5, 5, 6, 0, 0];
+        let sel_a_nums = [1, 1, 1, 1, 1, 1, 0, 0];
+        let poly_b_nums = [5, 6, 6, 8, 9, 9, 0, 0];
+        let sel_b_nums = [1, 1, 1, 1, 1, 1, 0, 0];
+        let poly_a_mle = DenseMultilinearExtension::from_evaluations_vec(poly_a_nv, poly_a_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+        let sel_a_mle = DenseMultilinearExtension::from_evaluations_vec(poly_a_nv, sel_a_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+        let poly_b_mle = DenseMultilinearExtension::from_evaluations_vec(poly_b_nv, poly_b_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+        let sel_b_mle = DenseMultilinearExtension::from_evaluations_vec(poly_b_nv, sel_b_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+        let bad_res2 =test_bag_disjoint_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(
+            &mut prover_tracker, 
+            &mut verifier_tracker, 
+            &poly_a_mle.clone(), 
+            &sel_a_mle.clone(),
+            &poly_b_mle, 
+            &sel_b_mle.clone(),
+            &range_mle.clone(),
+        );
+        assert!(bad_res2.is_err());
+        println!("passed");
+
         Ok(())
     }
 
@@ -149,7 +173,7 @@ mod test {
         let bag_a = Bag::new(prover_tracker.track_and_commit_poly(bag_a_poly.clone())?, prover_tracker.track_and_commit_poly(bag_a_sel.clone())?);
         let bag_b = Bag::new(prover_tracker.track_and_commit_poly(bag_b_poly.clone())?, prover_tracker.track_and_commit_poly(bag_b_sel.clone())?);
         let range_bag = Bag::new(prover_tracker.track_and_commit_poly(range_poly.clone())?, prover_tracker.track_and_commit_poly(range_poly.clone())?);
-        let (bag_c_mle, bag_c_sel_mle, m_a_mle, m_b_mle) = calc_bag_disjoint_advice(prover_tracker, &bag_a, &bag_b)?;
+        let (bag_c_mle, bag_c_sel_mle, m_a_mle, m_b_mle) = calc_bag_disjoint_advice(&bag_a, &bag_b)?;
         let bag_c = Bag::new(prover_tracker.track_and_commit_poly(bag_c_mle)?, prover_tracker.track_and_commit_poly(bag_c_sel_mle)?);
         let m_a = prover_tracker.track_and_commit_poly(m_a_mle)?;
         let m_b = prover_tracker.track_and_commit_poly(m_b_mle)?;

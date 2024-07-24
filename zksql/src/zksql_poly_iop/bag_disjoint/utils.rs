@@ -1,7 +1,9 @@
 use ark_ec::pairing::Pairing;
-use std::{marker::PhantomData, vec};
+use std::collections::HashMap;
+use std::collections::HashSet;
+use std::vec;
 use std::cmp::max;
-use ark_std::Zero;
+use ark_std::{Zero, One};
 use ark_poly::DenseMultilinearExtension;
 
 use subroutines::pcs::PolynomialCommitmentScheme;
@@ -15,7 +17,6 @@ use crate::{
 /// Inputs: bag_a, bag_b, which the prover wishes to prove are disjoint
 /// Outputs: bag_c, m_a, m_b, which the prover will use as advice to prove bag_a and bag_b are disjoint
 pub fn calc_bag_disjoint_advice<E, PCS>(
-    prover_tracker: &mut ProverTrackerRef<E, PCS>,
     bag_a: &Bag<E, PCS>,
     bag_b: &Bag<E, PCS>,
 ) -> Result<(DenseMultilinearExtension<E::ScalarField>, DenseMultilinearExtension<E::ScalarField>, DenseMultilinearExtension<E::ScalarField>, DenseMultilinearExtension<E::ScalarField>), PolyIOPErrors>  // (sum, sum_sel, m_a, m_b)
@@ -23,43 +24,74 @@ where
     E: Pairing,
     PCS: PolynomialCommitmentScheme<E>,
 {
-    // calculate the SUPP(bag_a) and the corresponding multiplicity vector
-    let (supp_a_poly, supp_a_selector, m_a) = calc_bag_supp_advice::<E, PCS>(bag_a)?;
-    // calculate the SUPP(bag_b) and the corresponding multiplicity vector
-    let (supp_b_poly, supp_b_selector, m_b) = calc_bag_supp_advice::<E, PCS>(bag_b)?;
+    // count the mutliplicities of elements in bag_a and bag_b
+    let mut a_mults_map = HashMap::<E::ScalarField, u64>::new();
+    let mut b_mults_map = HashMap::<E::ScalarField, u64>::new();
+    for i in 0..bag_a.poly.evaluations().len() {
+        if bag_a.selector.evaluations()[i] == E::ScalarField::zero() {
+            continue;
+        }
+        let val = bag_a.poly.evaluations()[i];
+        let get_res = a_mults_map.get(&val);
+        if get_res.is_none() {
+            a_mults_map.insert(val, 1);
+        } else {
+            let mult = get_res.unwrap() + 1;
+            a_mults_map.insert(val, mult);
+        }
+    }
+    for i in 0..bag_b.poly.evaluations().len() {
+        if bag_b.selector.evaluations()[i] == E::ScalarField::zero() {
+            continue;
+        }
+        let val = bag_b.poly.evaluations()[i];
+        let get_res = b_mults_map.get(&val);
+        if get_res.is_none() {
+            b_mults_map.insert(val, 1);
+        } else {
+            let mult = get_res.unwrap() + 1;
+            b_mults_map.insert(val, mult);
+        }
+    }
 
-    // create the sum of supp_a and supp_b, and the corresponding multiplicity vector
-    let bag_sum_nv = max(supp_a_poly.num_vars, supp_b_poly.num_vars) + 1;
+    // calculate bag_c, the sorted Supp(bag_a \Mutlisetsum bag_b)
+    let bag_sum_nv = max(bag_a.num_vars(), bag_b.num_vars()) + 1;
     let bag_sum_len = 2_usize.pow(bag_sum_nv as u32);
     let mut sum_evals = Vec::<E::ScalarField>::with_capacity(bag_sum_len);
     let mut sum_sel_evals = Vec::<E::ScalarField>::with_capacity(bag_sum_len);
-    let mut sum_a_mults = Vec::<E::ScalarField>::with_capacity(bag_sum_len);
-    let mut sum_b_mults = Vec::<E::ScalarField>::with_capacity(bag_sum_len);
-    sum_evals.extend(supp_a_poly.evaluations.iter());
-    sum_evals.extend(supp_b_poly.evaluations.iter());
-    sum_evals.extend(vec![E::ScalarField::zero(); bag_sum_len - sum_evals.len()]);
-    sum_sel_evals.extend(supp_a_selector.evaluations.iter());
-    sum_sel_evals.extend(supp_b_selector.evaluations.iter());
-    sum_sel_evals.extend(vec![E::ScalarField::zero(); bag_sum_len - sum_sel_evals.len()]);
-    sum_a_mults.extend(m_a.evaluations.iter());
-    sum_a_mults.extend(vec![E::ScalarField::zero(); bag_sum_len - sum_a_mults.len()]);
-    sum_b_mults.extend(vec![E::ScalarField::zero(); m_a.evaluations.len()]);
-    sum_b_mults.extend(m_b.evaluations.iter());
-    sum_b_mults.extend(vec![E::ScalarField::zero(); bag_sum_len - sum_b_mults.len()]);
+    let mut sum_evals_map = HashSet::<E::ScalarField>::new();
+    for val in a_mults_map.keys() {
+        sum_evals_map.insert(val.clone());
+    }
+    for val in b_mults_map.keys() {
+        sum_evals_map.insert(val.clone());
+    }
+    let mut unique_vals: Vec<E::ScalarField> = sum_evals_map.into_iter().collect();
+    unique_vals.sort();
+    sum_sel_evals.extend(vec![E::ScalarField::zero(); bag_sum_len - unique_vals.len()]);
+    sum_sel_evals.extend(vec![E::ScalarField::one(); unique_vals.len()]);
+    sum_evals.extend(vec![E::ScalarField::zero(); bag_sum_len - unique_vals.len()]);
+    sum_evals.extend(unique_vals.clone());
 
-    // sort
-    let mut indices: Vec<usize> = (0..bag_sum_len).collect();
-    indices.sort_by(|&i, &j| (sum_evals[i], sum_sel_evals[i]).cmp(&(sum_evals[j], sum_sel_evals[j])));
-    let sum_evals: Vec<E::ScalarField> = indices.iter().map(|&i| sum_evals[i]).collect();
-    let sum_sel_evals: Vec<E::ScalarField> = indices.iter().map(|&i| sum_sel_evals[i]).collect();
-    let sum_a_mults: Vec<E::ScalarField> = indices.iter().map(|&i| sum_a_mults[i]).collect();
-    let sum_b_mults: Vec<E::ScalarField> = indices.iter().map(|&i| sum_b_mults[i]).collect();
+
+    // calculate multiplicity vectors for bag_a and bag_b relative to bag_c
+    let mut a_mults_evals = Vec::<E::ScalarField>::with_capacity(bag_sum_len);
+    let mut b_mults_evals = Vec::<E::ScalarField>::with_capacity(bag_sum_len);
+    a_mults_evals.extend(vec![E::ScalarField::zero(); bag_sum_len - unique_vals.len()]);
+    b_mults_evals.extend(vec![E::ScalarField::zero(); bag_sum_len - unique_vals.len()]);
+    for i in 0..unique_vals.len() {
+        let val = unique_vals[i];
+        let a_mult = E::ScalarField::from(*a_mults_map.get(&val).unwrap_or(&0));
+        let b_mult = E::ScalarField::from(*b_mults_map.get(&val).unwrap_or(&0));
+        a_mults_evals.push(a_mult);
+        b_mults_evals.push(b_mult);
+    }
 
     // create the mles from the evaluation vectors
     let sum_mle = DenseMultilinearExtension::from_evaluations_vec(bag_sum_nv, sum_evals);
     let sum_sel_mle = DenseMultilinearExtension::from_evaluations_vec(bag_sum_nv, sum_sel_evals);
-    let sum_a_mult_mle = DenseMultilinearExtension::from_evaluations_vec(bag_sum_nv, sum_a_mults);
-    let sum_b_mult_mle = DenseMultilinearExtension::from_evaluations_vec(bag_sum_nv, sum_b_mults);
+    let sum_a_mult_mle = DenseMultilinearExtension::from_evaluations_vec(bag_sum_nv, a_mults_evals);
+    let sum_b_mult_mle = DenseMultilinearExtension::from_evaluations_vec(bag_sum_nv, b_mults_evals);
 
     Ok((sum_mle, sum_sel_mle, sum_a_mult_mle, sum_b_mult_mle))
 }
