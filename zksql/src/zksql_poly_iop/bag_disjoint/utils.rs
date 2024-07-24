@@ -8,6 +8,7 @@ use ark_poly::DenseMultilinearExtension;
 
 use subroutines::pcs::PolynomialCommitmentScheme;
 use crate::tracker::prelude::*;
+use crate::zksql_poly_iop::util::prelude::multiplicity_count;
 
 /// Inputs: bag_a, bag_b, which the prover wishes to prove are disjoint
 /// Outputs: bag_c, m_a, m_b, which the prover will use as advice to prove bag_a and bag_b are disjoint
@@ -20,34 +21,8 @@ where
     PCS: PolynomialCommitmentScheme<E>,
 {
     // count the mutliplicities of elements in bag_a and bag_b
-    let mut a_mults_map = HashMap::<E::ScalarField, u64>::new();
-    let mut b_mults_map = HashMap::<E::ScalarField, u64>::new();
-    for i in 0..bag_a.poly.evaluations().len() {
-        if bag_a.selector.evaluations()[i] == E::ScalarField::zero() {
-            continue;
-        }
-        let val = bag_a.poly.evaluations()[i];
-        let get_res = a_mults_map.get(&val);
-        if get_res.is_none() {
-            a_mults_map.insert(val, 1);
-        } else {
-            let mult = get_res.unwrap() + 1;
-            a_mults_map.insert(val, mult);
-        }
-    }
-    for i in 0..bag_b.poly.evaluations().len() {
-        if bag_b.selector.evaluations()[i] == E::ScalarField::zero() {
-            continue;
-        }
-        let val = bag_b.poly.evaluations()[i];
-        let get_res = b_mults_map.get(&val);
-        if get_res.is_none() {
-            b_mults_map.insert(val, 1);
-        } else {
-            let mult = get_res.unwrap() + 1;
-            b_mults_map.insert(val, mult);
-        }
-    }
+    let a_mults_map = multiplicity_count(bag_a);
+    let b_mults_map = multiplicity_count(bag_b);
 
     // calculate bag_c, the sorted Supp(bag_a \Mutlisetsum bag_b)
     let bag_sum_nv = max(bag_a.num_vars(), bag_b.num_vars()) + 1;

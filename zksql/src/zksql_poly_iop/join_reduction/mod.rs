@@ -1,3 +1,3 @@
 pub mod join;
 mod test;
-mod util;
+mod utils;
