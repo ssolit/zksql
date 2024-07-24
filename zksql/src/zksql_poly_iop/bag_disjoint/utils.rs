@@ -7,12 +7,7 @@ use ark_std::{Zero, One};
 use ark_poly::DenseMultilinearExtension;
 
 use subroutines::pcs::PolynomialCommitmentScheme;
-use crate::{
-    tracker::prelude::*,
-    zksql_poly_iop::{
-        bag_supp::utils::calc_bag_supp_advice,
-    },
-};
+use crate::tracker::prelude::*;
 
 /// Inputs: bag_a, bag_b, which the prover wishes to prove are disjoint
 /// Outputs: bag_c, m_a, m_b, which the prover will use as advice to prove bag_a and bag_b are disjoint

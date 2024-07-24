@@ -1,13 +1,8 @@
 use ark_ec::pairing::Pairing;
-use std::marker::PhantomData;
-use std::cmp::max;
-use ark_std::{Zero, One};
-use subroutines::pcs::PolynomialCommitmentScheme;
 use ark_poly::DenseMultilinearExtension;
-
-use crate::{
-    tracker::prelude::*,
-};
+use ark_std::{Zero, One};
+use crate::tracker::prelude::*;
+use subroutines::pcs::PolynomialCommitmentScheme;
 
 pub fn calc_bag_supp_advice<E, PCS>(
     bag: &Bag<E, PCS>

@@ -5,7 +5,8 @@ use subroutines::pcs::PolynomialCommitmentScheme;
 use crate::{
     tracker::prelude::*,
     zksql_poly_iop::{
-        bag_multitool::{bag_inclusion::BagInclusionIOP, bag_sum::BagSumIOP}, set_disjoint::set_disjoint::SetDisjointIOP, set_union::set_union::SetUnionIOP
+        bag_multitool::bag_sum::BagSumIOP, 
+        set_disjoint::set_disjoint::SetDisjointIOP, 
     },
 };
 

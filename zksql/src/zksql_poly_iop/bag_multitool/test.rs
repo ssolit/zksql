@@ -15,7 +15,7 @@ mod test {
     use crate::{
         tracker::prelude::*,
         zksql_poly_iop::bag_multitool::{
-            bag_eq::BagEqIOP, bag_multitool::BagMultitoolIOP, bag_presc_perm::BagPrescPermIOP, bag_inclusion::BagInclusionIOP, bag_sum::BagSumIOP, test
+            bag_eq::BagEqIOP, bag_multitool::BagMultitoolIOP, bag_presc_perm::BagPrescPermIOP, bag_inclusion::BagInclusionIOP, bag_sum::BagSumIOP,
         },
     };
 

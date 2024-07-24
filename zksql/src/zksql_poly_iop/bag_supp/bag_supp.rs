@@ -1,6 +1,4 @@
 use ark_ec::pairing::Pairing;
-use ark_poly::DenseMultilinearExtension;
-use ark_std::One;
 use std::marker::PhantomData;
 
 use subroutines::pcs::PolynomialCommitmentScheme;
