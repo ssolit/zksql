@@ -1,12 +1,12 @@
 use ark_ec::pairing::Pairing;
-use ark_std::{Zero, One};
+use ark_std::Zero;
 use ark_poly::DenseMultilinearExtension;
 
 use subroutines::pcs::PolynomialCommitmentScheme;
 use crate::{
     tracker::prelude::*,
     zksql_poly_iop::{
-        util::prelude::multiplicity_count,
+        util::prelude::bag_multiplicity_count,
     },
 };
 
@@ -23,7 +23,7 @@ where
     let big_bag_nv = big_bag.num_vars();
     let big_bag_evals = big_bag.poly.evaluations();
     let big_bag_len = big_bag_evals.len();
-    let mut sub_bag_mults_map = multiplicity_count(sub_bag);
+    let mut sub_bag_mults_map = bag_multiplicity_count(sub_bag);
     let mut big_bag_mult_evals = Vec::<E::ScalarField>::with_capacity(big_bag_len);
 
     for i in 0..big_bag_len {

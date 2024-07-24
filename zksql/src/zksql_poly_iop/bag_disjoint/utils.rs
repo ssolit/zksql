@@ -8,7 +8,7 @@ use ark_poly::DenseMultilinearExtension;
 
 use subroutines::pcs::PolynomialCommitmentScheme;
 use crate::tracker::prelude::*;
-use crate::zksql_poly_iop::util::prelude::multiplicity_count;
+use crate::zksql_poly_iop::util::prelude::bag_multiplicity_count;
 
 /// Inputs: bag_a, bag_b, which the prover wishes to prove are disjoint
 /// Outputs: bag_c, m_a, m_b, which the prover will use as advice to prove bag_a and bag_b are disjoint
@@ -21,8 +21,8 @@ where
     PCS: PolynomialCommitmentScheme<E>,
 {
     // count the mutliplicities of elements in bag_a and bag_b
-    let a_mults_map = multiplicity_count(bag_a);
-    let b_mults_map = multiplicity_count(bag_b);
+    let a_mults_map = bag_multiplicity_count(bag_a);
+    let b_mults_map = bag_multiplicity_count(bag_b);
 
     // calculate bag_c, the sorted Supp(bag_a \Mutlisetsum bag_b)
     let bag_sum_nv = max(bag_a.num_vars(), bag_b.num_vars()) + 1;
