@@ -15,4 +15,6 @@ mod set_disjoint;
 mod set_union;
 mod set_intersect;
 
+mod selector_valid;
+
 mod util;

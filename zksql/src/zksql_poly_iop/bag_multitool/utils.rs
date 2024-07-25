@@ -6,24 +6,25 @@ use subroutines::pcs::PolynomialCommitmentScheme;
 use crate::{
     tracker::prelude::*,
     zksql_poly_iop::{
-        util::prelude::bag_multiplicity_count,
+        util::prelude::{mle_multiplicity_count, bag_multiplicity_count},
     },
 };
 
 
 
-pub fn calc_bag_inclusion_advice<E, PCS> (
-    big_bag: &Bag<E, PCS>,
-    sub_bag: &Bag<E, PCS>,
+pub fn calc_bag_inclusion_advice<E> (
+    big_bag_poly: &DenseMultilinearExtension<E::ScalarField>,
+    _: &DenseMultilinearExtension<E::ScalarField>,
+    sub_bag_poly: &DenseMultilinearExtension<E::ScalarField>,
+    sub_bag_sel: &DenseMultilinearExtension<E::ScalarField>,
 ) -> DenseMultilinearExtension<E::ScalarField> 
 where
     E: Pairing,
-    PCS: PolynomialCommitmentScheme<E>,
 {
-    let big_bag_nv = big_bag.num_vars();
-    let big_bag_evals = big_bag.poly.evaluations();
+    let big_bag_nv = big_bag_poly.num_vars;
+    let big_bag_evals = &big_bag_poly.evaluations;
     let big_bag_len = big_bag_evals.len();
-    let mut sub_bag_mults_map = bag_multiplicity_count(sub_bag);
+    let mut sub_bag_mults_map = mle_multiplicity_count::<E>(sub_bag_poly, sub_bag_sel);
     let mut big_bag_mult_evals = Vec::<E::ScalarField>::with_capacity(big_bag_len);
 
     for i in 0..big_bag_len {

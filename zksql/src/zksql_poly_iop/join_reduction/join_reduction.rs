@@ -13,7 +13,8 @@ use crate::{
             bag_sum::BagSumIOP
         }, 
         bag_no_zeros::BagNoZerosIOP, 
-        set_disjoint::set_disjoint::SetDisjointIOP,
+        bag_disjoint::bag_disjoint::BagDisjointIOP,
+        selector_valid::selector_valid::SelectorValidIOP,
     },
 };
 
@@ -31,7 +32,6 @@ where PCS: PolynomialCommitmentScheme<E> {
         mid_b_inclusion_m: &TrackedPoly<E, PCS>,
         range_bag: &Bag<E, PCS>, // needed for SetDisjointIOP
     ) -> Result<(), PolyIOPErrors> {
-
         let ma_sel = &l_sel.mul_scalar(E::ScalarField::one().neg()).add_scalar(E::ScalarField::one());
         let mb_sel = &r_sel.mul_scalar(E::ScalarField::one().neg()).add_scalar(E::ScalarField::one());
         let l_bag = Bag::new(bag_a.poly.clone(), bag_a.selector.mul_poly(l_sel));
@@ -39,8 +39,18 @@ where PCS: PolynomialCommitmentScheme<E> {
         let ma_bag = Bag::new(bag_a.poly.clone(), bag_a.selector.mul_poly(ma_sel));
         let mb_bag = Bag::new(bag_b.poly.clone(), bag_b.selector.mul_poly(mb_sel));
 
+        // Prove l_sel and r_sel are constructed correctly
+        SelectorValidIOP::<E, PCS>::prove(
+            prover_tracker,
+            l_sel,
+        )?;
+        SelectorValidIOP::<E, PCS>::prove(
+            prover_tracker,
+            r_sel,
+        )?;
+
         // Prove L and R are disjoint
-        SetDisjointIOP::<E, PCS>::prove(
+        BagDisjointIOP::<E, PCS>::prove(
             prover_tracker,
             &l_bag,
             &r_bag,
@@ -54,7 +64,7 @@ where PCS: PolynomialCommitmentScheme<E> {
             &mb_bag,
             mid_b_inclusion_m,
         )?;
-       BagInclusionIOP::<E, PCS>::prove(
+        BagInclusionIOP::<E, PCS>::prove(
             prover_tracker,
             &mb_bag,
             &ma_bag,
@@ -83,7 +93,7 @@ where PCS: PolynomialCommitmentScheme<E> {
         let mb_bag = BagComm::new(bag_b.poly.clone(), bag_b.selector.mul_comms(mb_sel), bag_b.num_vars());
 
         // Prove L and R are disjoint
-        SetDisjointIOP::<E, PCS>::verify(
+        BagDisjointIOP::<E, PCS>::verify(
             verifier_tracker,
             &l_bag,
             &r_bag,
