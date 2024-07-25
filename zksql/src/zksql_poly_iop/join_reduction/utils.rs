@@ -6,7 +6,6 @@ use subroutines::pcs::PolynomialCommitmentScheme;
 use crate::{
     tracker::prelude::*,
     zksql_poly_iop::{
-        bag_multitool::utils::calc_bag_inclusion_advice, 
         util::prelude::{vec_multiplicity_count, mle_multiplicity_count}
     },
 };
@@ -66,17 +65,17 @@ where
    (l_sel_mle, r_sel_mle)
 }
 
-pub fn calc_join_reduction_mid_inclusion_advice<E>(
-    mid_a_poly:  &DenseMultilinearExtension<E::ScalarField>,
-    mid_a_sel: &DenseMultilinearExtension<E::ScalarField>,
-    mid_b_poly: &DenseMultilinearExtension<E::ScalarField>,
-    mid_b_sel: &DenseMultilinearExtension<E::ScalarField>,
-) -> (DenseMultilinearExtension<E::ScalarField>, DenseMultilinearExtension<E::ScalarField>)
-where
-    E: Pairing,
-{
-    let mid_a_inclusion_m = calc_bag_inclusion_advice::<E>(mid_b_poly, mid_b_sel, mid_a_poly, mid_a_sel);
-    let mid_b_inclusion_m = calc_bag_inclusion_advice::<E>(mid_a_poly, mid_a_sel, mid_b_poly, mid_b_sel);
+// pub fn calc_join_reduction_mid_inclusion_advice<E>(
+//     mid_a_poly:  &DenseMultilinearExtension<E::ScalarField>,
+//     mid_a_sel: &DenseMultilinearExtension<E::ScalarField>,
+//     mid_b_poly: &DenseMultilinearExtension<E::ScalarField>,
+//     mid_b_sel: &DenseMultilinearExtension<E::ScalarField>,
+// ) -> (DenseMultilinearExtension<E::ScalarField>, DenseMultilinearExtension<E::ScalarField>)
+// where
+//     E: Pairing,
+// {
+//     let mid_a_inclusion_m = calc_bag_inclusion_advice::<E>(mid_b_poly, mid_b_sel, mid_a_poly, mid_a_sel);
+//     let mid_b_inclusion_m = calc_bag_inclusion_advice::<E>(mid_a_poly, mid_a_sel, mid_b_poly, mid_b_sel);
 
-    (mid_a_inclusion_m, mid_b_inclusion_m)
-}
+//     (mid_a_inclusion_m, mid_b_inclusion_m)
+// }

@@ -6,7 +6,7 @@ use subroutines::pcs::PolynomialCommitmentScheme;
 use crate::{
     tracker::prelude::*,
     zksql_poly_iop::{
-        bag_multitool::bag_inclusion::BagInclusionIOP,
+        bag_inclusion::bag_inclusion::BagInclusionIOP,
         bag_sort::bag_sort::BagStrictSortIOP,
         bag_disjoint::utils::calc_bag_disjoint_advice,
     },
@@ -60,25 +60,24 @@ where PCS: PolynomialCommitmentScheme<E> {
             range_bag,
         )?;
 
-
         // Prove the multiplicity vectors use disjoint indices
         let m_mul = m_a.mul_poly(&m_b);
         prover_tracker.add_zerocheck_claim(m_mul.id);
 
         // prove bag_a is included in bag_c
-        BagInclusionIOP::<E, PCS>::prove(
+        BagInclusionIOP::<E, PCS>::prove_with_advice(
             prover_tracker,
             bag_a,
             bag_c,
-            m_a,
+            &m_a,
         )?;
 
-        // prove bag_b is included in bag_c
-        BagInclusionIOP::<E, PCS>::prove(
+        // // prove bag_b is included in bag_c
+        BagInclusionIOP::<E, PCS>::prove_with_advice(
             prover_tracker,
             bag_b,
             bag_c,
-            m_b,
+            &m_b,
         )?;
 
         Ok(())
@@ -137,19 +136,19 @@ where PCS: PolynomialCommitmentScheme<E> {
         verifier_tracker.add_zerocheck_claim(m_mul.id);
 
         // verify bag_a is included in bag_c
-        BagInclusionIOP::<E, PCS>::verify(
+        BagInclusionIOP::<E, PCS>::verify_with_advice(
             verifier_tracker,
             bag_a,
             bag_c,
-            m_a,
+            &m_a,
         )?;
 
-        // verify bag_b is included in bag_c
-        BagInclusionIOP::<E, PCS>::verify(
+        // // verify bag_b is included in bag_c
+        BagInclusionIOP::<E, PCS>::verify_with_advice(
             verifier_tracker,
             bag_b,
             bag_c,
-            m_b,
+            &m_b,
         )?;
 
         Ok(())

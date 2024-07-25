@@ -5,7 +5,8 @@ use subroutines::pcs::PolynomialCommitmentScheme;
 use crate::{
     tracker::prelude::*,
     zksql_poly_iop::{
-        bag_multitool::bag_inclusion::BagInclusionIOP,
+        bag_inclusion::bag_inclusion::BagInclusionIOP,
+        bag_inclusion::utils::calc_bag_inclusion_advice_from_bag,
         bag_no_zeros::BagNoZerosIOP,
         bag_sort::bag_sort::BagStrictSortIOP,
     },
@@ -19,20 +20,23 @@ where PCS: PolynomialCommitmentScheme<E> {
         prover_tracker: &mut ProverTrackerRef<E, PCS>,
         bag: &Bag<E, PCS>,
         supp: &Bag<E, PCS>,
-        common_mset_supp_m: &TrackedPoly<E, PCS>,
         range_bag: &Bag<E, PCS>,
     ) -> Result<(), PolyIOPErrors> {
+
+        let common_mset_supp_m_mle = calc_bag_inclusion_advice_from_bag(bag, supp);
+        let common_mset_supp_m = prover_tracker.track_and_commit_poly(common_mset_supp_m_mle)?;
     
-        // Show supp \subseteq bag
-        BagInclusionIOP::<E, PCS>::prove(
+        // Show bag \subseteq supp
+        BagInclusionIOP::<E, PCS>::prove_with_advice(
             prover_tracker,
             &bag.clone(),
             &supp.clone(),
             &common_mset_supp_m.clone(),
         )?;
     
-        // Show supp includes at least one copy of every element in bag
-        // by showing the multiplicity poly has no zeros
+        // Show common_mset_supp_m has no zeros, which implies supp \subseteq bag
+        // common_mset_supp_m will have no zeros becuaes it's the only way to for it to be valid
+        // otherwise calc_bag_inclusion_advice_from_bag would not return something without zeros by default
         // Note: can resuse the supp.selector as the supp_m.selector
         let supp_no_dups_checker = Bag::new(common_mset_supp_m.clone(), supp.selector.clone());
         BagNoZerosIOP::<E, PCS>::prove(
@@ -54,11 +58,14 @@ where PCS: PolynomialCommitmentScheme<E> {
         verifier_tracker: &mut VerifierTrackerRef<E, PCS>,
         bag: &BagComm<E, PCS>,
         supp: &BagComm<E, PCS>,
-        common_mset_supp_m: &TrackedComm<E, PCS>,
         range_bag_comm: &BagComm<E, PCS>,
     ) -> Result<(), PolyIOPErrors> {
+
+        let common_mset_supp_m_id = verifier_tracker.get_next_id();
+        let common_mset_supp_m = verifier_tracker.transfer_prover_comm(common_mset_supp_m_id);
+
         // Use BagMultitool PIOP to show bag and supp share a Common Multiset
-        BagInclusionIOP::<E, PCS>::verify(
+        BagInclusionIOP::<E, PCS>::verify_with_advice(
             verifier_tracker,
             &bag.clone(),
             &supp.clone(),

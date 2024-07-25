@@ -42,46 +42,9 @@ where PCS: PolynomialCommitmentScheme<E> {
         sum_sel_evals.extend(bag_b.selector.evaluations().iter());
         sum_sel_evals.extend(vec![E::ScalarField::zero(); bag_sum_len - sum_sel_evals.len()]);
 
-        // calculate the multiplicity vector for union_bag vs sum_bag
-        let mut m_counts = HashMap::<E::ScalarField, usize>::new();
-        for i in 0..bag_sum_len {
-            // if the selector is zero, skip counting this element
-            let sel = sum_sel_evals[i];
-            if sel.is_zero() {
-                continue;
-            }
-            // increment the count for this element
-            let eval = sum_evals[i];
-            if m_counts.contains_key(&eval) {
-                m_counts.insert(eval, m_counts.get(&eval).unwrap() + 1);
-            } else {
-                m_counts.insert(eval, 1);
-            }
-        }
-        let mut m_supp_nums = Vec::<u64>::with_capacity(union_bag.poly.evaluations().len());
-        for x in union_bag.poly.evaluations() {
-            let get_res = m_counts.get(&x);
-            if get_res.is_none() {
-                m_supp_nums.push(0);
-            } else {
-                m_supp_nums.push(get_res.unwrap().clone() as u64);
-            }
-        }
-        let mut m_supp_evals = m_supp_nums.iter().map(
-            |x| E::ScalarField::from(*x)
-        ).collect::<Vec<E::ScalarField>>();
-
-        // add [ 1 - union_sel] so m_supp doesn't have zeros
-        // to make the supp check pass
-        let union_sel_evals = union_bag.selector.evaluations();
-        for i in 0..m_supp_evals.len() {
-            m_supp_evals[i] += E::ScalarField::one() - union_sel_evals[i];
-        }
-
         // create the mles from the evaluation vectors
         let sum_mle = DenseMultilinearExtension::from_evaluations_vec(bag_sum_nv, sum_evals);
         let sum_sel_mle = DenseMultilinearExtension::from_evaluations_vec(bag_sum_nv, sum_sel_evals);
-        let m_supp_mle = DenseMultilinearExtension::from_evaluations_vec(union_bag.num_vars(), m_supp_evals);
 
         // prove a + b = sum_bag
         let sum_poly = prover_tracker.track_and_commit_poly(sum_mle)?;
@@ -95,12 +58,10 @@ where PCS: PolynomialCommitmentScheme<E> {
         )?;
  
         // prove union bag is the supp of sum bag
-        let m_supp = prover_tracker.track_and_commit_poly(m_supp_mle)?;
         BagSuppIOP::<E, PCS>::prove(
             prover_tracker,
             sum_bag,
             union_bag,
-            &m_supp,
             range_bag,
         )?;
         
@@ -129,14 +90,10 @@ where PCS: PolynomialCommitmentScheme<E> {
             sum_bag,
         )?;
 
-        // prove union bag is the supp of sum bag
-        let m_supp_id = verifier_tracker.get_next_id();
-        let m_supp = verifier_tracker.transfer_prover_comm(m_supp_id);
         BagSuppIOP::<E, PCS>::verify(
             verifier_tracker,
             sum_bag,
             union_bag,
-            &m_supp,
             range_bag,
         )?;
 

@@ -49,8 +49,6 @@ mod test {
         let orig_poly = DenseMultilinearExtension::from_evaluations_vec(orig_nv, orig_poly_evals);
         let orig_sel = DenseMultilinearExtension::from_evaluations_vec(orig_nv, vec![Fr::one(); 2_usize.pow(orig_nv as u32)]);
 
-        let common_mset_supp_m = DenseMultilinearExtension::from_evaluations_vec(supp_nv, vec![Fr::from(2u64); 2_usize.pow(supp_nv as u32)]);
-
         // create the range poly and its multiplicity vector
         let range_poly_evals = (0..2_usize.pow(num_range_pow as u32)).map(|x| Fr::from(x as u64)).collect(); // numbers are between 0 and 2^10 by construction
         let range_poly = DenseMultilinearExtension::from_evaluations_vec(num_range_pow, range_poly_evals);
@@ -60,7 +58,7 @@ mod test {
         let mut verifier_tracker: VerifierTrackerRef<Bls12_381, MultilinearKzgPCS<Bls12_381>> = VerifierTrackerRef::new_from_pcs_params(pcs_verifier_param);
 
         // test good path 1: no use of selectors
-        test_bag_supp_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&mut prover_tracker, &mut verifier_tracker, &orig_poly.clone(), &orig_sel.clone(),  &supp.clone(), &supp_sel.clone(), &common_mset_supp_m, &range_poly.clone())?;
+        test_bag_supp_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&mut prover_tracker, &mut verifier_tracker, &orig_poly.clone(), &orig_sel.clone(),  &supp.clone(), &supp_sel.clone(), &range_poly.clone())?;
         println!("BagSuppIOP good path 1 test passed");
 
         // test bad path 1: supp contains a duplicate (i.e. supp is not strictly sorted), but otherwise would pass
@@ -73,21 +71,17 @@ mod test {
         bad1_bag_nums[2_usize.pow(supp_nv as u32)] = bad1_bag_nums[1];
         let bad1_bag_evals = bad1_bag_nums.iter().map(|x| Fr::from(*x as u64)).collect();
         let bad1_bag = DenseMultilinearExtension::from_evaluations_vec(orig_nv, bad1_bag_evals);
-        let bad_result1 = test_bag_supp_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&mut prover_tracker.deep_copy(), &mut verifier_tracker.deep_copy(), &bad1_bag.clone(), &orig_sel.clone(),  &bad_supp_1.clone(), &supp_sel.clone(), &common_mset_supp_m, &range_poly.clone());
+        let bad_result1 = test_bag_supp_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&mut prover_tracker.deep_copy(), &mut verifier_tracker.deep_copy(), &bad1_bag.clone(), &orig_sel.clone(),  &bad_supp_1.clone(), &supp_sel.clone(), &range_poly.clone());
         assert!(bad_result1.is_err());
         println!("BagSuppIOP bad path 1 test passed");
 
         // test bad path 2: supp has an element not in orig (i.e. supp has a zero multiplicity)
-        let mut bad2_common_mset_supp_m_nums = vec![Fr::from(2u64); 2_usize.pow(supp_nv as u32)];
-        bad2_common_mset_supp_m_nums[0] = Fr::zero();
-        bad2_common_mset_supp_m_nums[1] = Fr::from(4u64);
-        let bad2_common_mset_supp_m = DenseMultilinearExtension::from_evaluations_vec(supp_nv, bad2_common_mset_supp_m_nums);
         let mut bad2_bag_poly_nums = orig_poly_nums.clone();
         bad2_bag_poly_nums[0] = bad2_bag_poly_nums[1];
         bad2_bag_poly_nums[2_usize.pow(supp_nv as u32)] = bad2_bag_poly_nums[1];
         let bad2_bag_poly_evals = bad2_bag_poly_nums.iter().map(|x| Fr::from(*x as u64)).collect();
         let bad2_bag_poly = DenseMultilinearExtension::from_evaluations_vec(orig_nv, bad2_bag_poly_evals);
-        let bad_result2 = test_bag_supp_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&mut prover_tracker.deep_copy(), &mut verifier_tracker.deep_copy(), &bad2_bag_poly.clone(), &orig_sel.clone(), &supp.clone(), &supp_sel.clone(), &bad2_common_mset_supp_m, &range_poly.clone());
+        let bad_result2 = test_bag_supp_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&mut prover_tracker.deep_copy(), &mut verifier_tracker.deep_copy(), &bad2_bag_poly.clone(), &orig_sel.clone(), &supp.clone(), &supp_sel.clone(), &range_poly.clone());
         assert!(bad_result2.is_err());
         println!("BagSuppIOP bad path 2 test passed");
 
@@ -100,7 +94,7 @@ mod test {
         bad2_common_mset_bag_m_nums[0] = Fr::zero(); 
         bad2_common_mset_bag_m_nums[1] = Fr::from(3u64);
         bad2_common_mset_bag_m_nums[2_usize.pow(supp_nv as u32)] = Fr::zero();
-        let bad_result3 = test_bag_supp_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&mut prover_tracker.deep_copy(), &mut verifier_tracker.deep_copy(), &orig_poly.clone(), &orig_sel.clone(),  &bad_supp_3.clone(), &supp_sel.clone(), &common_mset_supp_m, &range_poly.clone());
+        let bad_result3 = test_bag_supp_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(&mut prover_tracker.deep_copy(), &mut verifier_tracker.deep_copy(), &orig_poly.clone(), &orig_sel.clone(),  &bad_supp_3.clone(), &supp_sel.clone(), &range_poly.clone());
         assert!(bad_result3.is_err());
         println!("BagSuppIOP bad path 3 test passed");
 
@@ -115,7 +109,6 @@ mod test {
         bag_sel: &DenseMultilinearExtension<E::ScalarField>,
         supp_poly: &DenseMultilinearExtension<E::ScalarField>,
         supp_sel: &DenseMultilinearExtension<E::ScalarField>,
-        common_mset_supp_m: &DenseMultilinearExtension<E::ScalarField>,
         range_poly: &DenseMultilinearExtension<E::ScalarField>,
     ) -> Result<(), PolyIOPErrors>
     where
@@ -125,7 +118,6 @@ mod test {
         let range_nv = range_poly.num_vars;
         let bag = Bag::new(prover_tracker.track_and_commit_poly(bag_poly.clone())?, prover_tracker.track_and_commit_poly(bag_sel.clone())?);
         let supp = Bag::new(prover_tracker.track_and_commit_poly(supp_poly.clone())?, prover_tracker.track_and_commit_poly(supp_sel.clone())?);
-        let common_mset_supp_m = prover_tracker.track_and_commit_poly(common_mset_supp_m.clone())?;
         let range_poly = prover_tracker.track_and_commit_poly(range_poly.clone())?;
         let range_sel = prover_tracker.track_mat_poly(DenseMultilinearExtension::from_evaluations_vec(range_nv, vec![E::ScalarField::one(); 2_usize.pow(range_nv as u32)]));
         let range_bag = Bag::new(range_poly.clone(), range_sel);
@@ -134,7 +126,6 @@ mod test {
             prover_tracker,
             &bag,
             &supp,
-            &common_mset_supp_m,
             &range_bag,
         )?;
         let proof = prover_tracker.compile_proof()?;
@@ -144,7 +135,6 @@ mod test {
         verifier_tracker.set_compiled_proof(proof);
         let bag_comm = BagComm::new(verifier_tracker.transfer_prover_comm(bag.poly.id), verifier_tracker.transfer_prover_comm(bag.selector.id).clone(), bag.num_vars());
         let supp_comm = BagComm::new(verifier_tracker.transfer_prover_comm(supp.poly.id), verifier_tracker.transfer_prover_comm(supp.selector.id).clone(), supp.num_vars());
-        let common_mset_supp_m_comm = verifier_tracker.transfer_prover_comm(common_mset_supp_m.id);
         let range_comm = verifier_tracker.transfer_prover_comm(range_poly.id).clone();
         let range_sel_comm = verifier_tracker.track_virtual_comm(Box::new(one_closure));
         let range_bag_comm = BagComm::new(range_comm.clone(), range_sel_comm, range_nv);
@@ -152,7 +142,6 @@ mod test {
             verifier_tracker,
             &bag_comm,
             &supp_comm,
-            &common_mset_supp_m_comm,
             &range_bag_comm,
         )?;
         verifier_tracker.verify_claims()?;

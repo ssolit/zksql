@@ -13,9 +13,9 @@ use subroutines::pcs::PolynomialCommitmentScheme;
 use crate::zksql_poly_iop::bag_no_zeros::BagNoZerosIOP;
 use crate::{
     tracker::prelude::*,
-    zksql_poly_iop::bag_multitool::{
-        bag_presc_perm::BagPrescPermIOP, 
-        bag_inclusion::BagInclusionIOP,
+    zksql_poly_iop::{
+        bag_multitool::bag_presc_perm::BagPrescPermIOP, 
+        bag_inclusion::bag_inclusion::BagInclusionIOP,
     },
 };
 
@@ -64,22 +64,6 @@ where PCS: PolynomialCommitmentScheme<E> {
         ).collect::<Vec<_>>();
         let diff_range_sel_mle = DenseMultilinearExtension::from_evaluations_vec(sorted_nv, diff_range_sel_evals);
 
-        // get the multiplicity vector for the range check
-        let mut m_range_nums = vec![0; 2_usize.pow(range_nv as u32)];
-        for i in 0..(diff_evals.len()-1) {
-            let mut elem_string = diff_evals[i].to_string();
-            if elem_string.len() == 0 {
-                elem_string = "0".to_string();
-            }
-            let elem_usize_convert_res = elem_string.parse::<usize>();
-            if elem_usize_convert_res.is_ok() {
-                let elem_usize = elem_usize_convert_res.unwrap();
-                m_range_nums[elem_usize] += 1;
-            }
-        }
-        let m_range_evals = m_range_nums.iter().map(|x| E::ScalarField::from(*x as u64)).collect();
-        let m_range_mle = DenseMultilinearExtension::from_evaluations_vec(range_nv, m_range_evals);
-
         // Set up the tracker and prove the prescribed permutation check
         let one_mle = DenseMultilinearExtension::from_evaluations_vec(sorted_nv, vec![E::ScalarField::one(); sorted_len]);
         let shift_perm_mle = DenseMultilinearExtension::from_evaluations_vec(sorted_nv, shift_perm_evals);
@@ -105,12 +89,10 @@ where PCS: PolynomialCommitmentScheme<E> {
         let range_sel_mle = DenseMultilinearExtension::from_evaluations_vec(range_nv, vec![E::ScalarField::one(); range_len]);
         let range_sel = prover_tracker.track_mat_poly(range_sel_mle); // note: is a precomputedone-poly
         let range_bag = Bag::new(range_poly.clone(), range_sel);
-        let m_range = prover_tracker.track_and_commit_poly(m_range_mle)?;
         BagInclusionIOP::<E, PCS>::prove(
             prover_tracker,
             &diff_range_bag.clone(),
             &range_bag.clone(),
-            &m_range.clone(),
         )?;
 
         // prove diff contains no zeros
@@ -171,13 +153,10 @@ where PCS: PolynomialCommitmentScheme<E> {
         let range_sel_closure = one_closure.clone();
         let range_sel = verifier_tracker.track_virtual_comm(Box::new(range_sel_closure));
         let range_bag = BagComm::new(range_comm.clone(), range_sel, range_nv);
-        let m_range_id = verifier_tracker.get_next_id();
-        let m_range_comm = verifier_tracker.transfer_prover_comm(m_range_id);
         BagInclusionIOP::<E, PCS>::verify(
             verifier_tracker,
             &diff_bag.clone(),
             &range_bag.clone(),
-            &m_range_comm.clone(),
         )?;
 
         // check that diff * diff_inverse - 1 = 0, showing that diff contains no zeros and thus p has no dups

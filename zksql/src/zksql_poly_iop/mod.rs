@@ -9,10 +9,11 @@ mod bag_no_zeros;
 mod bag_sort;
 mod bag_supp;
 mod bag_disjoint;
+mod bag_inclusion;
 
-mod set_diff;
 mod set_disjoint;
 mod set_union;
+mod set_diff;
 mod set_intersect;
 
 mod selector_valid;

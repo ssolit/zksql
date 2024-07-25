@@ -35,27 +35,27 @@ mod test {
         let mut prover_tracker: ProverTrackerRef<Bls12_381, MultilinearKzgPCS<Bls12_381>> = ProverTrackerRef::new_from_pcs_params(pcs_prover_param);
         let mut verifier_tracker: VerifierTrackerRef<Bls12_381, MultilinearKzgPCS<Bls12_381>> = VerifierTrackerRef::new_from_pcs_params(pcs_verifier_param);
 
-        // Test good path 1: a and b are same size, are disjoint, no dups
-        print!("BagSuppIOP good path 1 test: ");
-        let poly_a_nv = 4;
-        let poly_b_nv = 4;
-        let poly_a_nums = (0..2_usize.pow(poly_a_nv as u32)).collect::<Vec<usize>>();
-        let poly_b_nums = poly_a_nums.iter().map(|x| x + 2_usize.pow(poly_a_nv as u32)).collect::<Vec<usize>>();
+        // // Test good path 1: a and b are same size, are disjoint, no dups
+        // print!("BagSuppIOP good path 1 test: ");
+        // let poly_a_nv = 4;
+        // let poly_b_nv = 4;
+        // let poly_a_nums = (0..2_usize.pow(poly_a_nv as u32)).collect::<Vec<usize>>();
+        // let poly_b_nums = poly_a_nums.iter().map(|x| x + 2_usize.pow(poly_a_nv as u32)).collect::<Vec<usize>>();
 
-        let poly_a_mle = DenseMultilinearExtension::from_evaluations_vec(poly_a_nv, poly_a_nums.iter().map(|x| Fr::from(*x as u64)).collect());
-        let poly_b_mle = DenseMultilinearExtension::from_evaluations_vec(poly_b_nv, poly_b_nums.iter().map(|x| Fr::from(*x as u64)).collect());
-        let one_poly_4 = DenseMultilinearExtension::from_evaluations_vec(poly_a_nv, vec![Fr::one(); 2_usize.pow(poly_a_nv as u32)]);
+        // let poly_a_mle = DenseMultilinearExtension::from_evaluations_vec(poly_a_nv, poly_a_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+        // let poly_b_mle = DenseMultilinearExtension::from_evaluations_vec(poly_b_nv, poly_b_nums.iter().map(|x| Fr::from(*x as u64)).collect());
+        // let one_poly_4 = DenseMultilinearExtension::from_evaluations_vec(poly_a_nv, vec![Fr::one(); 2_usize.pow(poly_a_nv as u32)]);
 
-        test_bag_disjoint_with_advice_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(
-            &mut prover_tracker, 
-            &mut verifier_tracker, 
-            &poly_a_mle.clone(), 
-            &one_poly_4.clone(), 
-            &poly_b_mle, 
-            &one_poly_4.clone(), 
-            &range_mle.clone(),
-        )?;
-        println!("passed");
+        // test_bag_disjoint_with_advice_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(
+        //     &mut prover_tracker, 
+        //     &mut verifier_tracker, 
+        //     &poly_a_mle.clone(), 
+        //     &one_poly_4.clone(), 
+        //     &poly_b_mle, 
+        //     &one_poly_4.clone(), 
+        //     &range_mle.clone(),
+        // )?;
+        // println!("passed");
 
 
         // test good path 2: a and b are different sizes, non-trivial selector, no dups

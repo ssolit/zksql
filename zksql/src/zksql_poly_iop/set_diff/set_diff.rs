@@ -5,7 +5,8 @@ use subroutines::pcs::PolynomialCommitmentScheme;
 use crate::{
     tracker::prelude::*,
     zksql_poly_iop::{
-        bag_multitool::{bag_inclusion::BagInclusionIOP, bag_sum::BagSumIOP}, 
+        bag_multitool::bag_sum::BagSumIOP, 
+        bag_inclusion::bag_inclusion::BagInclusionIOP, 
         set_disjoint::set_disjoint::SetDisjointIOP,
     },
 };
@@ -43,7 +44,7 @@ where PCS: PolynomialCommitmentScheme<E> {
         )?;
 
         // prove M \subseteq B
-        BagInclusionIOP::<E, PCS>::prove(
+        BagInclusionIOP::<E, PCS>::prove_with_advice(
             prover_tracker,
             bag_m,
             bag_b,
@@ -80,7 +81,7 @@ where PCS: PolynomialCommitmentScheme<E> {
         )?;
 
         // verify M \subseteq B
-        BagInclusionIOP::<E, PCS>::verify(
+        BagInclusionIOP::<E, PCS>::verify_with_advice(
             verifier_tracker,
             bag_m,
             bag_b,
