@@ -331,6 +331,50 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
         return self.track_virt_poly(new_virt_rep);
     }
 
+    fn materialize_poly(&mut self, id: TrackerID) {
+        // look up the virtual polynomial
+        let mat_poly = self.materialized_polys.get(&id);
+        if mat_poly.is_some() {
+            return // already materialized
+        }
+        let virt_poly = self.virtual_polys.get(&id);
+        if virt_poly.is_none() {
+            panic!("Unknown poly id: {:?}", id);
+        }
+        let virt_poly = virt_poly.unwrap().clone(); // Invariant: contains only material PolyIDs
+
+        // figure out the number of variables, assume they all have this nv
+        let first_id = virt_poly[0].1[0].clone();
+        let nv: usize = self.get_mat_poly(first_id).unwrap().num_vars();
+
+        // calculate the evaluation of each product list
+        let prod_evaluations: Vec<Vec<E::ScalarField>> = virt_poly.iter().map(|(coeff, prod)| {
+            let mut res = vec![coeff.clone(); 2_usize.pow(nv as u32)];
+            prod.iter().for_each(|poly| {
+                let poly_evals = self.evaluations(*poly);
+                res = res.iter()
+                    .zip(poly_evals.iter())
+                    .map(|(a, b)| *a * b)
+                    .collect()
+            });
+            res
+        }).collect();
+
+        // sum the evaluations of each product list
+        let mut evals = vec![E::ScalarField::zero(); 2_usize.pow(nv as u32)];
+        prod_evaluations.iter().for_each(|prod_eval| {
+            evals = evals.iter()
+                .zip(prod_eval.iter())
+                .map(|(a, b)| *a + b)
+                .collect()
+        });
+
+        // cache the result by updating the materialized poly map
+        let mle = Arc::new(DenseMultilinearExtension::from_evaluations_vec(nv, evals));
+        self.materialized_polys.insert(id.clone(), mle);
+        self.virtual_polys.remove(&id);
+    }
+
     pub fn evaluate(&self, id: TrackerID, pt: &[E::ScalarField]) -> Option<E::ScalarField>{
         // if the poly is materialized, return the evaluation
         let mat_poly = self.materialized_polys.get(&id);
@@ -364,48 +408,10 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
         Some(eval)
     }
 
-    pub fn evaluations(&self, id: TrackerID) -> Vec<E::ScalarField> {
-        // if the poly is materialized, return the evaluations
-        let mat_poly = self.materialized_polys.get(&id);
-        if mat_poly.is_some() {
-            return mat_poly.unwrap().evaluations.clone();
-        }
-
-        // look up the virtual polynomial
-        let virt_poly = self.virtual_polys.get(&id);
-        if virt_poly.is_none() {
-            panic!("Unknown poly id: {:?}", id);
-        }
-        let virt_poly = virt_poly.unwrap(); // Invariant: contains only material PolyIDs
-
-        // figure out the number of variables, assume they all have this nv
-        let first_id = virt_poly[0].1[0].clone();
-        let nv: usize = self.get_mat_poly(first_id).unwrap().num_vars();
-
-        // calculate the evaluation of each product list
-        let prod_evaluations: Vec<Vec<E::ScalarField>> = virt_poly.iter().map(|(coeff, prod)| {
-            let mut res = vec![coeff.clone(); 2_usize.pow(nv as u32)];
-            prod.iter().for_each(|poly| {
-                let poly_evals = self.evaluations(*poly);
-                res = res.iter()
-                    .zip(poly_evals.iter())
-                    .map(|(a, b)| *a * b)
-                    .collect()
-            });
-            res
-        }).collect();
-
-        // sum the evaluations of each product list
-        let mut evals = vec![E::ScalarField::zero(); 2_usize.pow(nv as u32)];
-        prod_evaluations.iter().for_each(|prod_eval| {
-            evals = evals.iter()
-                .zip(prod_eval.iter())
-                .map(|(a, b)| *a + b)
-                .collect()
-        });
-
-        // return the evals
-        return evals;
+    pub fn evaluations(&mut self, id: TrackerID) -> &Vec<E::ScalarField> {
+        self.materialize_poly(id);
+        let mat_poly = self.materialized_polys.get(&id).unwrap();
+        return &mat_poly.evaluations;
     }
 
     pub fn get_and_append_challenge(&mut self, label: &'static [u8]) -> Result<E::ScalarField, TranscriptError> {
@@ -472,7 +478,8 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
         }
 
         // need to update the claims because resizing messes stuff up
-        let true_sums: Vec<E::ScalarField> = self.sum_check_claims.iter()
+        let old_sumcheck_claims = self.sum_check_claims.clone();
+        let true_sums: Vec<E::ScalarField> = old_sumcheck_claims.iter()
             .map(|claim| {
                 self.evaluations(claim.label.clone()).iter().sum::<E::ScalarField>()
             })
@@ -519,7 +526,6 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
         // 1)   aggregate the zerocheck claims into a single MLE
         //      Then convert the zerocheck_agg_poly to a sumcheck
         self.convert_zerocheck_claims_to_sumcheck_claim(nv); // Note: SumCheck val should be zero
-        // let sc_sum = self.evaluations(sumcheck_poly).iter().sum::<E::ScalarField>();
 
         // 1.5) aggregate the sumcheck claims
         let mut sumcheck_poly = self.track_mat_poly(DenseMultilinearExtension::<E::ScalarField>::from_evaluations_vec(nv, vec![E::ScalarField::zero(); 2_usize.pow(nv as u32)]));

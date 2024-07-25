@@ -201,8 +201,9 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> TrackedPoly<E, PCS> {
     }
 
     pub fn evaluations(&self) -> Vec<E::ScalarField> {
+        // note: this has to actually clone the evaluations, which can be expensive
         let tracker_ref: &RefCell<ProverTracker<E, PCS>> = self.tracker.borrow();
-        tracker_ref.borrow().evaluations(self.id.clone())
+        tracker_ref.borrow_mut().evaluations(self.id.clone()).clone() 
     }
 
     pub fn to_arithmatic_virtual_poly(&self) -> VirtualPolynomial<E::ScalarField> {
