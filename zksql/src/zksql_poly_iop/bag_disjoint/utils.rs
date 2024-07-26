@@ -1,5 +1,4 @@
 use ark_ec::pairing::Pairing;
-use std::collections::HashMap;
 use std::collections::HashSet;
 use std::vec;
 use std::cmp::max;

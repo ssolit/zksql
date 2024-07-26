@@ -2,7 +2,7 @@ use ark_ec::pairing::Pairing;
 use ark_std::Zero;
 use ark_poly::DenseMultilinearExtension;
 
-use crate::zksql_poly_iop::util::prelude::{mle_multiplicity_count, bag_multiplicity_count};
+use crate::zksql_poly_iop::util::prelude::mle_multiplicity_count;
 use crate::tracker::prelude::*;
 use subroutines::pcs::PolynomialCommitmentScheme;
 

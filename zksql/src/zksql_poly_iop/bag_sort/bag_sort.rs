@@ -14,7 +14,7 @@ use crate::zksql_poly_iop::bag_no_zeros::BagNoZerosIOP;
 use crate::{
     tracker::prelude::*,
     zksql_poly_iop::{
-        bag_multitool::bag_presc_perm::BagPrescPermIOP, 
+        bag_presc_perm::bag_presc_perm::BagPrescPermIOP, 
         bag_inclusion::bag_inclusion::BagInclusionIOP,
     },
 };

@@ -1,4 +1,3 @@
-// use arithmetic::{VPAuxInfo, VirtualPolynomial};
 use ark_ec::pairing::Pairing;
 use ark_poly::DenseMultilinearExtension;
 use ark_std::{One, Zero};

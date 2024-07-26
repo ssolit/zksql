@@ -7,13 +7,7 @@ use subroutines::pcs::PolynomialCommitmentScheme;
 use crate::{
     tracker::prelude::*,
     zksql_poly_iop::{
-        bag_multitool::{
-            bag_multitool::BagMultitoolIOP, 
-            
-            bag_sum::BagSumIOP
-        }, 
         bag_inclusion::bag_inclusion::BagInclusionIOP, 
-        bag_no_zeros::BagNoZerosIOP, 
         bag_disjoint::bag_disjoint::BagDisjointIOP,
         selector_valid::selector_valid::SelectorValidIOP,
     },

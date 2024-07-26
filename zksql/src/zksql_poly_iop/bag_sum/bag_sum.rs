@@ -4,8 +4,10 @@ use ark_std::{end_timer, One, start_timer};
 use std::marker::PhantomData;
 
 use subroutines::pcs::PolynomialCommitmentScheme;
-use crate::tracker::prelude::*;
-use super::bag_multitool::BagMultitoolIOP;
+use crate::{
+    tracker::prelude::*,
+    zksql_poly_iop::bag_multitool::bag_multitool::BagMultitoolIOP,
+};
 
 pub struct BagSumIOP<E: Pairing, PCS: PolynomialCommitmentScheme<E>>(PhantomData<E>, PhantomData<PCS>);
 impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> BagSumIOP<E, PCS> 

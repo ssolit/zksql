@@ -1,14 +1,8 @@
 use ark_ec::pairing::Pairing;
 use ark_std::{Zero, One};
 use ark_poly::DenseMultilinearExtension;
+use crate::zksql_poly_iop::util::prelude::mle_multiplicity_count;
 
-use subroutines::pcs::PolynomialCommitmentScheme;
-use crate::{
-    tracker::prelude::*,
-    zksql_poly_iop::{
-        util::prelude::{vec_multiplicity_count, mle_multiplicity_count}
-    },
-};
 
 pub fn calc_join_reduction_lr_sel_advice<E>(
     poly_a: &DenseMultilinearExtension<E::ScalarField>,

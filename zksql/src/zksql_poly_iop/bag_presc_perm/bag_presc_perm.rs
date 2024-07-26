@@ -4,8 +4,10 @@ use ark_std::{end_timer, One, start_timer, Zero};
 use std::marker::PhantomData;
 
 use subroutines::pcs::PolynomialCommitmentScheme;
-use crate::tracker::prelude::*;
-use super::bag_eq::BagEqIOP;
+use crate::{
+    tracker::prelude::*,
+    zksql_poly_iop::bag_eq::bag_eq::BagEqIOP,
+};
 
 pub struct BagPrescPermIOP<E: Pairing, PCS: PolynomialCommitmentScheme<E>>(PhantomData<E>, PhantomData<PCS>);
 

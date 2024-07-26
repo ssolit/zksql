@@ -3,13 +3,17 @@
 
 pub mod prelude;
 
-mod join_reduction;
+mod bag_disjoint;
+mod bag_eq;
+mod bag_inclusion;
 mod bag_multitool;
 mod bag_no_zeros;
+mod bag_presc_perm;
 mod bag_sort;
+mod bag_sum;
 mod bag_supp;
-mod bag_disjoint;
-mod bag_inclusion;
+
+mod join_reduction;
 
 mod set_disjoint;
 mod set_union;

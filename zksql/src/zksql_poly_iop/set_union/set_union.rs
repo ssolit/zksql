@@ -1,19 +1,17 @@
 use ark_ec::pairing::Pairing;
 use ark_poly::DenseMultilinearExtension;
 use std::marker::PhantomData;
-use std::collections::HashMap;
 use std::cmp::max;
 
 use subroutines::pcs::PolynomialCommitmentScheme;
 use crate::{
     tracker::prelude::*,
     zksql_poly_iop::{
-        bag_multitool::bag_sum::BagSumIOP,
+        bag_sum::bag_sum::BagSumIOP,
         bag_supp::bag_supp::BagSuppIOP,
     },
 };
 use ark_std::Zero;
-use ark_std::One;
 
 /// Assumption: bag_a and bag_b already contain no duplicate elements
 /// This should be checked during preprocessing or an earlier step of the zql proving protocol
