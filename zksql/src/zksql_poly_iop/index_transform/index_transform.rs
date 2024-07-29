@@ -23,7 +23,7 @@ where PCS: PolynomialCommitmentScheme<E> {
         table_in: &Table<E, PCS>,
         table_out: &Table<E, PCS>,
     ) -> Result<(), PolyIOPErrors> {
-        let rand_coeffs = prover_sample_rand_powers(prover_tracker, table_in.num_vars())?;
+        let rand_coeffs = prover_sample_rand_powers(prover_tracker, table_in.col_vals.len())?;
         let table_in_agg = table_row_prover_agg(table_in, &rand_coeffs)?;
         let table_out_agg = table_row_prover_agg(table_out, &rand_coeffs)?;
         BagInclusionIOP::<E, PCS>::prove(
@@ -41,7 +41,7 @@ where PCS: PolynomialCommitmentScheme<E> {
         table_out: &TableComm<E, PCS>,
     )
     -> Result<(), PolyIOPErrors> {
-        let rand_coeffs = verifier_sample_rand_powers(verifier_tracker, table_in.num_vars())?;
+        let rand_coeffs = verifier_sample_rand_powers(verifier_tracker, table_in.col_vals.len())?;
         let table_in_agg = table_row_verifier_agg(table_in, &rand_coeffs)?;
         let table_out_agg = table_row_verifier_agg(table_out, &rand_coeffs)?;
         BagInclusionIOP::<E, PCS>::verify(

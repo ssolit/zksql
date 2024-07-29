@@ -4,6 +4,7 @@ mod test {
     use ark_poly::MultilinearExtension;
     use ark_poly::DenseMultilinearExtension;
     use ark_std::One;
+    use ark_std::Zero;
 
     use subroutines::{
         pcs::PolynomialCommitmentScheme,
@@ -15,10 +16,7 @@ mod test {
 
     use crate::{
         tracker::prelude::*,
-        zksql_poly_iop::index_transform::{
-            index_transform::IndexTransformIOP,
-            utils::{table_row_prover_agg, table_row_verifier_agg},
-        },
+        zksql_poly_iop::index_transform::index_transform::IndexTransformIOP,
     };
 
     fn test_index_transform() -> Result<(), PolyIOPErrors> {
@@ -51,6 +49,58 @@ mod test {
             &table_sel.clone(), 
             table_cols.clone().as_slice(),
         )?;
+
+        // good path 2: table has duplicates, removed rows, differnt sized tables, non-trivial selectors
+        let table_in_nv = 3;
+        let table_in_len = 2_usize.pow(table_in_nv as u32);
+        let table_out_nv = 4;
+        let num_cols = 4;
+        let mut table_in_sel_evals = vec![Fr::one(); 2_usize.pow(table_in_nv as u32)];
+        table_in_sel_evals[0] = Fr::zero();
+        let table_in_sel = DenseMultilinearExtension::from_evaluations_vec(table_in_nv, table_in_sel_evals);
+        let mut table_in_cols = Vec::<DenseMultilinearExtension<Fr>>::new();
+        for _ in 0..num_cols {
+            table_in_cols.push(DenseMultilinearExtension::<Fr>::rand(table_in_nv, &mut rng));
+        }
+        let mut table_out_sel_evals = vec![Fr::one(); 2_usize.pow(table_out_nv as u32)];
+        table_out_sel_evals[0] = Fr::zero();
+        table_out_sel_evals[1] = Fr::zero();
+        table_out_sel_evals[2] = Fr::zero();
+        table_out_sel_evals[table_in_len] = Fr::zero();
+        table_out_sel_evals[table_in_len + 1] = Fr::zero();
+        let table_out_sel = DenseMultilinearExtension::from_evaluations_vec(table_out_nv, table_out_sel_evals);
+        let mut table_out_cols = Vec::<DenseMultilinearExtension<Fr>>::new();
+        for i in 0..num_cols {
+            let mut table_out_col_evals = table_in_cols[i].evaluations.clone();
+            table_out_col_evals.append(&mut table_out_col_evals.clone());
+            let col = DenseMultilinearExtension::<Fr>::from_evaluations_vec(table_out_nv, table_out_col_evals);
+            table_out_cols.push(col);
+        }
+        test_index_transform_helper(
+            &mut prover_tracker, 
+            &mut verifier_tracker, 
+            &table_in_sel.clone(), 
+            table_in_cols.clone().as_slice(),
+            &table_out_sel.clone(), 
+            table_out_cols.clone().as_slice(),
+        )?;
+
+        // bad path 1: table_out is one element off
+        let mut bad_table_out_col_3_evals = table_out_cols[3].evaluations.clone();
+        bad_table_out_col_3_evals[3] = Fr::zero();
+        let bad_table_out_col_3 = DenseMultilinearExtension::<Fr>::from_evaluations_vec(table_out_nv, bad_table_out_col_3_evals);
+        let mut bad_table_out_cols = table_out_cols.clone();
+        bad_table_out_cols[3] = bad_table_out_col_3;
+        assert_ne!(bad_table_out_cols, table_out_cols);
+        let bad_result1 = test_index_transform_helper(
+            &mut prover_tracker, 
+            &mut verifier_tracker, 
+            &table_in_sel.clone(), 
+            table_in_cols.clone().as_slice(),
+            &table_out_sel.clone(), 
+            bad_table_out_cols.as_slice(),
+        );
+        assert!(bad_result1.is_err());
 
         Ok(())
     }
