@@ -260,7 +260,7 @@ mod test {
         assert!(bad_res4.is_err());
         println!("passed");
 
-        // Test bad path 5: l missing an element
+        // Test bad path 5: r missing an element
         print!("JoinReductionIOP bad path 5 test: ");
         let poly_a_nums =   vec![0, 1, 2, 3, 4, 5, 0, 0];
         let a_sel_nums =    vec![1, 1, 1, 1, 1, 1, 0, 0];
@@ -296,8 +296,43 @@ mod test {
         assert!(bad_res5.is_err());
         println!("passed");
 
-        Ok(())
+        // Test bad path 6: l has an element in that is in mid_a and mid_b as well
+        print!("JoinReductionIOP bad path 6 test: ");
+        let poly_a_nums =   vec![0, 1, 2, 3, 4, 4, 5, 0];
+        let a_sel_nums =    vec![1, 1, 1, 1, 1, 1, 1, 0];
+        let poly_b_nums =   vec![4, 5, 6, 7, 8, 0, 0, 0];
+        let b_sel_nums =    vec![1, 1, 1, 1, 1, 0, 0, 0];
+        let l_sel_nums =    vec![1, 1, 1, 1, 1, 0, 0, 0];  // included 4 when 4 should be in the middle 
+        let r_sel_nums =    vec![0, 0, 1, 1, 1, 0, 0, 0];
 
+        let poly_a_evals = poly_a_nums.iter().map(|x| Fr::from(*x as u64)).collect::<Vec<Fr>>();
+        let a_sel_evals = a_sel_nums.iter().map(|x| Fr::from(*x as u64)).collect::<Vec<Fr>>();
+        let poly_b_evals = poly_b_nums.iter().map(|x| Fr::from(*x as u64)).collect::<Vec<Fr>>();
+        let b_sel_evals = b_sel_nums.iter().map(|x| Fr::from(*x as u64)).collect::<Vec<Fr>>();
+        let l_sel_evals = l_sel_nums.iter().map(|x| Fr::from(*x as u64)).collect::<Vec<Fr>>();
+        let r_sel_evals = r_sel_nums.iter().map(|x| Fr::from(*x as u64)).collect::<Vec<Fr>>();
+        let poly_a_mle = DenseMultilinearExtension::from_evaluations_vec(3, poly_a_evals);
+        let a_sel_mle = DenseMultilinearExtension::from_evaluations_vec(3, a_sel_evals);
+        let poly_b_mle = DenseMultilinearExtension::from_evaluations_vec(3, poly_b_evals);
+        let b_sel_mle = DenseMultilinearExtension::from_evaluations_vec(3, b_sel_evals);
+        let l_sel_mle = DenseMultilinearExtension::from_evaluations_vec(3, l_sel_evals);
+        let r_sel_mle = DenseMultilinearExtension::from_evaluations_vec(3, r_sel_evals);
+
+        let bad_res6 = test_join_reduction_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(
+            &mut prover_tracker.deep_copy(), 
+            &mut verifier_tracker.deep_copy(), 
+            &poly_a_mle, 
+            &a_sel_mle,
+            &poly_b_mle,
+            &b_sel_mle, 
+            &l_sel_mle, 
+            &r_sel_mle, 
+            &range_mle.clone(),
+        );
+        assert!(bad_res6.is_err());
+        println!("passed");
+        
+        Ok(())
     }
 
     fn test_join_reduction_helper<E: Pairing, PCS>(
