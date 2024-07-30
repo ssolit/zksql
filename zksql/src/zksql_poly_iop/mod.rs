@@ -13,6 +13,7 @@ mod bag_sort;
 mod bag_sum;
 mod bag_supp;
 
+mod cross_product;
 mod index_transform;
 mod join_reduction;
 
