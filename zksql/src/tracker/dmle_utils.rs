@@ -23,10 +23,32 @@ pub fn binary_decompose<F: Field>(input: u64, num_var: usize) -> Vec<F> {
     bit_sequence.iter().map(|&x| F::from(x as u64)).collect()
 }
 
-/// Increase the number of variables of a multilinear polynomial
-/// The output dmle will use its first mle.num_vars() for evaluations, 
-/// while the rest will be ignored
-pub fn dmle_increase_nv<F: Field>(
+/// Increase the number of variables of a multilinear polynomial by adding variables at the front
+/// Ex for input (P(X, Y), 3) result in P'(Z, X, Y), where P'(Z, X, Y) = P(X, Y)
+pub fn dmle_increase_nv_front<F: Field>(
+    mle: &Arc<DenseMultilinearExtension<F>>,
+    new_nv: usize
+) -> Arc<DenseMultilinearExtension<F>> {
+    if mle.num_vars == new_nv {
+        return mle.clone();
+    } if mle.num_vars > new_nv {
+        panic!("dmle_increase_nv Error: old_len > new_len");
+    }
+    let old_len = 2_usize.pow(mle.num_vars as u32);
+    let new_len = 2_usize.pow(new_nv as u32);
+    let num_copies = new_len / old_len;
+    let mut evals = Vec::<F>::with_capacity(new_len);
+    for i in 0..old_len {
+        for _ in 0..num_copies {
+            evals.push(mle.evaluations[i]);
+        }
+    }
+    Arc::new(DenseMultilinearExtension::from_evaluations_vec(new_nv, evals))
+}
+
+/// Increase the number of variables of a multilinear polynomial by adding variables at the back
+/// Ex for input (P(X, Y), 3) result in P'(X, Y, Z), where P'(X, Y, Z) = P(X, Y)
+pub fn dmle_increase_nv_back<F: Field>(
     mle: &Arc<DenseMultilinearExtension<F>>,
     new_nv: usize
 ) -> Arc<DenseMultilinearExtension<F>> {
@@ -93,7 +115,7 @@ mod test {
         let large_nv = 8;
         
         let small_mle: DenseMultilinearExtension<Fr> = arithmetic::random_permutation_mles(small_nv, 1, &mut rng)[0].clone();
-        let large_mle = dmle_increase_nv(&Arc::new(small_mle.clone()), large_nv);
+        let large_mle = dmle_increase_nv_back(&Arc::new(small_mle.clone()), large_nv);
         let large_eval_pt: Vec<Fr> = (0..large_nv).map(|_| Fr::rand(&mut rng)).collect();
         let small_eval_pt: Vec<Fr> = large_eval_pt[0..small_nv].to_vec();
         let large_mle_rand_eval = large_mle.evaluate(&large_eval_pt).unwrap();

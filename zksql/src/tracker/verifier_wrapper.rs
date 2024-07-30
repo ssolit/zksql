@@ -224,6 +224,18 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> TrackedComm<E, PCS> {
         TrackedComm::new(res_id, self.tracker.clone())
     }
 
+    pub fn increase_nv_front(&self, added_nv: usize) -> TrackedComm<E, PCS> {
+        let tracker_ref: &RefCell<VerifierTracker<E, PCS>> = self.tracker.borrow();
+        let res_id = tracker_ref.borrow_mut().increase_nv_front(self.id.clone(), added_nv);
+        TrackedComm::new(res_id, self.tracker.clone())
+    }
+
+    pub fn increase_nv_back(&self, added_nv: usize) -> TrackedComm<E, PCS> {
+        let tracker_ref: &RefCell<VerifierTracker<E, PCS>> = self.tracker.borrow();
+        let res_id = tracker_ref.borrow_mut().increase_nv_back(self.id.clone(), added_nv);
+        TrackedComm::new(res_id, self.tracker.clone())
+    }
+
     pub fn eval_virtual_comm( 
         &self, 
         point: &[E::ScalarField],

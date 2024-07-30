@@ -250,6 +250,48 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> VerifierTracker<E, PCS> {
         id
     }
 
+    /// creates a new virtual comm that evaluates on an increased nv by adding variables at the front
+    /// adds the new variables at the front of the polynomial, 
+    /// and ignores the first 'added_nv' variables when evaluating the polynomial at a point
+    pub fn increase_nv_front(&mut self, poly_id: TrackerID, added_nv: usize) -> TrackerID {
+        let virtual_comms_clone = self.virtual_comms.clone(); // need to clone so the new copy can be moved into the closure
+        let res_closure = move |pt: &[E::ScalarField]| -> Result<<E as Pairing>::ScalarField, PolyIOPErrors> {
+            // get the eval function for poly_id
+            let virtual_comms_ref_cell: &RefCell<HashMap<TrackerID, Box<dyn Fn(&[E::ScalarField]) -> Result<E::ScalarField, PolyIOPErrors>>>> = virtual_comms_clone.borrow();
+            let virtual_comms = virtual_comms_ref_cell.borrow();
+            let poly_eval_box = virtual_comms.get(&poly_id).unwrap();
+
+            // evaluate the polynomial at the point, ignoring the first added_nv coordinates
+            let truncated_pt = &pt[added_nv..];
+            let poly_eval: <E as Pairing>::ScalarField = poly_eval_box(truncated_pt)?;
+            Ok(poly_eval)
+        };
+        // create the new res_comm that uses the res_closure
+        let res_id = self.track_virtual_comm(Box::new(res_closure));
+        res_id
+    }
+
+    /// creates a new virtual comm that evaluates on an increased nv by adding variables at the back
+    /// adds the new variables at the back of the polynomial, 
+    /// and ignores the last 'added_nv' variables when evaluating the polynomial at a point
+    pub fn increase_nv_back(&mut self, poly_id: TrackerID, added_nv: usize) -> TrackerID {
+        let virtual_comms_clone = self.virtual_comms.clone(); // need to clone so the new copy can be moved into the closure
+        let res_closure = move |pt: &[E::ScalarField]| -> Result<<E as Pairing>::ScalarField, PolyIOPErrors> {
+            // get the eval function for poly_id
+            let virtual_comms_ref_cell: &RefCell<HashMap<TrackerID, Box<dyn Fn(&[E::ScalarField]) -> Result<E::ScalarField, PolyIOPErrors>>>> = virtual_comms_clone.borrow();
+            let virtual_comms = virtual_comms_ref_cell.borrow();
+            let poly_eval_box = virtual_comms.get(&poly_id).unwrap();
+
+            // evaluate the polynomial at the point, ignoring the last added_nv coordinates
+            let truncated_pt = &pt[..added_nv];
+            let poly_eval: <E as Pairing>::ScalarField = poly_eval_box(truncated_pt)?;
+            Ok(poly_eval)
+        };
+        // create the new res_comm that uses the res_closure
+        let res_id = self.track_virtual_comm(Box::new(res_closure));
+        res_id
+    }
+
     pub fn eval_virtual_comm( 
         &self, 
         comm_id: TrackerID, 

@@ -1,7 +1,7 @@
 
 pub use crate::tracker::{
     bag::{Bag, BagComm, Table, TableComm},
-    dmle_utils::dmle_increase_nv,
+    dmle_utils::*,
     errors::PolyIOPErrors,
     prover_wrapper::{ProverTrackerRef, TrackedPoly}, 
     tracker_structs::TrackerID,

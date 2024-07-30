@@ -48,35 +48,35 @@ pub fn back_alias_tracked_poly<E: Pairing, PCS: PolynomialCommitmentScheme<E>>(
     res_poly
 }
 
-// put new vars at the front of comm evals (making values repeat in chunks)
-pub fn front_alias_tracked_comm<E: Pairing, PCS: PolynomialCommitmentScheme<E>>(
-    verifier_tracker: &mut VerifierTrackerRef<E, PCS>,
-    comm: &TrackedComm<E, PCS>,
-    comm_nv: usize,
-    added_nv: usize,
-) -> TrackedComm<E, PCS> {
-    let res_comm_closure = move |pt: &[E::ScalarField]| -> Result<<E as Pairing>::ScalarField, PolyIOPErrors> {
-        let truncated_pt = &pt[added_nv..];
-        let eval = comm.eval_virtual_comm(truncated_pt).unwrap();
-        Ok(eval)
-    };
-    let boxed_closure = Box::new(res_comm_closure);
-    let res_col_comm = verifier_tracker.track_virtual_comm(boxed_closure);
-    res_col_comm
-}
+// // put new vars at the front of comm evals (making values repeat in chunks)
+// pub fn front_alias_tracked_comm<E: Pairing, PCS: PolynomialCommitmentScheme<E>>(
+//     verifier_tracker: &mut VerifierTrackerRef<E, PCS>,
+//     comm: &TrackedComm<E, PCS>,
+//     comm_nv: usize,
+//     added_nv: usize,
+// ) -> TrackedComm<E, PCS> {
+//     let res_comm_closure = move |pt: &[E::ScalarField]| -> Result<<E as Pairing>::ScalarField, PolyIOPErrors> {
+//         let truncated_pt = &pt[added_nv..];
+//         let eval = comm.eval_virtual_comm(truncated_pt).unwrap();
+//         Ok(eval)
+//     };
+//     let boxed_closure = Box::new(res_comm_closure);
+//     let res_col_comm = verifier_tracker.track_virtual_comm(boxed_closure);
+//     res_col_comm
+// }
 
-pub fn back_alias_tracked_comm<E: Pairing, PCS: PolynomialCommitmentScheme<E>>(
-    verifier_tracker: &mut VerifierTrackerRef<E, PCS>,
-    comm: &TrackedComm<E, PCS>,
-    comm_nv: usize,
-    added_nv: usize,
-) -> TrackedComm<E, PCS> {
-    let res_comm_closure = move |pt: &[E::ScalarField]| -> Result<<E as Pairing>::ScalarField, PolyIOPErrors> {
-        let truncated_pt = &pt[..comm_nv];
-        let eval = comm.eval_virtual_comm(truncated_pt).unwrap();
-        Ok(eval)
-    };
-    let boxed_closure = Box::new(res_comm_closure);
-    let res_col_comm = verifier_tracker.track_virtual_comm(boxed_closure);
-    res_col_comm
-}
+// pub fn back_alias_tracked_comm<E: Pairing, PCS: PolynomialCommitmentScheme<E>>(
+//     verifier_tracker: &mut VerifierTrackerRef<E, PCS>,
+//     comm: &TrackedComm<E, PCS>,
+//     comm_nv: usize,
+//     added_nv: usize,
+// ) -> TrackedComm<E, PCS> {
+//     let res_comm_closure = move |pt: &[E::ScalarField]| -> Result<<E as Pairing>::ScalarField, PolyIOPErrors> {
+//         let truncated_pt = &pt[..comm_nv];
+//         let eval = comm.eval_virtual_comm(truncated_pt).unwrap();
+//         Ok(eval)
+//     };
+//     let boxed_closure = Box::new(res_comm_closure);
+//     let res_col_comm = verifier_tracker.track_virtual_comm(boxed_closure);
+//     res_col_comm
+// }

@@ -21,7 +21,7 @@ use ark_std::{One, Zero};
 use arithmetic::VirtualPolynomial;
 
 use crate::tracker::{
-    dmle_utils::{dmle_increase_nv, build_eq_x_r},
+    dmle_utils::{dmle_increase_nv_back, dmle_increase_nv_front, build_eq_x_r},
     tracker_structs::{TrackerID, TrackerSumcheckClaim, TrackerZerocheckClaim, CompiledZKSQLProof},
     errors::PolyIOPErrors,
     // pcs_accumulator::PcsAccumulator;
@@ -89,11 +89,18 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
         &mut self,
         polynomial: DenseMultilinearExtension<E::ScalarField>,
     ) -> TrackerID {
+        let polynomial = Arc::new(polynomial);
+        self.track_mat_arc_poly(polynomial)
+    }
+
+    fn track_mat_arc_poly(
+        &mut self,
+        polynomial: Arc<DenseMultilinearExtension<E::ScalarField>>,
+    ) -> TrackerID {
         // Create the new TrackerID
         let poly_id = self.gen_id();
 
         // Add the polynomial to the materialized map
-        let polynomial = Arc::new(polynomial);
         self.materialized_polys.insert(poly_id.clone(), polynomial.clone());
 
         // Return the new TrackerID
@@ -331,6 +338,24 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
         return self.track_virt_poly(new_virt_rep);
     }
 
+    pub fn increase_nv_front(&mut self, poly_id: TrackerID, added_nv: usize) -> TrackerID {
+        self.materialize_poly(poly_id);
+        let base_mle = self.get_mat_poly(poly_id).unwrap();
+        let base_nv = base_mle.num_vars();
+        let res_mle = dmle_increase_nv_front(base_mle, base_nv + added_nv);
+        let res_id = self.track_mat_arc_poly(res_mle);
+        res_id
+    }
+
+    pub fn increase_nv_back(&mut self, poly_id: TrackerID, added_nv: usize) -> TrackerID {
+        self.materialize_poly(poly_id);
+        let base_mle = self.get_mat_poly(poly_id).unwrap();
+        let base_nv = base_mle.num_vars();
+        let res_mle = dmle_increase_nv_back(base_mle, base_nv + added_nv);
+        let res_id = self.track_mat_arc_poly(res_mle);
+        res_id
+    }
+
     fn materialize_poly(&mut self, id: TrackerID) {
         // look up the virtual polynomial
         let mat_poly = self.materialized_polys.get(&id);
@@ -458,22 +483,16 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
 
     // iterates through the materialized polynomials and increases the number of variables
     // to the max number of variables in the tracker
-    // Used as a preprocessing step before batching polynomials
+    // Used as a preprocessing step before batching polynomials, 
     fn equalize_materialized_poly_nv(&mut self) -> usize {
-
-        // let orig_sums: Vec<E::ScalarField> = self.sum_check_claims.iter()
-        //     .map(|claim| {
-        //         self.evaluations(claim.label.clone()).iter().sum::<E::ScalarField>()
-        //     })
-        //     .collect();
-        // println!("orig_sums: {:?}", orig_sums);
-        // println!();
-
+        // calculate the max nv
         let nv: usize = self.materialized_polys.iter().map(|(_, p)| p.num_vars()).max().ok_or(1).unwrap();
+
+        // increase the nv of all the polynomials
         for (_, poly) in self.materialized_polys.iter_mut() {
             let old_nv = poly.num_vars();
             if old_nv != nv {
-                *poly = dmle_increase_nv(poly, nv);
+                *poly = dmle_increase_nv_back(poly, nv); // increase_nv_back and increase_nv_front are equivalent, they cause the same sums, just be consistent
             }
         }
 
@@ -565,7 +584,20 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
             points.push(sumcheck_point.clone());
             evals.push(eval);
         });
-        let pcs_proof = PCS::multi_open(&self.pcs_param, mat_polys.as_slice(), &points.as_slice(), &evals.as_slice(), &mut self.transcript)?;
+        // println!("mat_polys: {:?}\n", mat_polys);
+        // println!("points: {:?}\n", points);
+        // println!("evals: {:?}\n", evals);
+        // println!("mat_polys.len(): {}\n", mat_polys.len());
+        // println!("points.len(): {}\n", points.len());
+        // println!("evals.len(): {}\n", evals.len());
+        let pcs_proof_res = PCS::multi_open(&self.pcs_param, mat_polys.as_slice(), &points.as_slice(), &evals.as_slice(), &mut self.transcript);
+        let pcs_proof = match pcs_proof_res {
+            Ok(p) => p,
+            Err(e) => {
+                println!("complile_proof errored during PCS multi_open proof");
+                return Err(PolyIOPErrors::InvalidProver(e.to_string()));
+            },
+        };
 
         // 4) create the CompiledProof
         let mut sumcheck_val_map: HashMap<TrackerID, E::ScalarField> = HashMap::new();

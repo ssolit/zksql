@@ -326,48 +326,148 @@ mod test {
     }
 
 
-#[test]
-fn test_eval_comm() -> Result<(), PolyIOPErrors> {
-    println!("starting eval comm test");
-    // set up randomness
-    let mut rng = test_rng();
-    const NV: usize = 4;
-    let srs = MultilinearKzgPCS::<Bls12_381>::gen_srs_for_testing(&mut rng, NV)?;
-    let (pcs_prover_param, pcs_verifier_param) = MultilinearKzgPCS::<Bls12_381>::trim(&srs, None, Some(NV))?;
+    #[test]
+    fn test_eval_comm() -> Result<(), PolyIOPErrors> {
+        println!("starting eval comm test");
+        // set up randomness
+        let mut rng = test_rng();
+        const NV: usize = 4;
+        let srs = MultilinearKzgPCS::<Bls12_381>::gen_srs_for_testing(&mut rng, NV)?;
+        let (pcs_prover_param, pcs_verifier_param) = MultilinearKzgPCS::<Bls12_381>::trim(&srs, None, Some(NV))?;
 
-    // set up a mock conpiled proof
-    let poly1 = DenseMultilinearExtension::<Fr>::rand(NV, &mut rng);
-    let poly2 = DenseMultilinearExtension::<Fr>::rand(NV, &mut rng);
-    let point = [Fr::rand(&mut rng); NV].to_vec();
-    let eval1 = poly1.evaluate(&point).unwrap();
-    let eval2 = poly2.evaluate(&point).unwrap();
-    let mut prover_tracker: ProverTrackerRef<Bls12_381, MultilinearKzgPCS<Bls12_381>> = ProverTrackerRef::new_from_pcs_params(pcs_prover_param);
-    prover_tracker.track_and_commit_poly(poly1.clone())?;
-    prover_tracker.track_and_commit_poly(poly2.clone())?;
-    let mut proof = prover_tracker.compile_proof()?;
-    proof.query_map.insert((TrackerID(0), point.clone()), eval1.clone());
-    proof.query_map.insert((TrackerID(1), point.clone()), eval2.clone());
+        // set up a mock conpiled proof
+        let poly1 = DenseMultilinearExtension::<Fr>::rand(NV, &mut rng);
+        let poly2 = DenseMultilinearExtension::<Fr>::rand(NV, &mut rng);
+        let point = [Fr::rand(&mut rng); NV].to_vec();
+        let eval1 = poly1.evaluate(&point).unwrap();
+        let eval2 = poly2.evaluate(&point).unwrap();
+        let mut prover_tracker: ProverTrackerRef<Bls12_381, MultilinearKzgPCS<Bls12_381>> = ProverTrackerRef::new_from_pcs_params(pcs_prover_param);
+        prover_tracker.track_and_commit_poly(poly1.clone())?;
+        prover_tracker.track_and_commit_poly(poly2.clone())?;
+        let mut proof = prover_tracker.compile_proof()?;
+        proof.query_map.insert((TrackerID(0), point.clone()), eval1.clone());
+        proof.query_map.insert((TrackerID(1), point.clone()), eval2.clone());
 
+        
+        // simulate interaction phase
+        // [(p(x) + gamma) * phat(x)  - 1]
+        println!("making virtual comms");
+        let mut tracker: VerifierTrackerRef<Bls12_381, MultilinearKzgPCS<Bls12_381>> = VerifierTrackerRef::new_from_pcs_params(pcs_verifier_param);
+        let comm1 = tracker.track_mat_comm(proof.comms.get(&TrackerID(0)).unwrap().clone())?;
+        let comm2 = tracker.track_mat_comm(proof.comms.get(&TrackerID(1)).unwrap().clone())?;
+        let gamma = tracker.get_and_append_challenge(b"gamma")?;
+        let mut res_comm = comm1.add_scalar(gamma);
+        res_comm = res_comm.mul_comms(&comm2);
+        let res_comm = res_comm.add_scalar(Fr::one().neg());
+
+        // simulate decision phase
+        println!("evaluating virtual comm");
+        tracker.set_compiled_proof(proof);
+        tracker.transfer_proof_poly_evals();
+        let res_eval = res_comm.eval_virtual_comm(&point)?;
+        let expected_eval = (eval1 + gamma) * eval2 - Fr::one();
+        assert_eq!(expected_eval, res_eval);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_increase_nv_front() -> Result<(), PolyIOPErrors> {
+        println!("starting increase_nv_front test");
+
+        let mut rng = test_rng();
+        const NV: usize = 4;
+        let resized_nv: usize = 7;
+        let added_nv = resized_nv - NV;
+        let srs = MultilinearKzgPCS::<Bls12_381>::gen_srs_for_testing(&mut rng, resized_nv)?;
+        let (pcs_prover_param, pcs_verifier_param) = MultilinearKzgPCS::<Bls12_381>::trim(&srs, None, Some(resized_nv))?;
+
+        let poly = DenseMultilinearExtension::<Fr>::rand(NV, &mut rng);
+        let point = [Fr::rand(&mut rng); NV].to_vec();
+        let eval = poly.evaluate(&point).unwrap();
+        let mut resized_point = vec![Fr::rand(&mut rng); added_nv];
+        resized_point.extend(point.clone());
+
+        let mut prover_tracker: ProverTrackerRef<Bls12_381, MultilinearKzgPCS<Bls12_381>> = ProverTrackerRef::new_from_pcs_params(pcs_prover_param);
+        let tracked_poly = prover_tracker.track_and_commit_poly(poly.clone())?;
+        let poly2 = DenseMultilinearExtension::<Fr>::rand(NV, &mut rng);
+        let _ = prover_tracker.track_and_commit_poly(poly2.clone())?; // if this isn't here Hyperplonk's PCS multi_open breaks
+        let resized_poly = tracked_poly.increase_nv_front(added_nv);
+
+        // check resized_poly evaluates the same as the original poly
+        assert_eq!(resized_poly.evaluate(resized_point.as_slice()).unwrap(), eval);
+       
+        // set up to check that an IOP passes
+        let resized_sum = resized_poly.evaluations().iter().sum::<Fr>();
+        prover_tracker.add_sumcheck_claim(resized_poly.id, resized_sum);
+        let mut proof = prover_tracker.compile_proof()?;
+        proof.query_map.insert((TrackerID(1), resized_point.clone()), eval.clone());
+
+        let mut verifier_tracker: VerifierTrackerRef<Bls12_381, MultilinearKzgPCS<Bls12_381>> = VerifierTrackerRef::new_from_pcs_params(pcs_verifier_param);
+        verifier_tracker.set_compiled_proof(proof);
+        let og_comm = verifier_tracker.transfer_prover_comm(TrackerID(0));
+        let _ = verifier_tracker.transfer_prover_comm(TrackerID(1)); // to match extra poly above
+        let resized_comm = og_comm.increase_nv_front(added_nv);
+        verifier_tracker.add_sumcheck_claim(resized_comm.id, resized_sum);
+
+        // check that an IOP passes
+        verifier_tracker.verify_claims()?;
+
+        // check that the ProverTracker and VerifierTracker are in the same state
+        let p_tracker = prover_tracker.clone_underlying_tracker();
+        let v_tracker = verifier_tracker.clone_underlying_tracker();
+        assert_eq!(p_tracker.id_counter, v_tracker.id_counter);
+
+        Ok(())
+    }
     
-    // simulate interaction phase
-    // [(p(x) + gamma) * phat(x)  - 1]
-    println!("making virtual comms");
-    let mut tracker: VerifierTrackerRef<Bls12_381, MultilinearKzgPCS<Bls12_381>> = VerifierTrackerRef::new_from_pcs_params(pcs_verifier_param);
-    let comm1 = tracker.track_mat_comm(proof.comms.get(&TrackerID(0)).unwrap().clone())?;
-    let comm2 = tracker.track_mat_comm(proof.comms.get(&TrackerID(1)).unwrap().clone())?;
-    let gamma = tracker.get_and_append_challenge(b"gamma")?;
-    let mut res_comm = comm1.add_scalar(gamma);
-    res_comm = res_comm.mul_comms(&comm2);
-    let res_comm = res_comm.add_scalar(Fr::one().neg());
+    #[test]
+    fn test_increase_nv_back() -> Result<(), PolyIOPErrors> {
+        println!("starting increase_nv_front test");
 
-    // simulate decision phase
-    println!("evaluating virtual comm");
-    tracker.set_compiled_proof(proof);
-    tracker.transfer_proof_poly_evals();
-    let res_eval = res_comm.eval_virtual_comm(&point)?;
-    let expected_eval = (eval1 + gamma) * eval2 - Fr::one();
-    assert_eq!(expected_eval, res_eval);
+        let mut rng = test_rng();
+        const NV: usize = 4;
+        let resized_nv: usize = 7;
+        let added_nv = resized_nv - NV;
+        let srs = MultilinearKzgPCS::<Bls12_381>::gen_srs_for_testing(&mut rng, resized_nv)?;
+        let (pcs_prover_param, pcs_verifier_param) = MultilinearKzgPCS::<Bls12_381>::trim(&srs, None, Some(resized_nv))?;
 
-    Ok(())
-}
+        let poly = DenseMultilinearExtension::<Fr>::rand(NV, &mut rng);
+        let point = [Fr::rand(&mut rng); NV].to_vec();
+        let eval = poly.evaluate(&point).unwrap();
+        let mut resized_point = point.clone();
+        resized_point.extend(vec![Fr::rand(&mut rng); added_nv]);
+
+        let mut prover_tracker: ProverTrackerRef<Bls12_381, MultilinearKzgPCS<Bls12_381>> = ProverTrackerRef::new_from_pcs_params(pcs_prover_param);
+        let tracked_poly = prover_tracker.track_and_commit_poly(poly.clone())?;
+        let poly2 = DenseMultilinearExtension::<Fr>::rand(NV, &mut rng);
+        let _ = prover_tracker.track_and_commit_poly(poly2.clone())?; // if this isn't here Hyperplonk's PCS multi_open breaks
+        let resized_poly = tracked_poly.increase_nv_back(added_nv);
+
+        // check resized_poly evaluates the same as the original poly
+        assert_eq!(resized_poly.evaluate(resized_point.as_slice()).unwrap(), eval);
+       
+        // set up to check that an IOP passes
+        let resized_sum = resized_poly.evaluations().iter().sum::<Fr>();
+        prover_tracker.add_sumcheck_claim(resized_poly.id, resized_sum);
+        let mut proof = prover_tracker.compile_proof()?;
+        proof.query_map.insert((TrackerID(1), resized_point.clone()), eval.clone());
+
+        let mut verifier_tracker: VerifierTrackerRef<Bls12_381, MultilinearKzgPCS<Bls12_381>> = VerifierTrackerRef::new_from_pcs_params(pcs_verifier_param);
+        verifier_tracker.set_compiled_proof(proof);
+        let og_comm = verifier_tracker.transfer_prover_comm(TrackerID(0));
+        let _ = verifier_tracker.transfer_prover_comm(TrackerID(1)); // to match extra poly above
+        let resized_comm = og_comm.increase_nv_back(added_nv);
+        verifier_tracker.add_sumcheck_claim(resized_comm.id, resized_sum);
+
+        // check that an IOP passes
+        verifier_tracker.verify_claims()?;
+
+        // check that the ProverTracker and VerifierTracker are in the same state
+        let p_tracker = prover_tracker.clone_underlying_tracker();
+        let v_tracker = verifier_tracker.clone_underlying_tracker();
+        assert_eq!(p_tracker.id_counter, v_tracker.id_counter);
+
+        Ok(())
+    }
 }

@@ -70,7 +70,7 @@ where
 
     // challenge point t
     let t = transcript.get_and_append_challenge_vectors("t".as_ref(), ell)?;
-
+    
     // eq(t, i) for i in [0..k]
     let eq_t_i_list = build_eq_x_r_vec(t.as_ref())?;
 

@@ -3,7 +3,12 @@ use std::marker::PhantomData;
 use subroutines::pcs::PolynomialCommitmentScheme;
 
 use crate::tracker::prelude::*;
-use crate::zksql_poly_iop::cross_product::utils::{back_alias_tracked_poly, front_alias_tracked_poly, back_alias_tracked_comm, front_alias_tracked_comm};
+use crate::zksql_poly_iop::cross_product::utils::{
+    back_alias_tracked_poly, 
+    front_alias_tracked_poly, 
+    // back_alias_tracked_comm, 
+    // front_alias_tracked_comm,
+};
 
 
 // Unlike other IOPs, no new polynomials committed to in this IOP. 
@@ -59,17 +64,17 @@ where PCS: PolynomialCommitmentScheme<E> {
 
         // put new vars at the front of table A cols (making values repeat in chunks)
         for a_col in table_a.col_vals.clone() {
-            let res_col = front_alias_tracked_comm(verifier_tracker, &a_col, table_a_nv, table_a_nv);
+            let res_col = a_col.increase_nv_front(table_b_nv);
             result_table_col_vals.push(res_col);
         }
         // put new vars at the back of table B cols (making entire col repeat)
         for b_col in table_b.col_vals.clone() {
-            let res_col = back_alias_tracked_comm(verifier_tracker, &b_col, table_b_nv, table_b_nv);
+            let res_col = b_col.increase_nv_back(table_a_nv);
             result_table_col_vals.push(res_col);
         }
         // create the new table selector by aliasing the old selectors and multiplying them
-        let aliased_a_sel = front_alias_tracked_comm(verifier_tracker, &table_a.selector, table_a_nv, table_a_nv);
-        let aliased_b_sel = back_alias_tracked_comm(verifier_tracker, &table_b.selector, table_b_nv, table_b_nv);
+        let aliased_a_sel = table_a.selector.increase_nv_front(table_b_nv);
+        let aliased_b_sel = table_b.selector.increase_nv_back(table_a_nv);
         let res_sel_comm = aliased_a_sel.mul_comms(&aliased_b_sel);
 
         // put together the table struct
