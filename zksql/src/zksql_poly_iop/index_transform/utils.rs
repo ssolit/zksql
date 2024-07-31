@@ -44,6 +44,13 @@ where
     Ok(res_bag)
 }
 
+
+/// For sample rands there are two options: 
+/// 1. sample once and take powers of it to get other rands
+/// 2. sample many times for each rand you need
+/// The pro of the first option is less sampling
+/// the pro of the second option is Ex if values are boolean, can sample 128 bit challenges and keep numbers smaller 
+
 pub fn prover_sample_rands<E, PCS>(
     prover_tracker: &mut ProverTrackerRef<E, PCS>,
     num_rands: usize,
