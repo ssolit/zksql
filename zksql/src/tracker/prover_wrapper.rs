@@ -198,13 +198,13 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> TrackedPoly<E, PCS> {
     pub fn increase_nv_front(&self, added_nv: usize) -> Self {
         let tracker_ref: &RefCell<ProverTracker<E, PCS>> = self.tracker.borrow();
         let res_id = tracker_ref.borrow_mut().increase_nv_front(self.id.clone(), added_nv);
-        TrackedPoly::new(res_id, self.num_vars, self.tracker.clone())
+        TrackedPoly::new(res_id, self.num_vars + added_nv, self.tracker.clone())
     }
 
     pub fn increase_nv_back(&self, added_nv: usize) -> Self {
         let tracker_ref: &RefCell<ProverTracker<E, PCS>> = self.tracker.borrow();
         let res_id = tracker_ref.borrow_mut().increase_nv_back(self.id.clone(), added_nv);
-        TrackedPoly::new(res_id, self.num_vars, self.tracker.clone())
+        TrackedPoly::new(res_id, self.num_vars + added_nv, self.tracker.clone())
     }
 
     pub fn evaluate(&self, pt: &[E::ScalarField]) -> Option<E::ScalarField>{

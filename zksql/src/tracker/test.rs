@@ -395,6 +395,7 @@ mod test {
         let resized_poly = tracked_poly.increase_nv_front(added_nv);
 
         // check resized_poly evaluates the same as the original poly
+        assert_eq!(resized_poly.num_vars(), resized_nv);
         assert_eq!(resized_poly.evaluate(resized_point.as_slice()).unwrap(), eval);
        
         // set up to check that an IOP passes
@@ -445,6 +446,7 @@ mod test {
         let resized_poly = tracked_poly.increase_nv_back(added_nv);
 
         // check resized_poly evaluates the same as the original poly
+        assert_eq!(resized_poly.num_vars(), resized_nv);
         assert_eq!(resized_poly.evaluate(resized_point.as_slice()).unwrap(), eval);
        
         // set up to check that an IOP passes
