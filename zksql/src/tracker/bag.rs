@@ -58,6 +58,11 @@ impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> BagComm<E, PCS> {
     }
 }
 
+#[derive(Derivative)]
+#[derivative(
+    Clone(bound = "PCS: PolynomialCommitmentScheme<E>"),
+    PartialEq(bound = "PCS: PolynomialCommitmentScheme<E>"),
+)]
 pub struct Table<E: Pairing, PCS: PolynomialCommitmentScheme<E>> {
     pub col_vals: Vec<TrackedPoly<E, PCS>>,
     pub selector: TrackedPoly<E, PCS>,
@@ -87,6 +92,11 @@ impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> Table<E, PCS> {
     }
 }
 
+#[derive(Derivative)]
+#[derivative(
+    Clone(bound = "PCS: PolynomialCommitmentScheme<E>"),
+    PartialEq(bound = "PCS: PolynomialCommitmentScheme<E>"),
+)]
 pub struct TableComm<E: Pairing, PCS: PolynomialCommitmentScheme<E>> {
     pub col_vals: Vec<TrackedComm<E, PCS>>,
     pub selector: TrackedComm<E, PCS>,

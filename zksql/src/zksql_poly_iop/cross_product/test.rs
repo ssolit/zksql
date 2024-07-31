@@ -6,6 +6,7 @@ mod test {
     use ark_std::One;
     use ark_std::Zero;
 
+    use rand_chacha::rand_core::le;
     use subroutines::{
         pcs::PolynomialCommitmentScheme,
         MultilinearKzgPCS
@@ -72,11 +73,11 @@ mod test {
         
 
         let cross_table = CrossProductIOP::<Bls12_381, MultilinearKzgPCS<Bls12_381>>::prover_cross_product(
-            &a_table, 
-            &b_table,
+            &a_table.clone(), 
+            &b_table.clone(),
         )?;
 
-        // check an a_col, a b_col, and the selector
+        // check an a_col, a b_col, and the selector are correct for the prover
         let exp_cross_table_col_0_nums = [1, 1, 1, 1, 1, 1, 1, 1,
                                                      2, 2, 2, 2, 2, 2, 2, 2,
                                                      3, 3, 3, 3, 3, 3, 3, 3,
@@ -98,6 +99,45 @@ mod test {
         assert_eq!(exp_cross_table_col_0_evals, cross_table.col_vals[0].evaluations());
         assert_eq!(exp_cross_table_col_3_evals, cross_table.col_vals[3].evaluations());
         assert_eq!(exp_cross_table_sel_evals, cross_table.selector.evaluations());
+
+        // check the same for the verifier
+        let col_0_sum = cross_table.col_vals[0].evaluations().iter().sum::<Fr>();
+        let col_3_sum = cross_table.col_vals[3].evaluations().iter().sum::<Fr>();
+        let sel_sum = cross_table.selector.evaluations().iter().sum::<Fr>();
+        prover_tracker.add_sumcheck_claim(cross_table.col_vals[0].id, col_0_sum);
+        prover_tracker.add_sumcheck_claim(cross_table.col_vals[3].id, col_3_sum);
+        prover_tracker.add_sumcheck_claim(cross_table.selector.id, sel_sum);
+        let proof = prover_tracker.compile_proof()?;
+
+        verifier_tracker.set_compiled_proof(proof);
+        let a_col_1_comm = verifier_tracker.transfer_prover_comm(a_table.col_vals[0].id);
+        let a_col_2_comm = verifier_tracker.transfer_prover_comm(a_table.col_vals[1].id);
+        let a_col_3_comm = verifier_tracker.transfer_prover_comm(a_table.col_vals[2].id);
+        let a_cols_comm = vec![a_col_1_comm, a_col_2_comm, a_col_3_comm];
+        let a_sel_comm = verifier_tracker.transfer_prover_comm(a_table.selector.id);
+        let a_table_comm = TableComm::new(a_cols_comm, a_sel_comm, a_table.num_vars());
+
+        let b_col_1_comm = verifier_tracker.transfer_prover_comm(b_table.col_vals[0].id);
+        let b_col_2_comm = verifier_tracker.transfer_prover_comm(b_table.col_vals[1].id);
+        let b_cols_comm = vec![b_col_1_comm, b_col_2_comm];
+        let b_sel_comm = verifier_tracker.transfer_prover_comm(b_table.selector.id);
+        let b_table_comm = TableComm::new(b_cols_comm, b_sel_comm, b_table.num_vars());
+
+        CrossProductIOP::<Bls12_381, MultilinearKzgPCS<Bls12_381>>::verifier_cross_product(
+            &a_table_comm,
+            &b_table_comm,
+        )?;
+        verifier_tracker.add_sumcheck_claim(cross_table.col_vals[0].id, col_0_sum);
+        verifier_tracker.add_sumcheck_claim(cross_table.col_vals[3].id, col_3_sum);
+        verifier_tracker.add_sumcheck_claim(cross_table.selector.id, sel_sum);
+        verifier_tracker.verify_claims()?;
+
+        // check that the ProverTracker and VerifierTracker are in the same state
+        let p_tracker = prover_tracker.clone_underlying_tracker();
+        let v_tracker = verifier_tracker.clone_underlying_tracker();
+        assert_eq!(p_tracker.id_counter, v_tracker.id_counter);
+        assert_eq!(p_tracker.sum_check_claims, v_tracker.sum_check_claims);
+        assert_eq!(p_tracker.zero_check_claims, v_tracker.zero_check_claims);
         
         Ok(())
     }
