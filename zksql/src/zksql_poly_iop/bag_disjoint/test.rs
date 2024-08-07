@@ -36,7 +36,7 @@ mod test {
         let mut verifier_tracker: VerifierTrackerRef<Bls12_381, MultilinearKzgPCS<Bls12_381>> = VerifierTrackerRef::new_from_pcs_params(pcs_verifier_param);
 
         // // Test good path 1: a and b are same size, are disjoint, no dups
-        // print!("BagSuppIOP good path 1 test: ");
+        // print!("BagDisjointIOP good path 1 test: ");
         // let poly_a_nv = 4;
         // let poly_b_nv = 4;
         // let poly_a_nums = (0..2_usize.pow(poly_a_nv as u32)).collect::<Vec<usize>>();
@@ -59,7 +59,7 @@ mod test {
 
 
         // test good path 2: a and b are different sizes, non-trivial selector, no dups
-        print!("BagSuppIOP good path 2 test: ");
+        print!("BagDisjointIOP good path 2 test: ");
         let poly_a_nv = 3;
         let poly_b_nv = 2;
         let poly_a_nums = (0..2_usize.pow(poly_a_nv as u32)).collect::<Vec<usize>>();
@@ -84,7 +84,7 @@ mod test {
         println!("passed");
 
         // test good path 3: a and b are same size, are disjoint, with dups
-        print!("BagSuppIOP good path 3 test: ");
+        print!("BagDisjointIOP good path 3 test: ");
         let poly_a_nv = 3;
         let poly_b_nv = 3;
         let poly_a_nums = [1, 1, 2, 0, 0, 0, 0, 0];
@@ -107,7 +107,7 @@ mod test {
         println!("passed");
 
         // test bad path 1: a and b are sets, there is a shared element
-        print!("BagSuppIOP bad path 1 test: ");
+        print!("BagDisjointIOP bad path 1 test: ");
         let poly_a_nums = vec![0, 1];
         let poly_b_nums = vec![1, 2];
         let sel_a_nums = vec![1, 1];
@@ -131,7 +131,7 @@ mod test {
         println!("passed"); 
 
         // test bad path 2: a and b are bags, there are shared elements
-        print!("BagSuppIOP bad path 2 test: ");
+        print!("BagDisjointIOP bad path 2 test: ");
         let poly_a_nv = 3;
         let poly_b_nv = 3;
         let poly_a_nums = [1, 1, 2, 5, 5, 6, 0, 0];
@@ -234,7 +234,7 @@ mod test {
          let mut verifier_tracker: VerifierTrackerRef<Bls12_381, MultilinearKzgPCS<Bls12_381>> = VerifierTrackerRef::new_from_pcs_params(pcs_verifier_param);
  
          // Test good path 1: a and b are same size, are disjoint, no dups
-         print!("BagSuppIOP good path 1 test: ");
+         print!("BagDisjointIOP good path 1 test: ");
          let poly_a_nv = 4;
          let poly_b_nv = 4;
          let poly_a_nums = (0..2_usize.pow(poly_a_nv as u32)).collect::<Vec<usize>>();
@@ -257,7 +257,7 @@ mod test {
  
  
          // test good path 2: a and b are different sizes, non-trivial selector, no dups
-         print!("BagSuppIOP good path 2 test: ");
+         print!("BagDisjointIOP good path 2 test: ");
          let poly_a_nv = 3;
          let poly_b_nv = 2;
          let poly_a_nums = (0..2_usize.pow(poly_a_nv as u32)).collect::<Vec<usize>>();
@@ -282,7 +282,7 @@ mod test {
          println!("passed");
  
          // test good path 3: a and b are same size, are disjoint, with dups
-         print!("BagSuppIOP good path 3 test: ");
+         print!("BagDisjointIOP good path 3 test: ");
          let poly_a_nv = 3;
          let poly_b_nv = 3;
          let poly_a_nums = [1, 1, 2, 0, 0, 0, 0, 0];
@@ -305,7 +305,7 @@ mod test {
          println!("passed");
  
          // test bad path 1: a and b are sets, there is a shared element
-         print!("BagSuppIOP bad path 1 test: ");
+         print!("BagDisjointIOP bad path 1 test: ");
          let poly_a_nums = vec![0, 1];
          let poly_b_nums = vec![1, 2];
          let sel_a_nums = vec![1, 1];
@@ -329,7 +329,7 @@ mod test {
          println!("passed"); 
  
          // test bad path 2: a and b are bags, there are shared elements
-         print!("BagSuppIOP bad path 2 test: ");
+         print!("BagDisjointIOP bad path 2 test: ");
          let poly_a_nv = 3;
          let poly_b_nv = 3;
          let poly_a_nums = [1, 1, 2, 5, 5, 6, 0, 0];
