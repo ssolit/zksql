@@ -4,6 +4,7 @@
 pub mod prelude;
 
 mod bag_disjoint;
+mod bag_disjoint_pairwise;
 mod bag_eq;
 mod bag_inclusion;
 mod bag_multitool;
