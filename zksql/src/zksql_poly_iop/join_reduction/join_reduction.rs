@@ -50,6 +50,22 @@ where PCS: PolynomialCommitmentScheme<E> {
             &range_bag,
         )?;
 
+        // Prove L and M_A are disjoint
+        BagDisjointIOP::<E, PCS>::prove(
+            prover_tracker,
+            &l_bag,
+            &ma_bag,
+            &range_bag,
+        )?;
+
+        // Prove R and M_B are disjoint
+        BagDisjointIOP::<E, PCS>::prove(
+            prover_tracker,
+            &r_bag,
+            &mb_bag,
+            &range_bag,
+        )?;
+
         // prove mid_a and mid_b have the same support
         BagInclusionIOP::<E, PCS>::prove(
             prover_tracker,
@@ -96,6 +112,22 @@ where PCS: PolynomialCommitmentScheme<E> {
             verifier_tracker,
             &l_bag,
             &r_bag,
+            &range_bag,
+        )?;
+
+        // Verify L and M_A are disjoint
+        BagDisjointIOP::<E, PCS>::verify(
+            verifier_tracker,
+            &l_bag,
+            &ma_bag,
+            &range_bag,
+        )?;
+
+        // Verify R and M_B are disjoint
+        BagDisjointIOP::<E, PCS>::verify(
+            verifier_tracker,
+            &r_bag,
+            &mb_bag,
             &range_bag,
         )?;
 
