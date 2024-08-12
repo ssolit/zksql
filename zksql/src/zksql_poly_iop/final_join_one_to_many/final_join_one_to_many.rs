@@ -23,7 +23,7 @@ where PCS: PolynomialCommitmentScheme<E> {
         table_b: &Table<E, PCS>, // foreign key table, has duplicates
         a_join_col_index: usize,
         b_join_col_index: usize,
-    ) -> Result<(), PolyIOPErrors> {
+    ) -> Result<Table<E, PCS>, PolyIOPErrors> {
         // calculate the mles needed for the result table
         // calculate the index transform that should be applied to table_a to get rows of the result table 
         let a_index_transform = calc_final_join_one_to_many_index_transform(table_a, table_b, a_join_col_index, b_join_col_index)?;
@@ -40,7 +40,7 @@ where PCS: PolynomialCommitmentScheme<E> {
         }
 
         // invoke the gadget IOPs to prove the result table is correct
-        FinalJoinOneToManyIOP::prove_with_advice(
+        let res_table = FinalJoinOneToManyIOP::prove_with_advice(
             prover_tracker,
             table_a,
             table_b,
@@ -49,7 +49,7 @@ where PCS: PolynomialCommitmentScheme<E> {
             &transformed_a_cols,
         )?;
 
-        Ok(())
+        Ok(res_table)
     }
 
     pub fn prove_with_advice(
@@ -59,7 +59,7 @@ where PCS: PolynomialCommitmentScheme<E> {
         a_join_col_index: usize,
         b_join_col_index: usize,
         transformed_a_cols: &Vec::<TrackedPoly<E, PCS>>,
-    ) -> Result<(), PolyIOPErrors> {
+    ) -> Result<Table<E, PCS>, PolyIOPErrors> {
         // sanity check that the table_a join_col does not have duplicates, since the IOP is not sound otherwise
         #[cfg(debug_assertions)] 
         {
@@ -97,7 +97,7 @@ where PCS: PolynomialCommitmentScheme<E> {
         let equality_check_poly = join_col_a.sub_poly(&join_col_b).mul_poly(&res_table.selector.clone());
         prover_tracker.add_zerocheck_claim(equality_check_poly.id);
         
-        Ok(())
+        Ok(res_table)
     }
 
     pub fn verify(
@@ -106,7 +106,7 @@ where PCS: PolynomialCommitmentScheme<E> {
         table_b: &TableComm<E, PCS>, // foreign key table, has duplicates
         a_join_col_index: usize,
         b_join_col_index: usize,
-    ) -> Result<(), PolyIOPErrors> {
+    ) -> Result<TableComm<E, PCS>, PolyIOPErrors> {
         // tranfer trackerIDs for the transformed_a_cols to the verifier tracker
         let mut transformed_a_cols = Vec::<TrackedComm<E, PCS>>::with_capacity(table_a.col_vals.len());
         for _ in table_a.col_vals.iter() {
@@ -115,7 +115,7 @@ where PCS: PolynomialCommitmentScheme<E> {
         }
 
         // invoke the gadget IOPs to prove the result table is correct
-        FinalJoinOneToManyIOP::verify_with_advice(
+        let res_table = FinalJoinOneToManyIOP::verify_with_advice(
             verifier_tracker,
             table_a,
             table_b,
@@ -124,7 +124,7 @@ where PCS: PolynomialCommitmentScheme<E> {
             &transformed_a_cols,
         )?;
 
-        Ok(())
+        Ok(res_table)
     }
 
     pub fn verify_with_advice(
@@ -134,7 +134,7 @@ where PCS: PolynomialCommitmentScheme<E> {
         a_join_col_index: usize,
         b_join_col_index: usize,
         transformed_a_cols: &Vec::<TrackedComm<E, PCS>>,
-    ) -> Result<(), PolyIOPErrors> {
+    ) -> Result<TableComm<E, PCS>, PolyIOPErrors> {
         // set up the result table
         let mut res_table_col_polys = transformed_a_cols.clone();
         res_table_col_polys.append(&mut table_b.col_vals.clone());
@@ -155,6 +155,6 @@ where PCS: PolynomialCommitmentScheme<E> {
         let equality_check_poly = join_col_a.sub_comms(&join_col_b).mul_comms(&res_table.selector.clone());
         verifier_tracker.add_zerocheck_claim(equality_check_poly.id);
 
-        Ok(())
+        Ok(res_table)
     }
 }
