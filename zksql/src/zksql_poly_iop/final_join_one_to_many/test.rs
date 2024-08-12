@@ -190,8 +190,8 @@ mod test {
         let transformed_a_cols = vec![a_col_0_mle.clone(), a_col_1_mle.clone()];
 
         test_final_join_one_to_many_with_advice_helper(
-            &mut prover_tracker, 
-            &mut verifier_tracker, 
+            &mut prover_tracker.deep_copy(), 
+            &mut verifier_tracker.deep_copy(), 
             &a_cols, 
             &b_cols, 
             &a_sel_mle, 
