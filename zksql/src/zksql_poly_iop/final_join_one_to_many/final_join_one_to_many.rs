@@ -30,7 +30,7 @@ where PCS: PolynomialCommitmentScheme<E> {
         // calculate the columns of the result table that come from table_a by applying the index transform
         let mut res_table_a_mles = Vec::<DenseMultilinearExtension<E::ScalarField>>::with_capacity(table_a.col_vals.len());
         for a_col in table_a.col_vals.iter() {
-            res_table_a_mles.push(calc_index_transformed_bag(&a_index_transform, a_col, &table_a.selector)?);
+            res_table_a_mles.push(calc_index_transformed_bag(&a_index_transform, a_col, &table_b.selector)?);
         }
 
         // put res_table_a_mles into the prover tracker

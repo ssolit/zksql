@@ -1,43 +1,11 @@
 use ark_ec::pairing::Pairing;
 use ark_poly::DenseMultilinearExtension;
-use std::marker::PhantomData;
 use ark_std::One;
 use ark_std::Zero;
-use std::ops::Neg;
 use std::collections::HashMap;
 
 use subroutines::pcs::PolynomialCommitmentScheme;
-use crate::{
-    tracker::prelude::*,
-    zksql_poly_iop::{
-        bag_disjoint::bag_disjoint::BagDisjointIOP, bag_inclusion::bag_inclusion::BagInclusionIOP, index_transform, selector_valid::selector_valid::SelectorValidIOP
-    },
-};
-
-// // Calculates the transformed columns of table_a that go into the result table for the join
-// // Columns of table_b remain unchanged in the result table for the one-to-many join case 
-// pub fn calc_final_join_one_to_many_advice<E, PCS>(
-//     prover_tracker: &mut ProverTrackerRef<E, PCS>,
-//     table_a: &Table<E, PCS>, // primary key table, no duplicates
-//     table_b: &Table<E, PCS>, // foreign key table, has duplicates
-//     a_join_col_index: usize,
-//     b_join_col_index: usize,
-// ) -> Result<Vec<DenseMultilinearExtension<E::ScalarField>>, PolyIOPErrors>
-// where
-//     E: Pairing,
-//     PCS: PolynomialCommitmentScheme<E>,
-// {
-//     let mut transformed_a = Vec::<DenseMultilinearExtension<E::ScalarField>>::with_capacity(table_a.col_vals.len());
-
-//     // calculate the index transform that should be applied to table_a to get rows of the result table 
-//     let index_transform = calc_final_join_one_to_many_index_transform(table_a, table_b, a_join_col_index, b_join_col_index)?;
-
-//     // apply in index_transform to each column of table_a
-//     for col in table_a.col_vals.iter() {
-
-
-//     Ok(())
-// }
+use crate::tracker::prelude::*;
 
 // Calculate the index transform that should be applied to table_a to get rows of the result table 
 // returns a list of indices I such that 
@@ -56,7 +24,7 @@ where
     let mut a_join_col_hashmap: HashMap<E::ScalarField, usize> = HashMap::new();
     let a_join_col_evals = table_a.col_vals[a_join_col_index].evaluations();
     let a_sel_evals = table_a.selector.evaluations();
-    for i in 0..table_a.col_vals.len() {
+    for i in 0..a_join_col_evals.len() {
         if a_sel_evals[i] == E::ScalarField::one() { // only include activated rows
             let val = a_join_col_evals[i];
             a_join_col_hashmap.insert(val, i);
