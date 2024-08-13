@@ -26,6 +26,25 @@ where PCS: PolynomialCommitmentScheme<E> {
         let common_mset_supp_m_mle = calc_bag_inclusion_advice_from_bag(bag, supp);
         let common_mset_supp_m = prover_tracker.track_and_commit_poly(common_mset_supp_m_mle)?;
     
+        BagSuppIOP::prove_with_advice(
+            prover_tracker, 
+            bag, 
+            supp, 
+            &common_mset_supp_m, 
+            range_bag
+        )?;
+    
+        Ok(())
+    }
+
+    pub fn prove_with_advice(
+        prover_tracker: &mut ProverTrackerRef<E, PCS>,
+        bag: &Bag<E, PCS>,
+        supp: &Bag<E, PCS>,
+        common_mset_supp_m: &TrackedPoly<E, PCS>,
+        range_bag: &Bag<E, PCS>,
+    ) -> Result<(), PolyIOPErrors> {
+
         // Show bag \subseteq supp
         BagInclusionIOP::<E, PCS>::prove_with_advice(
             prover_tracker,
@@ -50,7 +69,7 @@ where PCS: PolynomialCommitmentScheme<E> {
             supp,
             range_bag,
         )?;
-    
+
         Ok(())
     }
 
@@ -64,6 +83,24 @@ where PCS: PolynomialCommitmentScheme<E> {
         let common_mset_supp_m_id = verifier_tracker.get_next_id();
         let common_mset_supp_m = verifier_tracker.transfer_prover_comm(common_mset_supp_m_id);
 
+        BagSuppIOP::verify_with_advice(
+            verifier_tracker, 
+            bag, 
+            supp, 
+            &common_mset_supp_m, 
+            range_bag_comm
+        )?;
+
+        Ok(())
+    }
+
+    pub fn verify_with_advice(
+        verifier_tracker: &mut VerifierTrackerRef<E, PCS>,
+        bag: &BagComm<E, PCS>,
+        supp: &BagComm<E, PCS>,
+        common_mset_supp_m: &TrackedComm<E, PCS>,
+        range_bag_comm: &BagComm<E, PCS>,
+    ) -> Result<(), PolyIOPErrors> {
         // Use BagMultitool PIOP to show bag and supp share a Common Multiset
         BagInclusionIOP::<E, PCS>::verify_with_advice(
             verifier_tracker,

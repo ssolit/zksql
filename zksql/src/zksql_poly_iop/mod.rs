@@ -14,6 +14,7 @@ mod bag_sum;
 mod bag_supp;
 
 mod cross_product;
+mod group_by;
 mod final_join_one_to_many;
 mod index_transform;
 mod join_reduction;
