@@ -85,6 +85,10 @@ impl<E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTracker<E, PCS> {
         TrackerID(id)
     }
 
+    pub fn get_next_id(&mut self) -> TrackerID {
+        TrackerID(self.id_counter)
+    }
+    
     pub fn track_mat_poly(
         &mut self,
         polynomial: DenseMultilinearExtension<E::ScalarField>,

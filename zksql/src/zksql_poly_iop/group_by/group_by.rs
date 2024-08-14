@@ -15,6 +15,7 @@ use crate::{
     },
 };
 
+#[derive(Clone, Debug, PartialEq)]
 pub enum AggregationTypes {
     Count,
     Sum,
@@ -29,11 +30,13 @@ pub enum AggregationTypes {
     // ...
 }
 
+#[derive(Clone, Debug, PartialEq)]
 pub struct GroupByInstruction {
     pub grouping_cols: Vec<usize>,
     pub agg_instr: Vec<(usize, AggregationTypes)>, // (col_idx, agg_type)
 }
 
+#[derive(Clone, PartialEq)]
 pub struct GroupByInstructionWithProvingAdvice<E: Pairing, PCS: PolynomialCommitmentScheme<E>> {
     pub grouping_cols: Vec<usize>,
     pub support_cols: Vec<TrackedPoly<E, PCS>>,
@@ -42,6 +45,7 @@ pub struct GroupByInstructionWithProvingAdvice<E: Pairing, PCS: PolynomialCommit
     pub agg_instr: Vec<(usize, AggregationTypes, TrackedPoly<E, PCS>)>, // (col_idx, agg_type, agg_poly)
 }
 
+#[derive(Clone, PartialEq)]
 pub struct GroupByInstructionWithVerifyingAdvice<E: Pairing, PCS: PolynomialCommitmentScheme<E>> {
     pub grouping_cols: Vec<usize>,
     pub support_cols: Vec<TrackedComm<E, PCS>>,
@@ -147,7 +151,7 @@ where PCS: PolynomialCommitmentScheme<E> {
                         prover_tracker,
                         &vec![pre_grouping_col_bag.clone()],
                         &vec![grouped_col_bag.clone()],
-                        &vec![pre_agg_poly],
+                        &vec![pre_agg_poly.clone()],
                         &vec![agg_poly.clone()],
                     )?;
                 },

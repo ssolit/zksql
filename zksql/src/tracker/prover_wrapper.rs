@@ -108,6 +108,11 @@ impl <E: Pairing, PCS: PolynomialCommitmentScheme<E>> ProverTrackerRef<E, PCS> {
         tracker_ref_cell.borrow_mut().add_zerocheck_claim(poly_id);
     }
 
+    pub fn get_next_id(&mut self) -> TrackerID {
+        let tracker_ref_cell: &RefCell<ProverTracker<E, PCS>> = self.tracker_rc.borrow();
+        tracker_ref_cell.borrow_mut().get_next_id()
+    }
+
     pub fn compile_proof(&mut self) -> Result<CompiledZKSQLProof<E, PCS>, PolyIOPErrors> {
         let tracker_ref_cell: &RefCell<ProverTracker<E, PCS>> = self.tracker_rc.borrow();
         tracker_ref_cell.borrow_mut().compile_proof()
