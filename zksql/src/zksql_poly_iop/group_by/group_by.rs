@@ -15,8 +15,8 @@ use crate::{
     },
 };
 
-#[derive(Clone, Debug, PartialEq)]
-pub enum AggregationTypes {
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum AggregationType {
     Count,
     Sum,
     Avg,
@@ -33,7 +33,7 @@ pub enum AggregationTypes {
 #[derive(Clone, Debug, PartialEq)]
 pub struct GroupByInstruction {
     pub grouping_cols: Vec<usize>,
-    pub agg_instr: Vec<(usize, AggregationTypes)>, // (col_idx, agg_type)
+    pub agg_instr: Vec<(usize, AggregationType)>, // (col_idx, agg_type)
 }
 
 #[derive(Clone, PartialEq)]
@@ -42,7 +42,7 @@ pub struct GroupByInstructionWithProvingAdvice<E: Pairing, PCS: PolynomialCommit
     pub support_cols: Vec<TrackedPoly<E, PCS>>,
     pub support_sel: TrackedPoly<E, PCS>,
     pub support_multiplicity: TrackedPoly<E, PCS>,
-    pub agg_instr: Vec<(usize, AggregationTypes, TrackedPoly<E, PCS>)>, // (col_idx, agg_type, agg_poly)
+    pub agg_instr: Vec<(usize, AggregationType, TrackedPoly<E, PCS>)>, // (col_idx, agg_type, agg_poly)
 }
 
 #[derive(Clone, PartialEq)]
@@ -51,7 +51,7 @@ pub struct GroupByInstructionWithVerifyingAdvice<E: Pairing, PCS: PolynomialComm
     pub support_cols: Vec<TrackedComm<E, PCS>>,
     pub support_sel: TrackedComm<E, PCS>,
     pub support_multiplicity: TrackedComm<E, PCS>,
-    pub agg_instr: Vec<(usize, AggregationTypes, TrackedComm<E, PCS>)>, // (col_idx, agg_type, agg_poly)
+    pub agg_instr: Vec<(usize, AggregationType, TrackedComm<E, PCS>)>, // (col_idx, agg_type, agg_poly)
 }
 
 pub struct GroupByIOP<E: Pairing, PCS: PolynomialCommitmentScheme<E>>(PhantomData<E>, PhantomData<PCS>);
@@ -139,11 +139,11 @@ where PCS: PolynomialCommitmentScheme<E> {
         // 2. go through the list of aggregation instructions and prove each one on the relevant column
         for (col_idx, agg_instr, agg_poly) in group_by_instructions.agg_instr.iter() {
             match agg_instr {
-                AggregationTypes::Count => {
+                AggregationType::Count => {
                     // the column that results from the count aggregation is the same as the support_multiplicity_poly
                     res_table.col_vals.push(support_multiplicity_poly.clone());
                 },
-                AggregationTypes::Sum => {
+                AggregationType::Sum => {
                     let pre_agg_poly = input_table.col_vals[*col_idx].clone();
                     // prove the sum aggregation is correct
                     // use bag_multitool with the grouping columns as values and the agg_poly as multiplicities
@@ -155,15 +155,15 @@ where PCS: PolynomialCommitmentScheme<E> {
                         &vec![agg_poly.clone()],
                     )?;
                 },
-                AggregationTypes::Avg => {
+                AggregationType::Avg => {
                     // prove the avg aggregation is correct
                     todo!();
                 },
-                AggregationTypes::Min => {
+                AggregationType::Min => {
                     // prove the min aggregation is correct
                     todo!();
                 },
-                AggregationTypes::Max => {
+                AggregationType::Max => {
                     // prove the max aggregation is correct
                     todo!();
                 },
@@ -227,11 +227,11 @@ where PCS: PolynomialCommitmentScheme<E> {
         // 2. go through the list of aggregation instructions and prove each one on the relevant column
         for (col_idx, agg_instr, agg_poly) in group_by_instructions.agg_instr.iter() {
             match agg_instr {
-                AggregationTypes::Count => {
+                AggregationType::Count => {
                     // the column that results from the count aggregation is the same as the support_multiplicity_poly
                     res_table.col_vals.push(support_multiplicity_comm.clone());
                 },
-                AggregationTypes::Sum => {
+                AggregationType::Sum => {
                     let pre_agg_poly = input_table.col_vals[*col_idx].clone();
                     // prove the sum aggregation is correct
                     // use bag_multitool with the grouping columns as values and the agg_poly as multiplicities
@@ -243,15 +243,15 @@ where PCS: PolynomialCommitmentScheme<E> {
                         &vec![agg_poly.clone()],
                     )?;
                 },
-                AggregationTypes::Avg => {
+                AggregationType::Avg => {
                     // prove the avg aggregation is correct
                     todo!();
                 },
-                AggregationTypes::Min => {
+                AggregationType::Min => {
                     // prove the min aggregation is correct
                     todo!();
                 },
-                AggregationTypes::Max => {
+                AggregationType::Max => {
                     // prove the max aggregation is correct
                     todo!();
                 },
