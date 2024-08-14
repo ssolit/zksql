@@ -31,7 +31,6 @@ mod test {
         let srs = MultilinearKzgPCS::<Bls12_381>::gen_srs_for_testing(&mut rng, range_nv)?;
         let (pcs_prover_param, pcs_verifier_param) = MultilinearKzgPCS::<Bls12_381>::trim(&srs, None, Some(10))?;
 
-        
         // create trackers
         let mut prover_tracker: ProverTrackerRef<Bls12_381, MultilinearKzgPCS<Bls12_381>> = ProverTrackerRef::new_from_pcs_params(pcs_prover_param);
         let mut verifier_tracker: VerifierTrackerRef<Bls12_381, MultilinearKzgPCS<Bls12_381>> = VerifierTrackerRef::new_from_pcs_params(pcs_verifier_param);
@@ -98,7 +97,6 @@ mod test {
         let srs = MultilinearKzgPCS::<Bls12_381>::gen_srs_for_testing(&mut rng, range_nv)?;
         let (pcs_prover_param, pcs_verifier_param) = MultilinearKzgPCS::<Bls12_381>::trim(&srs, None, Some(10))?;
 
-        
         // create trackers
         let mut prover_tracker: ProverTrackerRef<Bls12_381, MultilinearKzgPCS<Bls12_381>> = ProverTrackerRef::new_from_pcs_params(pcs_prover_param);
         let mut verifier_tracker: VerifierTrackerRef<Bls12_381, MultilinearKzgPCS<Bls12_381>> = VerifierTrackerRef::new_from_pcs_params(pcs_verifier_param);
@@ -137,8 +135,9 @@ mod test {
         let table_vals = vec![pre_group_mle.clone(), pre_agg_mle.clone()];
         let table_sel = pre_group_sel_mle.clone();
         let grouping_cols = vec![0];
-        let agg_mle_instructions = vec![(0, AggregationType::Count, agg_mle.clone())];
+        let agg_mle_instructions = vec![(1, AggregationType::Sum, agg_mle.clone())];
 
+        print!("Testing group by sum good path: ");
         test_group_by_helper(
             &mut prover_tracker, 
             &mut verifier_tracker, 
@@ -153,7 +152,31 @@ mod test {
             &range_sel_mle, 
             range_nv,
         )?;
-        
+        println!("passed");
+
+        // Test bad path with bad agg nums
+        print!("Testing group by sum bad path: ");
+        let bad_agg_nums = vec![0, 0, 0, 0, 0, 16, 36, 29]; // switched nums to the wrong order
+        let bad_agg_vals = bad_agg_nums.iter().map(|x| Fr::from(*x as u64)).collect();
+        let bad_agg_mle = DenseMultilinearExtension::from_evaluations_vec(3, bad_agg_vals);
+        let bad_agg_mle_instructions = vec![(1, AggregationType::Sum, bad_agg_mle.clone())];
+        let bad_result = test_group_by_helper::<Bls12_381, MultilinearKzgPCS::<Bls12_381>>(
+            &mut prover_tracker, 
+            &mut verifier_tracker, 
+            &table_vals, 
+            &table_sel, 
+            &grouping_cols, 
+            &vec![support_col_mle.clone()], 
+            &support_sel_mle, 
+            &support_mult_mle, 
+            &bad_agg_mle_instructions, 
+            &range_mle, 
+            &range_sel_mle, 
+            range_nv,
+        );
+        assert!(bad_result.is_err());
+        println!("passed");
+
         Ok(())
     }
 
