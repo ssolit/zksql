@@ -18,7 +18,7 @@ mod test {
         
     };
 
-    fn test_group_by_bag_grouping() -> Result<(), PolyIOPErrors> {
+    fn test_group_by_bad_grouping() -> Result<(), PolyIOPErrors> {
         // testing params
         let range_nv = 10;
         let mut rng = test_rng();
@@ -398,7 +398,7 @@ mod test {
 
     #[test]
     fn group_by_bad_grouping_test() {
-        let res = test_group_by_bag_grouping();
+        let res = test_group_by_bad_grouping();
         res.unwrap();
     }
 
