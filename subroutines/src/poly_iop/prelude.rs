@@ -6,7 +6,6 @@
 
 pub use crate::poly_iop::{
     errors::PolyIOPErrors,  
-    prod_check::ProductCheck,
     structs::IOPProof, sum_check::SumCheck, zero_check::ZeroCheck, PolyIOP,
 };
 
